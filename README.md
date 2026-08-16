@@ -35,9 +35,9 @@ A standalone desktop editor for authoring a strategy/FPS world as exact campaign
 From the repository root:
 
 ```powershell
-dotnet restore KingdomWorldEditor.sln
-dotnet build KingdomWorldEditor.sln
-dotnet test KingdomWorldEditor.sln --no-build
+dotnet restore WorldEditorPixel.sln
+dotnet build WorldEditorPixel.sln
+dotnet test WorldEditorPixel.sln --no-build
 dotnet run --project src/World.Editor/World.Editor.csproj
 ```
 

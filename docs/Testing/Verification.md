@@ -2,7 +2,7 @@
 
 ## Current automated coverage
 
-The current `dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore` run executes 433 tests across the active version-2 contract, deterministic editable world generation through ADR-0025, runtime-package export, the retained version-1 implementation, the isolated version-3 Phase 1 domain, and the campaign-resource ADR-0016 through ADR-0029 manual, preview-first generation, changed-lattice remap, custom-definition, terrain-rule, calibrated spawn-opportunity, and explicit Include/Exclude slices. The version-2 and legacy tests cover:
+The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 433 tests across the active version-2 contract, deterministic editable world generation through ADR-0025, runtime-package export, the retained version-1 implementation, the isolated version-3 Phase 1 domain, and the campaign-resource ADR-0016 through ADR-0029 manual, preview-first generation, changed-lattice remap, custom-definition, terrain-rule, calibrated spawn-opportunity, and explicit Include/Exclude slices. The version-2 and legacy tests cover:
 
 - exact `700 / 5 = 140` axis counts and `19,600` total campaign tiles;
 - rejection of partial campaign cells and invalid height definitions;
@@ -62,7 +62,7 @@ The campaign-generation tests cover:
 Run:
 
 ```powershell
-dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore
+dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 ```
 
 ## Explicit resource Include/Exclude verification on 2026-08-16
@@ -99,7 +99,7 @@ dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore
 - The custom-resource dialog now provides **Add avoided**, round-trips the list, and preserves it when duplicating a built-in. The generation dialog displays the selected definition's **Prefers** and **Avoids** factors before generation.
 - `resource-definitions.json` now writes version 2 with required `avoidedTerrainTags`; version 1 remains readable and defaults that list to empty. Runtime package version 2 is unchanged because authoring rules are not exported.
 - Automated cases cover defensive copying, contradiction rejection, supported built-in lists, soft-floor math, unchanged eligibility, end-to-end placement steering, unsupported avoided-ID reporting, manual diagnostic projection, editor round trips, duplication, and version-1/version-2 persistence.
-- Final Release build completed with zero warnings and zero errors. Full Release verification passed `413/413`; `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Final Release build completed with zero warnings and zero errors. Full Release verification passed `413/413`; `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - Republished the launcher target at `artifacts/publish/large-world-coasts/World.Editor.exe`; size `102,570,381` bytes, SHA-256 `D26EB9DB5BF41D8BD4447988A4A584D119DB5799F439ACBFC6E2396294567996`. No GUI automation or desktop-control session was used.
 
 ## Built-in Steppe terrain verification on 2026-08-16
@@ -108,13 +108,13 @@ dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore
 - The normal classifier places Steppe only after Mountain/Hills and Desert decisions, using the accepted semi-arid thresholds. A standard East Coast reference produced non-empty regional Steppe without water-facing Steppe cells or majority-land takeover.
 - The opt-in mix exposes Steppe independently. A Land Only reference requested `30% Steppe` and received the exact integer target while Plains retained its separate target. The balanced editor mix is `40/25/8/13/2/12` for Plains/Forest/Desert/Hills/Mountain/Steppe.
 - Manual painting exposes one Steppe selector entry; the canvas uses a distinct olive-gold dry-grass material. Custom terrain can use Steppe as its safe base, and resource terrain queries normalize it to Grassland while climate support remains independent.
-- Focused `CampaignMapGeneratorTests` passed `67/67`. Full Release verification passed `409/409`; the Release solution build completed with zero warnings and zero errors; `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly. The self-contained single-file Windows build was republished at `artifacts/publish/large-world-coasts/World.Editor.exe`; size `102,564,237` bytes, SHA-256 `8247663F437A1346B5B62F313835B818BE2030B4C286670F809991ABDD64647F`. The existing launcher targets this file. No GUI automation or desktop-control session was used.
+- Focused `CampaignMapGeneratorTests` passed `67/67`. Full Release verification passed `409/409`; the Release solution build completed with zero warnings and zero errors; `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly. The self-contained single-file Windows build was republished at `artifacts/publish/large-world-coasts/World.Editor.exe`; size `102,564,237` bytes, SHA-256 `8247663F437A1346B5B62F313835B818BE2030B4C286670F809991ABDD64647F`. The existing launcher targets this file. No GUI automation or desktop-control session was used.
 
 ## Scale-hierarchical directional Coast verification on 2026-08-16
 
 - Corrected the open-boundary span formula so `sigmaMin` cannot exceed `sigmaMax`; the previously failing `10,000 km` coast now generates normally.
 - Added the ADR-0024 hierarchy: zero-impact compact compatibility below `1,400 km`; a slow macro shelf and amplified two-dimensional nearshore breakup blended in through `4,200 km`; dynamically bounded supporting features; up to four scaled heterogeneous macro landmarks; and up to three longer sparse island arcs. Smooth/Natural/Rugged fade the compact regional skeleton out, while Flowing Capes intentionally retains its authored smooth cape.
-- The focused `CampaignMapGeneratorTests` run passed all `64` tests. Full repository verification passed all `402` tests. The Release solution build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- The focused `CampaignMapGeneratorTests` run passed all `64` tests. Full repository verification passed all `402` tests. The Release solution build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - One exact Natural East Coast diagnostic at seed `17,029` produced `250,000` tiles with `73.3%` land, `1,860 km` of interior shoreline relief, `1,110 km` of relief between averaged interior `1,000 km` bands, `2,274` cardinal land/water boundary edges, and nine land components. Seven additional Natural/Rugged/Flowing cases varied the broad shelf, boundary complexity, and island count without repeating one double-bay/hook stamp. Timings were observed only as a diagnostic and are not a product contract.
 - Programmatic whole-grid bitmap renders were inspected against the supplied structural reference. The retained Natural/Rugged construction showed broad asymmetric shelf change, irregular meso-scale inlets/headlands, and separated offshore pieces; obvious paired round bays and thin repeated hooks from intermediate attempts were rejected. No visible computer-control session was used.
 - The authoring limit remains honest: a `20 km` campaign tile cannot represent a sub-`20 km` cove or island width. Finer coastlines require a smaller exactly dividing tile size while remaining within the `250,000`-tile cap.
@@ -124,7 +124,7 @@ dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore
 
 - Replaced the `Continent` preset's single domain-warped ellipse with five seed-varied unequal multi-lobe masses, ten regional bay cuts, two three-island arcs, physical-kilometre warp/coast/detail fields, and sparse ocean anchors. The editor now labels the compatibility enum value **Continental world**.
 - Five new executable cases cover three stable seeds at `700 × 350 km`, at least three major components above 2% of world area, dominant/secondary size hierarchy, `24%..46%` land share, a horizontal Sea run at least 18% of map width, at least 12% seed-to-seed land/water change, simultaneous boundary land and Sea, and at least 86% macro-mask agreement between equivalent `5 km` and `10 km` grids.
-- The focused `CampaignMapGeneratorTests` run passed all `63` tests. Full repository verification passed all `401` tests with `dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore`; the Release build completed with zero warnings and zero errors.
+- The focused `CampaignMapGeneratorTests` run passed all `63` tests. Full repository verification passed all `401` tests with `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore`; the Release build completed with zero warnings and zero errors.
 - Programmatic tile renders were inspected for seeds `17,029`, `91,337`, and `902,117` on `140 × 70` and `140 × 140` grids. The first pass exposed five equal cookie-shaped islands; the retained formula was then retuned to a dominant/large/medium/small/microcontinental hierarchy before acceptance. No visible computer-control session was used.
 - Published a self-contained single-file Windows build at `artifacts/publish/continental-world/World.Editor.exe`; `Launch Tile Editor.cmd` targeted it at that checkpoint. Size: `102,560,141` bytes. SHA-256: `0D337E7E73F6813A05847C7F2D3AA6AE31BBBB092FDABD7A5A07A3EBCF4E94AA`.
 
@@ -132,7 +132,7 @@ dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore
 
 - Added `9` focused custom-resource editor/view-model tests plus one sparse multi-ID usage-count test. The combined custom-resource/map filter passed all `16` selected tests.
 - Automated coverage proves custom addition and selection, built-in duplication, complete advanced-rule round trips, supported-factor enforcement, exact occurrence/lock preservation, editable non-identity rules on used definitions, atomic used-category/deletion rejection, stale generation-override cleanup, equivalent-catalog no-op behavior, and deterministic one-pass usage counts.
-- Full repository verification passed all `396` tests with `dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore`. The Release solution build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Full repository verification passed all `396` tests with `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore`. The Release solution build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - Avalonia XAML compilation validates the new Windows 98 property-workshop dialog and both menu/rail entry points. A fresh in-thread Impeccable finish review returned `disposition: ship`: the established type/material language, left catalog/right grouped form topology, fixed Apply/Cancel footer, text usage locks, empty/disabled/error states, keyboard-native controls, and explicit history consequence match the existing surface contract.
 - No visible computer-control walkthrough or screenshot capture was used. The UI conclusion is bounded to compiled XAML plus static native review; correctness comes from executable domain/view-model tests. A later human pass may assess unusual Windows text scaling without changing the data-safety claim.
 - Published a self-contained single-file Windows build at `artifacts/publish/custom-resources/World.Editor.exe`; `Launch Tile Editor.cmd` targeted it at that checkpoint. Size: `102,549,901` bytes. SHA-256: `B37BA1A98101462A1E0F2B78778148A87D132122762159E2141B95E6DC525629`.
@@ -147,9 +147,9 @@ dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore
 
 ## Reviewed changed-lattice resource remapping verification on 2026-08-16
 
-- Full repository verification passed all `381` tests with `dotnet test KingdomWorldEditor.sln -c Release --no-restore`.
+- Full repository verification passed all `381` tests with `dotnet test WorldEditorPixel.sln -c Release --no-restore`.
 - Focused regenerator and editor regeneration/resource coverage passed all `24` tests with `dotnet test src/World.Tests/World.Tests.csproj -c Release --no-restore --filter "FullyQualifiedName~CampaignResourceWorldRegeneratorTests|FullyQualifiedName~EditorViewModelRegenerationTests|FullyQualifiedName~EditorViewModelResourceTests"`.
-- `dotnet build KingdomWorldEditor.sln -c Release --no-restore` completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The bounded Impeccable detector returned no findings for `NewWorldDialog.axaml`, its code-behind, and the main-window integration.
 - Automated coverage proves exact same-lattice copying; non-normalized physical-centre remapping; finer-grid movement; coarser same-ID maximum-potential/any-lock merges; exact locked out-of-bounds coordinates; saved-settings lock-first unlocked regeneration; no-settings all-occurrence remapping; immutable source independence; cancellation; exact candidate installation; project identity/history behavior; and stale source/candidate rejection without document replacement.
 - No native computer-control walkthrough was used for this slice. The Win98 resource-impact well is covered by XAML compilation, bounded detector review, explicit text-state code, and the executable domain/integration tests; a later human visual pass may validate wrapping under unusual system text scaling without changing the correctness claim.
@@ -162,24 +162,24 @@ dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore
 - The resource generator, seed, settings, and candidate data were not on the failing stack. The root cause was synchronous peer-canvas invalidation from a viewport fit event raised inside an active Avalonia render pass.
 - `WorldCanvasViewportSynchronizer` now queues cross-canvas application through the UI dispatcher, coalesces repeated requests to the latest viewport, supports both directions, and drops pending work after dialog close.
 - Five new regression tests prove deferred peer mutation, latest-value coalescing, both synchronization directions, disposal safety, and same-canvas rejection. The focused viewport/resource command passed all `22` tests.
-- Full repository verification passed all `386` tests. The Release build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Full repository verification passed all `386` tests. The Release build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The corrected self-contained build was published at `artifacts/publish/resource-generation-crash-fix/World.Editor.exe`, and `Launch Tile Editor.cmd` now targets that build. SHA-256: executable `78C9772C2FB4537D9EC294E411086440DDF36CCD63CAEF4B980BE87B95B09250`; managed editor assembly `6A5172ABCEDB91AD0BA5BFCC307A7EE16691DF7D5BD6DFE9ED94FF03E4CC02FA`.
 - A bounded hidden startup smoke observed a real main-window handle (`PID 35420`, handle `462066`) and then stopped only that launched process. This proves clean startup of the corrected artifact; the render-pass regression itself is guarded by the new deterministic synchronization tests.
 
 ## Preview-first procedural resource generation verification on 2026-08-16
 
-- Full repository verification passed all `370` tests with `dotnet test KingdomWorldEditor.sln -c Release --no-restore`.
+- Full repository verification passed all `370` tests with `dotnet test WorldEditorPixel.sln -c Release --no-restore`.
 - Focused generator/view-model/viewport/resource-document coverage passed all `63` targeted tests with `dotnet test src/World.Tests/World.Tests.csproj -c Release --no-build --no-restore --filter "FullyQualifiedName~CampaignResourceGeneratorTests|FullyQualifiedName~CampaignResourceGenerationViewModelTests|FullyQualifiedName~WorldCanvasViewportTests|FullyQualifiedName~EditorViewModelResourceTests"`.
-- `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
-- `dotnet build KingdomWorldEditor.sln -c Release --no-restore` completed with zero warnings and zero errors after the bounded native-review process was closed.
+- `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors after the bounded native-review process was closed.
 - A fresh self-contained executable was published at `artifacts/publish/resource-generation/World.Editor.exe`, and `Launch Tile Editor.cmd` now targets that build.
 - A bounded hidden Windows startup smoke launched only that canonical published executable, observed a real main-window handle (`PID 36580`, handle `396272`) within eight seconds, then stopped only that launched process. `artifacts/publish/resource-generation-preview` is a historical intermediate artifact and is not the launcher target.
 - A bounded native walkthrough created the standard `700 × 700 km`, `5 km` (`140 × 140`, `19,600` tile) world, painted broad Plains bands, opened **Regenerate Resources**, and produced an all-resource candidate containing `36,782` occurrences while the current map stayed at zero. The live run exposed an initial selected-resource/heatmap state mismatch that automated tests had not revealed; initialization and world-derived-seed preservation were corrected before the final build, full test run, publish, and smoke.
 
 ## Manual campaign-resource workspace verification on 2026-08-15
 
-- `dotnet build KingdomWorldEditor.sln -c Release --no-restore` completed with zero warnings and zero errors after the final native-inspector correction.
-- Full repository verification passed all `317` tests with `dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore`.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors after the final native-inspector correction.
+- Full repository verification passed all `317` tests with `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore`.
 - Focused ViewModel resource tests passed `10/10`; combined resource/regeneration ViewModel tests passed `13/13`.
 - Focused visible-area resource map tests passed `10/10`; focused project-coordinator tests passed `10/10`.
 - Native Windows acceptance created the default `700 × 700 km`, `5 km` (`140 × 140`, `19,600` tile) blank world, entered Resources, painted locked Clay at `50/100`, zoomed beyond `28 px/tile` to verify the exact map number, pinned the tile to inspect the hard-rule warning and unevaluated factors, unlocked it, and used shared Undo to restore the lock. Terrain surface height and selected-resource authority remained separate inspector facts.
@@ -191,19 +191,19 @@ dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore
 
 ## Campaign-resource persistence/export foundation verification on 2026-08-15
 
-- `dotnet build KingdomWorldEditor.sln -c Release --no-restore` completed with zero warnings and zero errors.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors.
 - Targeted resource-domain verification passed all `110` focused tests with `dotnet test src/World.Tests/World.Tests.csproj -c Release --no-build --no-restore --filter "FullyQualifiedName~CampaignResource"`.
-- Full repository verification passed all `293` tests with `dotnet test KingdomWorldEditor.sln -c Release --no-build --no-restore`.
-- `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Full repository verification passed all `293` tests with `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore`.
+- `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - Resource persistence verification passed all `39` tests with `dotnet test src/World.Tests/World.Tests.csproj -c Release --no-build --no-restore --filter "FullyQualifiedName~CampaignResourceSerializationTests"`.
 - Runtime-package verification passed all `14` tests with `dotnet test src/World.Tests/World.Tests.csproj -c Release --no-build --no-restore --filter "FullyQualifiedName~CampaignWorldRuntimeExporterTests"`.
 - This earlier phase validated the ADR-0016 through ADR-0018 resource foundation: definitions/catalog, sparse occurrences, version-neutral terrain queries, hard-rule diagnostics, shared resource history, strict sparse resource sidecar persistence, and deterministic runtime package version 2 export. ADR-0019 now integrates the manual editor/save/export path above; procedural resource generation and regeneration preview remain unclaimed.
 
 ## Version-3 Phase 1 verification on 2026-08-10
 
-- `dotnet build KingdomWorldEditor.sln -c Release --no-restore` completed with zero warnings and zero errors, including the unchanged desktop editor.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors, including the unchanged desktop editor.
 - All 88 tests passed; this consists of 28 new version-3 core tests plus the unchanged 60-test version-2 and legacy baseline.
-- `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - No version-3 serializer, migration, editor control, renderer, executable, or startup behavior is claimed by this phase.
 
 ## Version-2 verification on 2026-08-10
@@ -289,14 +289,14 @@ The initial tile-only verification could not establish a Windows desktop-control
 - Added **Tidal inlets** to New World with `None`, `Few`, `Balanced`, and `Drowned coast`. The default is `None`, so untouched existing generation inputs retain their prior output.
 - The inlet pass begins from the already-resolved ocean, chooses lowland single-edge shore mouths and bounded inland targets, and uses a deterministic low-ground A* route. It reruns ocean resolution afterward, so every generated inlet remains Sea-connected and the normal Coastal/Cliff, height, Lake, and River passes see the final coast.
 - At that release, the reference `700 × 700 km`, `5 km` East Coast at seed `17,029` and **Drowned coast** produced additional Sea tiles farther inland than the same `None` run while retaining Sea on the named east edge and land on the west edge. Repeated generation was identical. The later opportunity-based inlet and open-boundary decisions supersede the fixed seed/count and west-edge assumptions.
-- Release tests completed with `132` passing tests. Release build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Release tests completed with `132` passing tests. Release build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The Impeccable detector returned no findings for the changed New World dialog files. The self-contained executable at `artifacts/publish/tile-only-desert/World.Editor.exe` was republished; `Launch Tile Editor.cmd` still targets it, and a bounded five-second hidden startup smoke test passed before only that launched process was stopped.
 
 ## Tile-type selector verification on 2026-08-12
 
 - Replaced the permanently expanded terrain-type palette with one native **Terrain type** selector. The popup retains every tile type's swatch, name, and description, and the selected description remains visible beneath the control before painting.
 - Added a name-only fallback string for a type option, so standard ComboBox and accessibility presentation never expose the record's implementation text.
-- Release compilation completed with zero warnings and zero errors. All `132` existing tests passed and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Release compilation completed with zero warnings and zero errors. All `132` existing tests passed and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The Impeccable detector returned no findings for the changed selector files. An existing editor session was running from the prior publish target, so it was left untouched. The new self-contained executable was published at `artifacts/publish/tile-only-selector/World.Editor.exe`; `Launch Tile Editor.cmd` now targets it, and a bounded five-second hidden startup smoke test passed before only that launched process was stopped.
 
 ## Safe custom land tile-type verification on 2026-08-12
@@ -309,9 +309,9 @@ The initial tile-only verification could not establish a Windows desktop-control
 
 - Positive custom terrain percentages now share the same exact inland `100%` budget as Plains, Forest, Desert, Hills, Mountain, and Steppe; their safe base is only a serialized fallback and material foundation.
 - Coverage rejects custom shares without a configured inland mix, rejects an overfilled default/custom total, rejects custom shares above the entire inland pool even when their bases differ, and proves deterministic independent Plains and Mountain custom allocations.
-- Verification: `dotnet build KingdomWorldEditor.sln --no-restore`, `dotnet test src/World.Tests/World.Tests.csproj --no-build`, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` passed with `137` tests.
+- Verification: `dotnet build WorldEditorPixel.sln --no-restore`, `dotnet test src/World.Tests/World.Tests.csproj --no-build`, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` passed with `137` tests.
 - The desktop manager is reachable from **Terrain**, the left rail, and **New World**. Its base lock/deletion lock protects painted data; `0%` reads as paint-only and positive shares explicitly describe an independent portion of the inland mix.
-- Release tests completed with `135` passing tests. `dotnet build KingdomWorldEditor.sln -c Release --no-restore` completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Release tests completed with `135` passing tests. `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The Impeccable detector returned no findings for the changed menu, rail, canvas, view-model, and dialog files. The self-contained executable was published at `artifacts/publish/tile-only-custom-types/World.Editor.exe`; `Launch Tile Editor.cmd` now targets it, and a bounded five-second hidden startup smoke test passed before only that launched process was stopped.
 
 ## Natural directional-coast verification on 2026-08-12
@@ -319,7 +319,7 @@ The initial tile-only verification could not establish a Windows desktop-control
 - Replaced the former one-dimensional directional coast threshold with a canonical two-dimensional, kilometre-scaled field. The broad shelf now composes seeded bays, headlands/peninsulas, nearshore variation, and optional offshore island groups before the existing smoothing and ocean-resolution passes.
 - Added **Coast character** to New World for East, West, North, and South Coast only. **Smooth shelf**, **Natural mixed coast**, and **Rugged coast** control shoreline complexity independently from **Tidal inlets**; Natural is the default. Non-directional presets disable the selector because their own masks define the complete landmass.
 - The stable `700 × 700 km`, `5 km`, East Coast, seed `17,029` test proves cardinal land/water boundary complexity increases from Smooth through Natural to Rugged. A second test proves Natural is deterministic, keeps the east edge Sea and west edge land, and leaves every Sea tile connected to the east-edge ocean. Invalid style values are rejected.
-- Verification: `dotnet build KingdomWorldEditor.sln --no-restore` completed with zero warnings and errors, `dotnet test src/World.Tests/World.Tests.csproj --no-build` passed all `140` tests, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` was clean.
+- Verification: `dotnet build WorldEditorPixel.sln --no-restore` completed with zero warnings and errors, `dotnet test src/World.Tests/World.Tests.csproj --no-build` passed all `140` tests, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` was clean.
 - The Impeccable detector returned no findings for the changed New World dialog and generation-status UI. The self-contained executable was published at `artifacts/publish/natural-coast/World.Editor.exe`; `Launch Tile Editor.cmd` now targets it, and a bounded five-second hidden startup smoke test passed before only that launched process was stopped.
 
 ## Characteristic coastal-landmark verification on 2026-08-12
@@ -408,7 +408,7 @@ The initial tile-only verification could not establish a Windows desktop-control
 - Regional/aligned ridge blending is calculated once per transient tectonic cell and reused by height construction, Mountain selection, Hill scoring, and final classification. This avoids repeatedly evaluating the same four-octave physical field. Mountain suitability is now invariant across density choices; Sparse/Balanced/Dense retain increasing coverage from the same geology, and independently grown systems cannot block one another's seed.
 - Tributary discovery includes lower-order accumulation thresholds. A merge that only extends a one-neighbour River head may grow the network but does not consume a complete route target until it produces a separate route or actual three-exit confluence. The existing crossing and degree validators remain authoritative.
 - A generated `700 × 700 km`, `5 km`, East Coast seed `17,029` diagnostic produced `28` narrow Mountain-core tiles, `847` Hills/foothill tiles, `398` River tiles, and `4` valid River Junctions. The relief probe is stored at `artifacts/ui/17-physical-noise-relief-probe.bmp`; it is a classification/hillshade diagnostic rather than a desktop UI screenshot.
-- Release verification passed all `166` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly. No UI files changed in this pass.
+- Release verification passed all `166` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly. No UI files changed in this pass.
 - The self-contained executable was published at `artifacts/publish/physical-terrain-noise/World.Editor.exe`; `Launch Tile Editor.cmd` targets it, and a bounded five-second hidden startup smoke test passed before only that launched process was stopped.
 
 ## Regional geographic Coast skeleton verification on 2026-08-13
@@ -420,7 +420,7 @@ The initial tile-only verification could not establish a Windows desktop-control
 - Mountain-system seed spacing is invariant across density choices. Dense preserves the cumulative Balanced target for its first two systems before growing the third system, so the same geology remains coverage-monotonic after the changed land mask.
 - Added four structural regressions, one per Coast character, that flood-fill mainland from its naturally present mainland-side boundary cells and prove a connected projection beyond 75% of map width with water immediately beyond both flanks. The stable `700 × 700 km`, `5 km`, East Coast seed `17,029` probe reports one mainland component for Smooth and Flowing; Natural and Rugged may additionally retain separated islands according to their landmark composition.
 - The four-character silhouette probe is stored at `artifacts/ui/18-geographic-coast-skeleton-probe.bmp`. It is a land/Sea topology diagnostic ordered Smooth, Flowing, Natural, Rugged from left to right, not a desktop UI screenshot.
-- Release verification passed all `170` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly. No UI files changed; the selected Impeccable workflow explicitly excludes core generation algorithms.
+- Release verification passed all `170` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly. No UI files changed; the selected Impeccable workflow explicitly excludes core generation algorithms.
 - The self-contained executable was published at `artifacts/publish/regional-coast-geography/World.Editor.exe`; `Launch Tile Editor.cmd` targets it, and a bounded five-second hidden startup smoke test passed before only PID `7756`, launched by that check, was stopped.
 
 ## Opportunity-based tidal-inlet verification on 2026-08-14
@@ -431,7 +431,7 @@ The initial tile-only verification could not establish a Windows desktop-control
 - A four-seed regression proves that **Few** yields zero or one inlet component and that **Balanced** and **Drowned coast** can each produce zero or nonzero results without exceeding three components at the `140 × 140` reference. The existing deterministic, forced-edge, Sea-connectivity, `None` compatibility, and Land Only tests remain authoritative.
 - The eight-seed diagnostic observed **Few** at zero or one accepted component, **Balanced** at zero through three, and **Drowned coast** at zero through three. Seed `17,029` accepted none even at Drowned, demonstrating that the setting is no longer a forced carve. Seed `91,337` supplied a visual comparison with `0`, `1`, `3`, and `3` added components for None, Few, Balanced, and Drowned respectively.
 - The four-profile silhouette probe is stored at `artifacts/ui/19-opportunity-based-tidal-inlets-probe.bmp`, ordered None, Few, Balanced, Drowned from left to right. It is a topology diagnostic, not a desktop UI screenshot.
-- Release verification passed all `171` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Release verification passed all `171` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The self-contained executable was published at `artifacts/publish/opportunity-tidal-inlets/World.Editor.exe`; `Launch Tile Editor.cmd` targets it, and a bounded five-second hidden startup smoke test passed before only PID `35880`, launched by that check, was stopped.
 
 ## Open directional Coast boundary verification on 2026-08-14
@@ -442,7 +442,7 @@ The initial tile-only verification could not establish a Windows desktop-control
 - The 45-seed/four-style diagnostic changed from zero open mainland-side boundaries after removing only the force flag to 90 seed/style combinations after the shelf retreat. The four-style seed `6` comparison is stored at `artifacts/ui/20-natural-open-coast-boundary-probe.bmp`, ordered Smooth, Flowing, Natural, Rugged. It is a land/Sea topology diagnostic, not a desktop UI screenshot.
 - Flowing coverage now permits complete Sea-only rows at the open along-coast boundary while still requiring one connected mainland, at least half the along-coast rows to contain land, a `225 km` coast-normal excursion, a mainland-attached peninsula, the full named Sea edge, and complete ocean connectivity.
 - The changed land mask moved downstream terrain and drainage opportunities for the old fixed regression seed. Stable reference seeds now preserve the original strong contracts: seed `3` gives strict Sparse `<` Balanced `<` Dense Mountain coverage with unchanged Sea count, and West Coast seed `1` produces an explicit valid three-exit River Junction.
-- Release verification passed all `171` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Release verification passed all `171` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The self-contained executable was published at `artifacts/publish/open-coast-boundaries/World.Editor.exe`; `Launch Tile Editor.cmd` targets it, and a bounded five-second hidden startup smoke test passed before only PID `36804`, launched by that check, was stopped.
 
 ## Windows 98 workstation and numeric elevation verification on 2026-08-14
@@ -452,7 +452,7 @@ The initial tile-only verification could not establish a Windows desktop-control
 - Added **Elevation numbers** as a default-on view option in both the toolbar and **View** menu. The option affects presentation only: toggling it does not mutate tiles, interpolation, dirty state, or undo history and does not rebuild the cached terrain bitmap.
 - Numeric labels enumerate only visible tiles, reuse a bounded formatted-text cache, skip values that cannot fit, and auto-hide below `28 px/tile`. A real `140 × 140` / `19,600`-tile blank world showed no labels at the `5.28 px/tile` fit view and showed readable values at `29.60 px/tile`; painting a seven-tile diagonal at `120 m` updated each affected number immediately.
 - The inspected native build is captured at `.impeccable/review/desktop-elevation-numbers.png`. The fresh finish reviewer scored the stale design record, native-platform guidance, and early label-clutter findings **Resolved** and returned **Pass**.
-- Release verification passed all `171` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Release verification passed all `171` tests. The sequential Release build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The self-contained executable was published at `artifacts/publish/win98-elevation-numbers/World.Editor.exe`; `Launch Tile Editor.cmd` targets it, and a bounded five-second hidden startup smoke passed before only PID `36076`, launched by that check, was stopped.
 
 ## Manual acceptance path
@@ -513,13 +513,18 @@ The executable domain tests are authoritative for exact values; this path checks
 - `README.md` is a self-contained GitHub landing page. It contains no Obsidian syntax, `docs/` navigation, ADR link bundle, or dependency on documentation-vault context.
 - Product capabilities, requirements, build/run commands, controls, height/type semantics, architecture, persistence, repository source layout, and current limits remain explained directly in the README.
 
+## Solution identity verification on 2026-08-17
+
+- The root solution is named `WorldEditorPixel.sln`, matching the public repository. Every tracked restore/build/test/format command uses the new filename, and the previous solution filename is absent from the repository.
+- `dotnet restore WorldEditorPixel.sln` completed successfully. The Release build completed with zero warnings and zero errors, all `433/433` tests passed, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+
 ## Full-definition preview-first regeneration verification on 2026-08-14
 
 - Added **Regenerate** to the toolbar, **Terrain → Regenerate world…**, and `Ctrl+R`. The command is disabled until a world is open.
 - Regeneration initializes the current dimensions, campaign tile size, sea/default/minimum/maximum elevations, and current custom land catalog. All seven definition fields remain editable; exact grid validation and generation size limits run before preview. Blank remains removed so replacement still requires reviewed generated terrain.
 - The dialog restores the most recently accepted generator recipe only while it exists in the current editor process. Reopened projects use clearly labeled defaults because generator provenance is not persisted or invented.
 - Preview generation remains temporary and stale-safe: changing an input disables **Use this world** until a new preview is generated. Cancelling preserves the current tile map and undo history. Acceptance installs the exact reviewed temporary world, preserves the current project/import identity, marks the document modified, and clears obsolete undo/redo history.
-- Three focused `EditorViewModelRegenerationTests` cover identity preservation/history clearing, changed-definition acceptance with identity preservation, and absence of invented saved generator settings. Release verification passed all `174` tests; the Release build completed with zero warnings and zero errors, and `dotnet format KingdomWorldEditor.sln --verify-no-changes --no-restore` completed cleanly.
+- Three focused `EditorViewModelRegenerationTests` cover identity preservation/history clearing, changed-definition acceptance with identity preservation, and absence of invented saved generator settings. Release verification passed all `174` tests; the Release build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - A real native journey used a `700 × 700 km`, `5 km` world (`140 × 140`, `19,600` tiles), generated and accepted a Continent preview, and confirmed the replacement status contract. The inspected dialog is captured at `.impeccable/review/desktop-regenerate-world.png`; the independent finish review returned **Pass** with no material findings.
 - The self-contained executable was published at `artifacts/publish/preview-regenerate-custom-types/World.Editor.exe`; `Launch Tile Editor.cmd` targets this build. A bounded five-second hidden startup smoke passed with a real main-window handle before only PID `27348`, launched by that check, was stopped.
 
