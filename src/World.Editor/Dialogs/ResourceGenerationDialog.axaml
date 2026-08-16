@@ -1,0 +1,485 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Kingdom.World.Editor.Controls"
+        xmlns:dialogs="using:Kingdom.World.Editor.Dialogs"
+        x:Class="Kingdom.World.Editor.Dialogs.ResourceGenerationDialog"
+        Title="Regenerate Resources"
+        Width="1480"
+        Height="860"
+        MinWidth="1180"
+        MinHeight="720"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Background="{StaticResource EditorPanelBrush}">
+    <Border Grid.Row="0"
+            Padding="12,10"
+            Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98ShadowBrush}"
+            BorderThickness="0,0,0,1">
+      <StackPanel Spacing="4">
+        <TextBlock Text="PROCEDURAL RESOURCE GENERATION" Classes="section-title" />
+        <TextBlock Text="Generate a reviewable resource candidate against the current terrain. The active resource map stays unchanged until you choose Use resources."
+                   Foreground="{StaticResource EditorMutedTextBrush}"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="510,12,*">
+      <ScrollViewer x:Name="SettingsScrollViewer"
+                    Grid.Column="0"
+                    Margin="12,12,0,12"
+                    VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="10">
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="INCLUDE / EXCLUDE" Classes="section-title" />
+              <TextBlock Text="Included resources replace their unlocked occurrences. Excluded resources stay exactly as they are."
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="7">
+                <TextBlock Text="Filter" VerticalAlignment="Center" />
+                <ComboBox x:Name="ResourceFilterInput"
+                          Grid.Column="1"
+                          HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Resource selection filter" />
+              </Grid>
+              <TextBox x:Name="ResourceSearchInput"
+                       PlaceholderText="Search resource name or ID"
+                       AutomationProperties.Name="Search included and excluded resources" />
+              <Grid ColumnDefinitions="*,6,*,6,*">
+                <Button Grid.Column="0"
+                        Content="All"
+                        Classes="quiet"
+                        Click="IncludeAll_OnClick"
+                        AutomationProperties.Name="Include all resources" />
+                <Button Grid.Column="2"
+                        Content="Renewable"
+                        Classes="quiet"
+                        Click="IncludeRenewable_OnClick"
+                        AutomationProperties.Name="Include only renewable resources" />
+                <Button Grid.Column="4"
+                        Content="Finite"
+                        Classes="quiet"
+                        Click="IncludeFinite_OnClick"
+                        AutomationProperties.Name="Include only finite resources" />
+              </Grid>
+              <Grid ColumnDefinitions="*,6,*">
+                <Button Grid.Column="0"
+                        Content="Only selected"
+                        Classes="quiet"
+                        Click="IncludeOnlySelected_OnClick"
+                        AutomationProperties.Name="Include only the selected resource" />
+                <Button Grid.Column="2"
+                        Content="Exclude all"
+                        Classes="quiet"
+                        Click="ExcludeAll_OnClick"
+                        AutomationProperties.Name="Exclude all resources" />
+              </Grid>
+              <Grid ColumnDefinitions="*,82,*" ColumnSpacing="8">
+                <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="4">
+                  <TextBlock Text="INCLUDED — REGENERATE" FontWeight="SemiBold" />
+                  <ListBox x:Name="IncludedResourceList"
+                           Grid.Row="1"
+                           MinHeight="190"
+                           MaxHeight="270"
+                           AutomationProperties.Name="Resources included in regeneration">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="dialogs:ResourceDefinitionItem">
+                        <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="6" Margin="0,2">
+                          <Border Width="14"
+                                  Height="14"
+                                  VerticalAlignment="Center"
+                                  Background="{Binding SwatchBrush}"
+                                  BorderBrush="{StaticResource Win98DarkShadowBrush}"
+                                  BorderThickness="1" />
+                          <StackPanel Grid.Column="1" Spacing="0">
+                            <TextBlock Text="{Binding Name}"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding IdText}"
+                                       Classes="measurement"
+                                       FontSize="10"
+                                       Foreground="{StaticResource EditorMutedTextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="2" Spacing="0" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding CategoryText}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource EditorMutedTextBrush}" />
+                            <TextBlock Text="{Binding CoverageSummary}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource EditorMutedTextBrush}"
+                                       HorizontalAlignment="Right" />
+                          </StackPanel>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Grid>
+                <StackPanel Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Spacing="8">
+                  <Button x:Name="ExcludeSelectedButton"
+                          Content="Exclude &gt;"
+                          Click="ExcludeSelected_OnClick"
+                          AutomationProperties.Name="Move selected resource to excluded" />
+                  <Button x:Name="IncludeSelectedButton"
+                          Content="&lt; Include"
+                          Click="IncludeSelected_OnClick"
+                          AutomationProperties.Name="Move selected resource to included" />
+                </StackPanel>
+                <Grid Grid.Column="2" RowDefinitions="Auto,*" RowSpacing="4">
+                  <TextBlock Text="EXCLUDED — KEEP" FontWeight="SemiBold" />
+                  <ListBox x:Name="ExcludedResourceList"
+                           Grid.Row="1"
+                           MinHeight="190"
+                           MaxHeight="270"
+                           AutomationProperties.Name="Resources excluded from regeneration">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="dialogs:ResourceDefinitionItem">
+                        <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="6" Margin="0,2">
+                          <Border Width="14"
+                                  Height="14"
+                                  VerticalAlignment="Center"
+                                  Background="{Binding SwatchBrush}"
+                                  BorderBrush="{StaticResource Win98DarkShadowBrush}"
+                                  BorderThickness="1" />
+                          <StackPanel Grid.Column="1" Spacing="0">
+                            <TextBlock Text="{Binding Name}"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding IdText}"
+                                       Classes="measurement"
+                                       FontSize="10"
+                                       Foreground="{StaticResource EditorMutedTextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="2" Spacing="0" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding CategoryText}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource EditorMutedTextBrush}" />
+                            <TextBlock Text="{Binding CoverageSummary}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource EditorMutedTextBrush}"
+                                       HorizontalAlignment="Right" />
+                          </StackPanel>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Grid>
+              </Grid>
+              <TextBlock x:Name="ResourceSelectionHelpText"
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="SEED" Classes="section-title" />
+              <CheckBox x:Name="SeedDerivedToggle"
+                        Content="Use world-derived seed"
+                        AutomationProperties.Name="Use world-derived resource seed" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <NumericUpDown x:Name="SeedInput"
+                               Minimum="-2147483648"
+                               Maximum="2147483647"
+                               Increment="1"
+                               FormatString="N0"
+                               AutomationProperties.Name="Resource generation seed" />
+                <Button x:Name="RandomizeSeedButton"
+                        Grid.Column="1"
+                        Content="Randomize"
+                        Classes="quiet"
+                        Click="RandomizeSeed_OnClick"
+                        AutomationProperties.Name="Randomize resource seed" />
+              </Grid>
+              <TextBlock x:Name="SeedHelpText"
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="GLOBAL PROFILES" Classes="section-title" />
+              <StackPanel Spacing="5">
+                <TextBlock Text="Abundance" />
+                <ComboBox x:Name="AbundanceInput"
+                          HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Resource abundance profile" />
+              </StackPanel>
+              <StackPanel Spacing="5">
+                <TextBlock Text="Climate" />
+                <ComboBox x:Name="ClimateInput"
+                          HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Resource climate profile" />
+              </StackPanel>
+              <StackPanel Spacing="5">
+                <TextBlock Text="Geology" />
+                <ComboBox x:Name="GeologyInput"
+                          HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Resource geology profile" />
+              </StackPanel>
+              <TextBlock Text="Global profiles bias the deterministic support fields. Per-resource settings still decide coverage, concentration, and potential profile."
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="SELECTED RESOURCE" Classes="section-title" />
+              <TextBlock x:Name="SelectedResourceHeadingText"
+                         Text="Choose a resource from the list."
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <CheckBox x:Name="SelectedEnabledToggle"
+                         Content="Generate new occurrences when included"
+                         AutomationProperties.Name="Generate new occurrences for selected included resource" />
+              <TextBlock Text="When included and off, unlocked occurrences are removed while locks remain. Excluded resources are never changed."
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto,Auto">
+                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="5">
+                  <TextBlock Text="Coverage (%)" />
+                  <NumericUpDown x:Name="CoverageInput"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Increment="1"
+                                 FormatString="N0"
+                                 AutomationProperties.Name="Selected resource coverage percent" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="5">
+                  <TextBlock Text="Richness" />
+                  <ComboBox x:Name="RichnessInput"
+                            HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Selected resource richness" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,8,0,0" Spacing="5">
+                  <TextBlock Text="Richness bias" />
+                  <NumericUpDown x:Name="BiasInput"
+                                 Minimum="-30"
+                                 Maximum="30"
+                                 Increment="1"
+                                 FormatString="N0"
+                                 AutomationProperties.Name="Selected resource richness bias" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,8,0,0" Spacing="5">
+                  <TextBlock Text="Concentration" />
+                  <ComboBox x:Name="ConcentrationInput"
+                            HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Selected resource concentration" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,8,0,0" Spacing="5">
+                  <TextBlock Text="Map priority" />
+                  <NumericUpDown x:Name="MapPriorityInput"
+                                 Minimum="1"
+                                 Maximum="100"
+                                 Increment="1"
+                                 FormatString="N0"
+                                 AutomationProperties.Name="Selected resource map priority" />
+                </StackPanel>
+                <TextBlock x:Name="SelectedResourceKindText"
+                           Grid.Row="2"
+                           Grid.Column="2"
+                           Margin="0,8,0,2"
+                           VerticalAlignment="Bottom"
+                           FontSize="11"
+                           Foreground="{StaticResource EditorMutedTextBrush}"
+                           TextWrapping="Wrap" />
+              </Grid>
+              <TextBlock x:Name="SelectedResourceDescriptionText"
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border x:Name="ValidationPanel"
+                  Padding="8"
+                  IsVisible="False"
+                  Background="{StaticResource Win98WindowBrush}"
+                  BorderBrush="{StaticResource Win98ErrorBrush}"
+                  BorderThickness="2">
+            <TextBlock x:Name="ValidationText"
+                       Foreground="{StaticResource Win98ErrorBrush}"
+                       TextWrapping="Wrap" />
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Border Grid.Column="2"
+              Margin="0,12,12,12"
+              Classes="win98-group">
+        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+          <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="CURRENT VS CANDIDATE" Classes="section-title" />
+            <TextBlock Text="Both maps are read-only. Pan or zoom either one to compare the same campaign viewport."
+                       FontSize="12"
+                       Foreground="{StaticResource EditorMutedTextBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+
+          <Grid Grid.Row="1" ColumnDefinitions="*,12,*">
+            <StackPanel Grid.Column="0" Spacing="5">
+              <TextBlock Text="Preview resource" />
+              <ComboBox x:Name="PreviewResourceInput"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="Preview resource display selector">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="dialogs:ResourceDefinitionItem">
+                    <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
+                      <Border Width="14"
+                              Height="14"
+                              VerticalAlignment="Center"
+                              Background="{Binding SwatchBrush}"
+                              BorderBrush="{StaticResource Win98DarkShadowBrush}"
+                              BorderThickness="1" />
+                      <StackPanel Grid.Column="1" Spacing="0">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding IdText}"
+                                   Classes="measurement"
+                                   FontSize="10"
+                                   Foreground="{StaticResource EditorMutedTextBrush}" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding CategoryText}"
+                                 FontSize="10"
+                                 VerticalAlignment="Center"
+                                 Foreground="{StaticResource EditorMutedTextBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <Border Grid.Column="2" Classes="win98-status">
+              <TextBlock x:Name="PreviewStateText"
+                         Text="Generate a candidate to compare it against the current resource map."
+                         FontSize="12"
+                         TextWrapping="Wrap" />
+            </Border>
+          </Grid>
+
+          <Grid Grid.Row="2" ColumnDefinitions="*,10,*" MinHeight="360">
+            <Border Grid.Column="0" Classes="win98-group">
+              <Grid RowDefinitions="Auto,*,Auto" RowSpacing="6">
+                <TextBlock Text="CURRENT MAP" FontWeight="SemiBold" />
+                <Border Grid.Row="1"
+                        Background="#101010"
+                        BorderBrush="{StaticResource Win98ShadowBrush}"
+                        BorderThickness="2"
+                        ClipToBounds="True">
+                  <controls:WorldCanvas x:Name="CurrentCanvas"
+                                        ShowElevationNumbers="False"
+                                        AllowTileEditing="False"
+                                        IsResourceWorkspace="True"
+                                        AutomationProperties.Name="Current resource preview map" />
+                </Border>
+                <TextBlock x:Name="CurrentCanvasSummaryText"
+                           Grid.Row="2"
+                           FontSize="11"
+                           Foreground="{StaticResource EditorMutedTextBrush}"
+                           TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Classes="win98-group">
+              <Grid RowDefinitions="Auto,*,Auto" RowSpacing="6">
+                <TextBlock Text="CANDIDATE MAP" FontWeight="SemiBold" />
+                <Border Grid.Row="1"
+                        Background="#101010"
+                        BorderBrush="{StaticResource Win98ShadowBrush}"
+                        BorderThickness="2"
+                        ClipToBounds="True">
+                  <Grid>
+                    <controls:WorldCanvas x:Name="CandidateCanvas"
+                                          ShowElevationNumbers="False"
+                                          AllowTileEditing="False"
+                                          IsResourceWorkspace="True"
+                                          AutomationProperties.Name="Candidate resource preview map" />
+                    <StackPanel x:Name="CandidatePlaceholder"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="24"
+                                Spacing="6">
+                      <TextBlock Text="No candidate yet"
+                                 HorizontalAlignment="Center"
+                                 FontSize="16"
+                                 FontWeight="SemiBold"
+                                 Foreground="White" />
+                      <TextBlock Text="Generate resources to compare a reviewed candidate. The current map remains authoritative until Use resources."
+                                 MaxWidth="320"
+                                 TextAlignment="Center"
+                                 TextWrapping="Wrap"
+                                 Foreground="#D4D0C8" />
+                    </StackPanel>
+                    <ProgressBar x:Name="GenerationProgress"
+                                 IsVisible="False"
+                                 IsIndeterminate="True"
+                                 Height="4"
+                                 VerticalAlignment="Top"
+                                 Margin="8" />
+                  </Grid>
+                </Border>
+                <TextBlock x:Name="CandidateCanvasSummaryText"
+                           Grid.Row="2"
+                           FontSize="11"
+                           Foreground="{StaticResource EditorMutedTextBrush}"
+                           TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+          </Grid>
+
+          <Border Grid.Row="3" Classes="win98-sunken" Padding="8">
+            <TextBlock x:Name="PreviewGeneralSummaryText"
+                       Text="Whole-map counts and generation scope will appear here."
+                       FontSize="12"
+                       TextWrapping="Wrap" />
+          </Border>
+
+          <Border Grid.Row="4" Classes="win98-sunken" Padding="8">
+            <TextBlock x:Name="PreviewResourceSummaryText"
+                       Text="Selected resource report details will appear here after generation."
+                       FontSize="12"
+                       TextWrapping="Wrap" />
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            Padding="10,8"
+            Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98HighlightBrush}"
+            BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+        <Button Content="Cancel"
+                MinWidth="92"
+                Click="Cancel_OnClick"
+                IsCancel="True" />
+        <Button x:Name="GenerateButton"
+                Content="Generate candidate"
+                MinWidth="150"
+                Classes="quiet"
+                Click="Generate_OnClick"
+                IsDefault="True"
+                AutomationProperties.Name="Generate resource candidate" />
+        <Button x:Name="UseButton"
+                Content="Use resources"
+                MinWidth="150"
+                Classes="primary"
+                Click="Use_OnClick"
+                IsEnabled="False"
+                AutomationProperties.Name="Use generated resource candidate" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

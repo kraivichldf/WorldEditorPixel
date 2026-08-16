@@ -1,0 +1,304 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Kingdom.World.Editor.Dialogs.NewWorldDialog"
+        Title="New World"
+        Width="1120"
+        Height="800"
+        MinWidth="900"
+        MinHeight="680"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Background="{StaticResource EditorPanelBrush}">
+    <Border Grid.Row="0" Padding="12,10" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="4">
+        <TextBlock x:Name="DialogHeadingText" Text="NEW CAMPAIGN WORLD" Classes="section-title" />
+        <TextBlock x:Name="DialogDescriptionText"
+                   Text="World and tile dimensions use km. Each tile stores one type and one centre height in m."
+                   Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="3*,2*">
+      <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="0" VerticalScrollBarVisibility="Auto">
+        <Grid Margin="12,12,6,12" ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+          <TextBlock Text="World width" />
+          <NumericUpDown x:Name="WorldWidthInput" Value="700" Minimum="1" Maximum="1000000"
+                         Increment="10" FormatString="N0" HorizontalAlignment="Stretch" />
+          <TextBlock Text="km" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="0" Grid.Column="2" Spacing="6">
+          <TextBlock Text="World height" />
+          <NumericUpDown x:Name="WorldHeightInput" Value="700" Minimum="1" Maximum="1000000"
+                         Increment="10" FormatString="N0" HorizontalAlignment="Stretch" />
+          <TextBlock Text="km" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,18,0,0" Spacing="6">
+          <TextBlock Text="Campaign tile size" />
+          <NumericUpDown x:Name="CampaignTileInput" Value="5" Minimum="1" Maximum="1000000"
+                         Increment="1" FormatString="N0" HorizontalAlignment="Stretch" />
+          <TextBlock Text="km per square tile edge" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+        </StackPanel>
+
+        <Border Grid.Row="2" Grid.ColumnSpan="3" Margin="0,16,0,2" Classes="win98-sunken" Padding="9">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Campaign grid preview" FontWeight="SemiBold" />
+            <TextBlock x:Name="TileGridPreviewText" Classes="measurement" />
+            <TextBlock x:Name="TileCountPreviewText" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="DefinitionModeText" FontSize="12"
+                       Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="3" Grid.ColumnSpan="3" Margin="0,14,0,0" Classes="win98-group">
+          <StackPanel Spacing="11">
+            <StackPanel Spacing="3">
+              <TextBlock x:Name="StartingWorldHeadingText" Text="STARTING WORLD" Classes="section-title" />
+              <TextBlock x:Name="StartingWorldDescriptionText"
+                         Text="Choose Blank for manual painting, or generate normal tiles that remain fully editable."
+                         FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Spacing="5">
+              <TextBlock Text="World shape" />
+              <ComboBox x:Name="GenerationPresetInput" HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="Starting world shape" />
+              <TextBlock x:Name="GenerationDescriptionText" FontSize="12"
+                         Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,14,*">
+              <StackPanel Grid.Column="0" Spacing="5">
+                <TextBlock Text="Terrain" />
+                <ComboBox x:Name="TerrainStyleInput" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Generated terrain style" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="5">
+                <TextBlock Text="Lakes and rivers" />
+                <ComboBox x:Name="HydrologyInput" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Generated Lakes and Rivers amount" />
+              </StackPanel>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,14,*">
+              <StackPanel Grid.Column="0" Spacing="5">
+                <TextBlock Text="Mountain systems" />
+                <ComboBox x:Name="MountainDensityInput" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Generated mountain systems" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="5">
+                <TextBlock Text="Coast character" />
+                <ComboBox x:Name="CoastlineStyleInput" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Directional coastline character" />
+              </StackPanel>
+            </Grid>
+
+            <StackPanel Spacing="5">
+              <TextBlock Text="Tidal inlets" />
+              <ComboBox x:Name="TidalInletsInput" HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="Generated tidal inlet amount" />
+            </StackPanel>
+
+            <TextBlock Text="Coast character controls the regional shelf, bays, capes, and islands. Tidal inlet settings only raise the number and reach of separated lowland opportunities; unsuitable geography may produce fewer or none. At campaign scale, a 5 km Sea tile represents a broad estuary or drowned valley—not a narrow constructed canal."
+                       FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+
+            <CheckBox x:Name="CustomLandMixInput" Content="Set inland terrain mix"
+                      AutomationProperties.Name="Adjust generated inland tile ratios" />
+
+            <StackPanel x:Name="LandMixPanel" IsVisible="False" Spacing="9">
+              <Border Height="1" Background="{StaticResource EditorBorderBrush}" Margin="0,1,0,2" />
+              <StackPanel Spacing="3">
+                <TextBlock Text="Inland terrain mix" FontWeight="SemiBold" />
+                <TextBlock Text="Default ratios plus custom terrain mix must total 100% of eligible land. Sea, Lake, both River sizes, and water-facing Cliff stay outside it; automatic coast edges do not consume a terrain category."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+
+              <Grid ColumnDefinitions="*,14,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="5">
+                  <TextBlock Text="Plains (%)" />
+                  <NumericUpDown x:Name="PlainsRatioInput" Value="40" Minimum="0" Maximum="100"
+                                 Increment="1" FormatString="N0" HorizontalAlignment="Stretch"
+                                 AutomationProperties.Name="Plains target percent" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="5">
+                  <TextBlock Text="Forest (%)" />
+                  <NumericUpDown x:Name="ForestRatioInput" Value="25" Minimum="0" Maximum="100"
+                                 Increment="1" FormatString="N0" HorizontalAlignment="Stretch"
+                                 AutomationProperties.Name="Forest target percent" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,9,0,0" Spacing="5">
+                  <TextBlock Text="Steppe (%)" />
+                  <NumericUpDown x:Name="SteppeRatioInput" Value="12" Minimum="0" Maximum="100"
+                                 Increment="1" FormatString="N0" HorizontalAlignment="Stretch"
+                                 AutomationProperties.Name="Steppe target percent" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,9,0,0" Spacing="5">
+                  <TextBlock Text="Desert (%)" />
+                  <NumericUpDown x:Name="DesertRatioInput" Value="8" Minimum="0" Maximum="100"
+                                 Increment="1" FormatString="N0" HorizontalAlignment="Stretch"
+                                 AutomationProperties.Name="Desert target percent" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,9,0,0" Spacing="5">
+                  <TextBlock Text="Hills (%)" />
+                  <NumericUpDown x:Name="HillsRatioInput" Value="13" Minimum="0" Maximum="100"
+                                 Increment="1" FormatString="N0" HorizontalAlignment="Stretch"
+                                 AutomationProperties.Name="Hills target percent" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,9,0,0" Spacing="5">
+                  <TextBlock Text="Mountain (%)" />
+                  <NumericUpDown x:Name="MountainRatioInput" Value="2" Minimum="0" Maximum="12"
+                                 Increment="1" FormatString="N0" HorizontalAlignment="Stretch"
+                                 AutomationProperties.Name="Mountain target percent, maximum twelve" />
+                </StackPanel>
+                <TextBlock x:Name="LandMixTotalText" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
+                           Margin="0,9,0,0"
+                           FontWeight="SemiBold" Text="Total: 100% — ready"
+                           Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </Grid>
+            </StackPanel>
+
+            <Border Classes="win98-sunken" Padding="8">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <StackPanel Grid.Column="0" Spacing="3">
+                  <TextBlock Text="Custom land types" FontWeight="SemiBold" />
+                  <TextBlock x:Name="CustomTerrainSummaryText" FontSize="12"
+                             Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Custom tile types…" Classes="quiet"
+                        VerticalAlignment="Center" Click="CustomTerrainTypes_OnClick"
+                        ToolTip.Tip="Add named, colored safe-land types for painting or generation" />
+              </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <StackPanel Grid.Column="0" Spacing="5">
+                <TextBlock Text="Seed" />
+                <NumericUpDown x:Name="GenerationSeedInput" Value="17029"
+                               Minimum="-2147483648" Maximum="2147483647"
+                               Increment="1" FormatString="N0" HorizontalAlignment="Stretch"
+                               AutomationProperties.Name="Generation seed" />
+              </StackPanel>
+              <Button x:Name="RandomizeSeedButton" Grid.Column="1" Content="New random seed" Classes="quiet"
+                      VerticalAlignment="Bottom"
+                      Click="RandomizeSeed_OnClick" />
+            </Grid>
+
+            <TextBlock x:Name="GenerationConstraintText" FontSize="12"
+                       Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,18,0,0" Spacing="6">
+          <TextBlock Text="Sea level" />
+          <NumericUpDown x:Name="SeaLevelInput" Value="0" Minimum="-32768" Maximum="32767"
+                         Increment="10" FormatString="N0" HorizontalAlignment="Stretch" />
+          <TextBlock Text="m" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Grid.Column="2" Margin="0,18,0,0" Spacing="6">
+          <TextBlock Text="Default tile height" />
+          <NumericUpDown x:Name="DefaultHeightInput" Value="0" Minimum="-32768" Maximum="32767"
+                         Increment="10" FormatString="N0" HorizontalAlignment="Stretch" />
+          <TextBlock Text="m at every untouched tile centre" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="5" Grid.Column="0" Margin="0,18,0,0" Spacing="6">
+          <TextBlock Text="Minimum height" />
+          <NumericUpDown x:Name="MinimumHeightInput" Value="-1000" Minimum="-32768" Maximum="32766"
+                         Increment="100" FormatString="N0" HorizontalAlignment="Stretch" />
+          <TextBlock Text="m" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="5" Grid.Column="2" Margin="0,18,0,0" Spacing="6">
+          <TextBlock Text="Maximum height" />
+          <NumericUpDown x:Name="MaximumHeightInput" Value="6000" Minimum="-32767" Maximum="32767"
+                         Increment="100" FormatString="N0" HorizontalAlignment="Stretch" />
+          <TextBlock Text="m" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+        </StackPanel>
+
+        <Border x:Name="ValidationPanel" Grid.Row="6" Grid.ColumnSpan="3" Margin="0,18,0,0" Padding="8"
+                IsVisible="False" Background="{StaticResource Win98WindowBrush}"
+                BorderBrush="{StaticResource Win98ErrorBrush}" BorderThickness="2">
+          <TextBlock x:Name="ValidationText" Foreground="{StaticResource Win98ErrorBrush}" TextWrapping="Wrap" />
+        </Border>
+        </Grid>
+      </ScrollViewer>
+
+      <Border Grid.Column="1" Margin="6,12,12,12" Classes="win98-group">
+        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="12">
+          <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="WORLD PREVIEW" Classes="section-title" />
+            <TextBlock Text="Review the generated campaign map before it becomes your editable world."
+                       FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+
+          <Border Grid.Row="1" Classes="win98-sunken" Padding="8,6">
+            <TextBlock x:Name="GenerationPreviewStateText" Text="Choose a generated world shape, then generate a preview."
+                       FontSize="12" TextWrapping="Wrap" />
+          </Border>
+
+          <Border Grid.Row="2" MinHeight="300" Background="#101010"
+                  BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="2"
+                  ClipToBounds="True">
+            <Grid>
+              <Image x:Name="GenerationPreviewImage" Stretch="Uniform" Margin="8" IsVisible="False"
+                     AutomationProperties.Name="Generated campaign world preview" />
+              <StackPanel x:Name="GenerationPreviewPlaceholder" HorizontalAlignment="Center"
+                          VerticalAlignment="Center" Margin="24" Spacing="8">
+                <TextBlock Text="No preview yet" HorizontalAlignment="Center"
+                           FontSize="16" FontWeight="SemiBold" Foreground="White" />
+                <TextBlock x:Name="PreviewCommitNoticeText"
+                           Text="Your current world is not replaced until you choose Use this world."
+                           MaxWidth="300" TextAlignment="Center" TextWrapping="Wrap"
+                           Foreground="#D4D0C8" />
+              </StackPanel>
+              <ProgressBar x:Name="GenerationPreviewProgress" IsVisible="False" IsIndeterminate="True"
+                           Height="4" VerticalAlignment="Top" Margin="8" />
+            </Grid>
+          </Border>
+
+          <TextBlock x:Name="GenerationPreviewSummaryText" Grid.Row="3"
+                     Text="Generated terrain counts and seed will appear here."
+                     FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
+                     TextWrapping="Wrap" />
+
+          <Border x:Name="ResourceImpactPanel" Grid.Row="4" Classes="win98-sunken" Padding="8" MaxHeight="170"
+                  IsVisible="False" AutomationProperties.Name="Resource impact before world replacement">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <StackPanel Spacing="4">
+                <TextBlock Text="RESOURCE IMPACT" Classes="section-title" />
+                <TextBlock x:Name="ResourceImpactSummaryText" FontSize="12" TextWrapping="Wrap" />
+                <TextBlock x:Name="ResourceImpactWarningText" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{StaticResource EditorMutedTextBrush}" />
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+
+          <TextBlock x:Name="PreviewChangeNoticeText" Grid.Row="5"
+                     Text="Changing any setting keeps the old image for comparison but disables Use this world until you regenerate."
+                     FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
+                     TextWrapping="Wrap" />
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2" Padding="10,8" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98HighlightBrush}" BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+        <Button Content="Cancel" MinWidth="92" Click="Cancel_OnClick" IsCancel="True" />
+        <Button x:Name="GenerateButton" Classes="quiet" Content="Create blank world" MinWidth="138"
+                Click="Generate_OnClick" IsDefault="True" />
+        <Button x:Name="UsePreviewButton" Classes="primary" Content="Use this world" MinWidth="138"
+                Click="UsePreview_OnClick" IsEnabled="False" IsVisible="False" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

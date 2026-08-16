@@ -1,0 +1,658 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Kingdom.World.Editor.Controls"
+        xmlns:vm="using:Kingdom.World.Editor.ViewModels"
+        x:Class="Kingdom.World.Editor.MainWindow"
+        x:DataType="vm:EditorViewModel"
+        Title="{Binding WindowTitle}"
+        Width="1440"
+        Height="900"
+        MinWidth="1040"
+        MinHeight="680"
+        WindowStartupLocation="CenterScreen">
+  <!--
+  THESIS: One campaign tile is the only authoring unit, presented as a precise Windows 98 map workstation rather than a modern dashboard.
+  OWN-WORLD: System-gray work surfaces, navy captions, square controls, raised commands, sunken data wells, and compact Tahoma-era type.
+  STORY: Create or open a grid, switch Terrain/Resources, author one complete-tile authority at a time, inspect warnings, then save or export both layers.
+  FIRST VIEWPORT: Text commands and an explicit workspace strip above a dominant sunken map, with one contextual tool rail, one compact inspector, and segmented status truth.
+  FORM: Windows 98 Property Workshop, selected from the pinned visual direction; seed key 4c8e67a8.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+  -->
+  <Grid RowDefinitions="Auto,42,30,*,26" Background="{StaticResource EditorPanelBrush}">
+    <Menu Grid.Row="0" BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="0,0,0,1">
+      <MenuItem Header="_File">
+        <MenuItem Header="_New World…" Click="NewWorld_OnClick" InputGesture="Ctrl+N" />
+        <MenuItem Header="_Open World…" Click="OpenWorld_OnClick" InputGesture="Ctrl+O" />
+        <Separator />
+        <MenuItem Header="_Save World" Click="SaveWorld_OnClick" InputGesture="Ctrl+S" IsEnabled="{Binding HasWorld}" />
+        <MenuItem Header="Save World _As…" Click="SaveWorldAs_OnClick" InputGesture="Ctrl+Shift+S" IsEnabled="{Binding HasWorld}" />
+        <Separator />
+        <MenuItem Header="_Export Runtime Data…" Click="ExportRuntimeData_OnClick" InputGesture="Ctrl+E"
+                  IsEnabled="{Binding HasWorld}"
+                  ToolTip.Tip="Export one versioned .kworld package for a game importer" />
+        <Separator />
+        <MenuItem Header="E_xit" Click="Exit_OnClick" />
+      </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem Header="{Binding UndoMenuLabel}" Click="Undo_OnClick" InputGesture="Ctrl+Z" IsEnabled="{Binding CanUndo}" />
+        <MenuItem Header="{Binding RedoMenuLabel}" Click="Redo_OnClick" InputGesture="Ctrl+Y" IsEnabled="{Binding CanRedo}" />
+      </MenuItem>
+      <MenuItem Header="_Terrain" IsEnabled="{Binding HasWorld}">
+        <MenuItem Header="_Regenerate world…" Click="RegenerateWorld_OnClick" InputGesture="Ctrl+R"
+                  IsEnabled="{Binding CanRegenerateWorld}"
+                  ToolTip.Tip="Preview a generated replacement using this world's grid and custom tile types" />
+        <Separator />
+        <MenuItem Header="Custom tile types…" Click="CustomTerrainTypes_OnClick"
+                  ToolTip.Tip="Create safe custom land variants for painting and world generation" />
+      </MenuItem>
+      <MenuItem Header="_Resources" IsEnabled="{Binding HasWorld}">
+        <MenuItem Header="_Regenerate resources…" Click="RegenerateResources_OnClick"
+                  InputGesture="Ctrl+Shift+R" IsEnabled="{Binding CanRegenerateResources}"
+                  ToolTip.Tip="Preview terrain-aware resource placement without changing the current map" />
+        <MenuItem Header="_Custom resources…" Click="CustomResources_OnClick"
+                  ToolTip.Tip="Create and edit project-owned resource definitions for painting and generation" />
+        <Separator />
+        <MenuItem Header="Open Resources workspace" Click="ResourcesWorkspace_OnClick"
+                  ToolTip.Tip="Inspect and paint campaign resource potential without changing terrain" />
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="Campaign grid" ToggleType="CheckBox" IsChecked="{Binding ShowCampaignGrid, Mode=TwoWay}"
+                  IsEnabled="{Binding HasWorld}" />
+        <MenuItem Header="Elevation numbers (m)" ToggleType="CheckBox"
+                  IsChecked="{Binding ShowElevationNumbers, Mode=TwoWay}"
+                  IsEnabled="{Binding IsTerrainWorkspace}"
+                  ToolTip.Tip="Show each stored campaign-tile centre elevation when tiles are large enough" />
+        <MenuItem Header="Live height-only shading" ToggleType="CheckBox" IsChecked="{Binding UseGrayscale, Mode=TwoWay}"
+                  IsEnabled="{Binding IsTerrainWorkspace}" />
+        <Separator />
+        <MenuItem Header="Zoom to fit" Click="ZoomToFit_OnClick" InputGesture="F" IsEnabled="{Binding HasWorld}" />
+      </MenuItem>
+    </Menu>
+
+    <Border Grid.Row="1" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98HighlightBrush}" BorderThickness="0,1,0,1" Padding="6,5">
+      <Grid ColumnDefinitions="Auto,1,Auto,*,Auto" VerticalAlignment="Center">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+          <Button Content="New" Classes="quiet" Click="NewWorld_OnClick" ToolTip.Tip="Create a campaign-tile world (Ctrl+N)" />
+          <Button Content="Open" Classes="quiet" Click="OpenWorld_OnClick" ToolTip.Tip="Open world.json (Ctrl+O)" />
+          <Button Content="Regenerate" Classes="quiet" Click="RegenerateWorld_OnClick"
+                  IsEnabled="{Binding CanRegenerateWorld}"
+                  ToolTip.Tip="Preview a generated replacement using the current grid and custom tile types (Ctrl+R)" />
+          <Button Content="Save" Classes="primary" Click="SaveWorld_OnClick" IsEnabled="{Binding HasWorld}"
+                  ToolTip.Tip="Save the current world (Ctrl+S)" />
+          <Button Content="Export" Classes="quiet" Click="ExportRuntimeData_OnClick" IsEnabled="{Binding HasWorld}"
+                  ToolTip.Tip="Export a .kworld runtime package for game development (Ctrl+E)" />
+        </StackPanel>
+        <Border Grid.Column="1" Margin="7,1" Width="1" Background="{StaticResource Win98ShadowBrush}" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+          <Button Content="Undo" Classes="quiet" Click="Undo_OnClick" IsEnabled="{Binding CanUndo}"
+                  ToolTip.Tip="Undo one tile stroke (Ctrl+Z)" />
+          <Button Content="Redo" Classes="quiet" Click="Redo_OnClick" IsEnabled="{Binding CanRedo}"
+                  ToolTip.Tip="Redo one tile stroke (Ctrl+Y)" />
+          <Button Content="Fit world" Classes="quiet" Click="ZoomToFit_OnClick" IsEnabled="{Binding HasWorld}"
+                  ToolTip.Tip="Fit the entire world in the canvas (F)" />
+        </StackPanel>
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center"
+                    IsEnabled="{Binding HasWorld}">
+          <CheckBox Content="Tile grid" IsChecked="{Binding ShowCampaignGrid, Mode=TwoWay}" />
+          <CheckBox Content="Elevation numbers" IsChecked="{Binding ShowElevationNumbers, Mode=TwoWay}"
+                    IsVisible="{Binding IsTerrainWorkspace}"
+                    ToolTip.Tip="Show stored centre heights in metres; labels hide automatically when zoomed out" />
+          <CheckBox Content="Live height only" IsChecked="{Binding UseGrayscale, Mode=TwoWay}"
+                    IsVisible="{Binding IsTerrainWorkspace}" />
+          <TextBlock Text="Potential labels: auto" IsVisible="{Binding IsResourcesWorkspace}"
+                     VerticalAlignment="Center" Foreground="{StaticResource EditorMutedTextBrush}"
+                     ToolTip.Tip="Selected-resource potential appears when tiles reach 28 pixels" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="2" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="0,0,0,1" Padding="6,2">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="5" VerticalAlignment="Center">
+        <TextBlock Text="WORKSPACE" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0" />
+        <Button Grid.Column="1" Content="Terrain" Classes="workspace"
+                Classes.primary="{Binding IsTerrainWorkspace}"
+                Click="TerrainWorkspace_OnClick" IsEnabled="{Binding HasWorld}"
+                AutomationProperties.Name="Terrain workspace" />
+        <Button Grid.Column="2" Content="Resources" Classes="workspace"
+                Classes.primary="{Binding IsResourcesWorkspace}"
+                Click="ResourcesWorkspace_OnClick" IsEnabled="{Binding HasWorld}"
+                AutomationProperties.Name="Resources workspace" />
+        <TextBlock Grid.Column="4" Text="{Binding ResourceStatusText}" Classes="measurement"
+                   IsVisible="{Binding IsResourcesWorkspace}" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="3" Margin="4,3,4,2" ColumnDefinitions="252,4,*,4,278" Background="{StaticResource EditorPanelBrush}">
+      <Border Grid.Column="0" Background="{StaticResource EditorPanelBrush}"
+              BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="1">
+        <Grid>
+        <ScrollViewer Classes="terrain-tools" VerticalScrollBarVisibility="Auto"
+                      IsVisible="{Binding IsTerrainWorkspace}" IsEnabled="{Binding CanEditCampaignTiles}">
+          <StackPanel Margin="8" Spacing="8">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="section-title" Text="CAMPAIGN TILE STAMP" />
+              <TextBlock Text="One type + one centre height" FontSize="12"
+                         Foreground="{StaticResource EditorMutedTextBrush}" />
+            </StackPanel>
+
+            <Border Classes="win98-group">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="section-title" Text="TERRAIN TYPE" />
+              <ComboBox Classes="tile-type-selector"
+                        ItemsSource="{Binding CampaignTileTypeOptions}"
+                        SelectedItem="{Binding SelectedCampaignTileTypeOption, Mode=TwoWay}"
+                        MaxDropDownHeight="420"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="Campaign tile type selector"
+                        ToolTip.Tip="Choose the complete terrain type to stamp">
+                <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:CampaignTileTypeOption">
+                  <Grid ColumnDefinitions="16,*" ColumnSpacing="9">
+                    <Border Width="14" Height="14" VerticalAlignment="Top" Margin="0,2,0,0"
+                            Background="{Binding SwatchBrush}" BorderBrush="{StaticResource Win98DarkShadowBrush}" BorderThickness="1" />
+                    <StackPanel Grid.Column="1" Spacing="2">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding Description}" FontSize="12"
+                                 Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Text="{Binding SelectedCampaignTileTypeOption.Description}"
+                         FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              <Button Content="Custom tile types…" Classes="quiet" HorizontalAlignment="Left"
+                      Click="CustomTerrainTypes_OnClick"
+                      ToolTip.Tip="Name and color safe custom land types, then choose them here" />
+              <TextBlock Text="Custom types use a safe Plains, Steppe, Desert, Forest, Hills, or Mountain base. They never become water, shore, or river tiles."
+                         FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="section-title" Text="TILE ELEVATION" />
+                <TextBlock Grid.Column="1" Text="m at centre" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+              </Grid>
+              <NumericUpDown Value="{Binding StampHeight, Mode=TwoWay}"
+                             Minimum="{Binding MinimumStampHeight}"
+                             Maximum="{Binding MaximumStampHeight}"
+                             Increment="10" FormatString="N0" HorizontalAlignment="Stretch"
+                             AutomationProperties.Name="Campaign tile elevation in metres" />
+              <TextBlock Text="Use the arrows for 10, 20, 30, 40… m. Slopes between tile centres are automatic."
+                         FontSize="12"
+                         Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              <Border Classes="win98-sunken" Padding="6">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="9">
+                  <StackPanel Spacing="1">
+                    <TextBlock Text="Map number" FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" />
+                    <TextBlock Text="Stored centre value" FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding StampElevationLabelText}" Classes="measurement"
+                             VerticalAlignment="Center" />
+                </Grid>
+              </Border>
+              <TextBlock Text="Use View → Elevation numbers to show or hide map labels. Labels hide automatically when zoomed out."
+                         FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="section-title" Text="PAINT AREA" />
+                <TextBlock Grid.Column="1" Text="complete tiles" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Expand from centre (tiles)" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+                  <NumericUpDown Value="{Binding PaintAreaRadius, Mode=TwoWay}"
+                                 Minimum="0" Maximum="12" Increment="1" FormatString="N0"
+                                 HorizontalAlignment="Stretch"
+                                 IsEnabled="{Binding CanAdjustPaintArea}"
+                                 AutomationProperties.Name="Paint area expansion in complete tiles" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding PaintAreaText}" Classes="measurement"
+                           VerticalAlignment="Bottom" Margin="0,0,0,3" />
+              </Grid>
+              <TextBlock Text="0 paints 1 × 1; 1 paints 3 × 3. Each stamp fills complete tiles and clips cleanly at the world edge."
+                         FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+            </Border>
+
+            <Border Classes="win98-sunken" Padding="8">
+              <StackPanel Spacing="4">
+                <TextBlock Text="Active stamp" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding StampSummary}" FontWeight="SemiBold" Classes="measurement" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border IsVisible="{Binding IsRiverSelected}" Classes="win98-group">
+              <StackPanel Spacing="5">
+                <TextBlock Text="River routing" FontWeight="SemiBold" />
+                <TextBlock Text="Drag builds one N/E/S/W path and connects adjacent river tiles automatically."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="River types always keep a 1 × 1 route; paint-area expansion applies only to full surface tiles."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding RiverWidthHelpText}"
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="A tile that would create three or four exits is skipped and shown as blocked."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="5">
+                <TextBlock Text="Automatic coast" FontWeight="SemiBold" />
+                <TextBlock Text="Every non-water tile beside Sea or Lake keeps its original terrain and uses matching water on the outer 10% of each water-facing edge."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="No Coastal type is needed: Plains, custom land, Forest, Hills, Mountain, Beach, and Cliff all transition automatically."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Whole-tile editing" FontWeight="SemiBold" />
+                <TextBlock Text="Left-click or drag stamps every touched tile edge to edge. Increase Paint Area to fill a square of complete tiles; River types stay connected channels over ground."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="Neighbouring centre heights are blended automatically into a continuous slope."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer Classes="resource-tools" VerticalScrollBarVisibility="Auto"
+                      IsVisible="{Binding IsResourcesWorkspace}" IsEnabled="{Binding CanEditResources}">
+          <StackPanel Margin="8" Spacing="8">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="section-title" Text="CAMPAIGN RESOURCE PAINT" />
+              <TextBlock Text="One selected resource; terrain stays unchanged" FontSize="12"
+                         Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Button Content="Regenerate resources…" Classes="primary"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Click="RegenerateResources_OnClick" IsEnabled="{Binding CanRegenerateResources}"
+                    AutomationProperties.Name="Regenerate campaign resources"
+                    ToolTip.Tip="Generate a reviewable candidate; the current resource map changes only after Use resources" />
+            <Button Content="Custom resources…" Classes="quiet"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Click="CustomResources_OnClick"
+                    AutomationProperties.Name="Manage custom resource definitions"
+                    ToolTip.Tip="Add project-owned resources or duplicate a built-in definition" />
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="section-title" Text="RESOURCE" />
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="7">
+                  <TextBlock Text="Category" VerticalAlignment="Center" />
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding ResourceCategoryFilterOptions}"
+                            SelectedItem="{Binding SelectedResourceCategoryFilter, Mode=TwoWay}"
+                            AutomationProperties.Name="Resource category filter" />
+                </Grid>
+                <ComboBox Classes="tile-type-selector"
+                          ItemsSource="{Binding ResourceOptions}"
+                          SelectedItem="{Binding SelectedResourceOption, Mode=TwoWay}"
+                          MaxDropDownHeight="420" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Campaign resource selector">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CampaignResourceOption">
+                      <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
+                        <Border Width="14" Height="14" VerticalAlignment="Center"
+                                Background="{Binding SwatchBrush}" BorderBrush="{StaticResource Win98DarkShadowBrush}"
+                                BorderThickness="1" />
+                        <StackPanel Grid.Column="1" Spacing="0">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding IdText}" Classes="measurement" FontSize="10"
+                                     Foreground="{StaticResource EditorMutedTextBrush}"
+                                     TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding CategoryText}" FontSize="11"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource EditorMutedTextBrush}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="Coverage ratios do not apply here. Painting writes exact potential only."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="7">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Classes="section-title" Text="POTENTIAL" />
+                  <TextBlock Grid.Column="1" Text="1–100" FontSize="12"
+                             Foreground="{StaticResource EditorMutedTextBrush}" />
+                </Grid>
+                <NumericUpDown Value="{Binding ResourcePotential, Mode=TwoWay}"
+                               Minimum="1" Maximum="100" Increment="1" FormatString="N0"
+                               AutomationProperties.Name="Selected resource potential" />
+                <TextBlock Text="Potential is relative to this resource, not an inventory or economic value."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="7">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Classes="section-title" Text="PAINT AREA" />
+                  <TextBlock Grid.Column="1" Text="complete tiles" FontSize="12"
+                             Foreground="{StaticResource EditorMutedTextBrush}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <NumericUpDown Value="{Binding ResourcePaintAreaRadius, Mode=TwoWay}"
+                                 Minimum="0" Maximum="12" Increment="1" FormatString="N0"
+                                 AutomationProperties.Name="Resource paint area expansion" />
+                  <TextBlock Grid.Column="1" Text="{Binding ResourcePaintAreaText}" Classes="measurement"
+                             VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="0 paints 1 × 1; 12 paints 25 × 25. The footprint clips at the world edge."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="7">
+                <TextBlock Classes="section-title" Text="TOOL" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="7">
+                  <Button Content="Add / update" Classes="quiet"
+                          Classes.primary="{Binding IsResourceAddUpdateTool}"
+                          Click="ResourceAddUpdateTool_OnClick"
+                          AutomationProperties.Name="Add or update selected resource tool" />
+                  <Button Grid.Column="1" Content="Erase selected" Classes="quiet"
+                          Classes.primary="{Binding IsResourceEraseTool}"
+                          Click="ResourceEraseTool_OnClick"
+                          AutomationProperties.Name="Erase selected resource tool" />
+                </Grid>
+                <CheckBox Content="Lock manual edits" IsChecked="{Binding LockManualResourceEdits, Mode=TwoWay}"
+                          ToolTip.Tip="Locked occurrences survive later resource regeneration" />
+                <TextBlock Text="Add/update changes only this resource ID. Erase leaves every other resource and all terrain untouched."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-sunken" Padding="8">
+              <StackPanel Spacing="4">
+                <TextBlock Text="Active resource stamp" FontSize="12"
+                           Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding ResourceStampSummary}" FontWeight="SemiBold"
+                           Classes="measurement" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="5">
+                <TextBlock Text="Suitability warnings" FontWeight="SemiBold" />
+                <TextBlock Text="Manual out-of-profile placement is allowed. Pin the tile to read the exact hard-rule warning; warnings never delete data."
+                           FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{StaticResource Win98ShadowBrush}" />
+
+      <Border Grid.Column="2" Classes="win98-sunken" Padding="2" Background="#404040">
+      <Grid Background="#101010">
+        <controls:WorldCanvas x:Name="WorldCanvas"
+                              World="{Binding World}"
+                              AllowTileEditing="{Binding CanEditCampaignTiles}"
+                              SelectedCampaignTileType="{Binding SelectedCampaignTileType}"
+                              SelectedCustomTerrainId="{Binding SelectedCustomTerrainId}"
+                              StampHeight="{Binding StampHeight}"
+                              PaintAreaRadius="{Binding PaintAreaRadius}"
+                              ResourceMap="{Binding ResourceMap}"
+                              IsResourceWorkspace="{Binding IsResourcesWorkspace}"
+                              SelectedResourceId="{Binding SelectedResourceId}"
+                              ResourcePotential="{Binding ResourcePotential}"
+                              ResourcePaintAreaRadius="{Binding ResourcePaintAreaRadius}"
+                              EraseSelectedResource="{Binding IsResourceEraseTool}"
+                              LockManualResourceEdits="{Binding LockManualResourceEdits}"
+                              ShowCampaignGrid="{Binding ShowCampaignGrid}"
+                              ShowElevationNumbers="{Binding ShowElevationNumbers}"
+                              UseGrayscale="{Binding UseGrayscale}"
+                              AutomationProperties.Name="Campaign tile editing canvas" />
+
+        <Border IsVisible="{Binding ShowEmptyState}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                MaxWidth="440" Padding="18" Background="{StaticResource EditorPanelBrush}"
+                BorderBrush="{StaticResource Win98DarkShadowBrush}" BorderThickness="2">
+          <StackPanel Spacing="10" HorizontalAlignment="Center">
+            <TextBlock Text="Begin with campaign tiles" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" />
+            <TextBlock Text="Create a world grid or open world.json. Every campaign tile owns one terrain type and one centre height."
+                       TextAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource EditorMutedTextBrush}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,4,0,0">
+              <Button Classes="primary" Content="New world" Click="NewWorld_OnClick" />
+              <Button Classes="quiet" Content="Open world" Click="OpenWorld_OnClick" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border IsVisible="{Binding HasWorld}" HorizontalAlignment="Left" VerticalAlignment="Top"
+                Margin="8" Classes="win98-status">
+          <TextBlock Text="{Binding CanvasTitle}" FontWeight="Bold" />
+        </Border>
+
+        <Border IsVisible="{Binding HasWorld}" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                Margin="8" Padding="8,6" Background="#FFFFE1" BorderBrush="{StaticResource Win98DarkShadowBrush}" BorderThickness="1">
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding CanvasHelpTitle}" FontSize="12" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding CanvasHelpText}"
+                       FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+      </Border>
+
+      <GridSplitter Grid.Column="3" ResizeDirection="Columns" Background="{StaticResource Win98ShadowBrush}" />
+
+      <Border Grid.Column="4" Background="{StaticResource EditorPanelBrush}"
+              BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="1">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="8" Spacing="9">
+            <TextBlock Classes="section-title" Text="LIVE TILE" />
+
+            <StackPanel Spacing="9">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Tile X" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding HoverTileXText}" Classes="measurement" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Tile Y" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding HoverTileYText}" Classes="measurement" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Type" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding HoverTileTypeText}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Stored centre" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding HoverStoredHeightText}" Classes="measurement" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding HoverSurfaceLabel}" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding HoverDerivedHeightText}" Classes="measurement" />
+              </Grid>
+              <StackPanel Spacing="3">
+                <TextBlock Text="World position" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding HoverWorldPositionText}" Classes="measurement" TextWrapping="Wrap" />
+              </StackPanel>
+              <StackPanel Spacing="3" IsVisible="{Binding IsResourcesWorkspace}">
+                <TextBlock Text="Selected resource" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding HoverSelectedResourceText}" Classes="measurement" TextWrapping="Wrap" />
+              </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Classes="section-title" Text="PINNED TILE" />
+              <TextBlock Text="{Binding SelectionText}" TextWrapping="Wrap" />
+
+              <StackPanel Spacing="6" IsVisible="{Binding IsTerrainWorkspace}">
+                <TextBlock Text="{Binding ElevationHelperText}" FontSize="12"
+                           Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="7" Margin="0,2,0,1">
+                  <Button Content="Copy centre" Classes="quiet" Click="CopyPinnedHeight_OnClick"
+                          IsEnabled="{Binding CanUsePinnedElevationHelper}"
+                          ToolTip.Tip="Use the exact centre height of the right-click pinned tile"
+                          AutomationProperties.Name="Copy pinned tile centre height" />
+                  <Button Grid.Column="1" Content="Blend around" Classes="quiet" Click="BlendPinnedHeight_OnClick"
+                          IsEnabled="{Binding CanUsePinnedElevationHelper}"
+                          ToolTip.Tip="Use the 10 metre-rounded average of valid north, east, south, and west neighbours"
+                          AutomationProperties.Name="Use nearby cardinal-neighbour elevation blend" />
+                </Grid>
+                <Border IsVisible="{Binding HasPinnedRiverRoute}" Margin="0,4,0,2" Classes="win98-group">
+                  <StackPanel Spacing="7">
+                    <TextBlock Text="River split" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding RiverSplitHelpText}" FontSize="12"
+                               Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="Branches" FontSize="12"
+                                   Foreground="{StaticResource EditorMutedTextBrush}" />
+                        <NumericUpDown Value="{Binding RiverSplitBranchCount, Mode=TwoWay}"
+                                       Minimum="2" Maximum="4" Increment="1" FormatString="N0"
+                                       AutomationProperties.Name="Number of downstream river branches" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="Direction" FontSize="12"
+                                   Foreground="{StaticResource EditorMutedTextBrush}" />
+                        <ComboBox ItemsSource="{Binding RiverSplitDirectionOptions}"
+                                  SelectedItem="{Binding SelectedRiverSplitDirection, Mode=TwoWay}"
+                                  AutomationProperties.Name="River split direction" />
+                      </StackPanel>
+                    </Grid>
+                    <Button Content="{Binding RiverSplitActionText}" Classes="quiet"
+                            IsEnabled="{Binding CanCreatePinnedRiverSplit}"
+                            HorizontalAlignment="Stretch" Click="CreateRiverSplit_OnClick"
+                            ToolTip.Tip="Build separated downstream branches from cascaded three-exit Y junctions"
+                            AutomationProperties.Name="Create separated river branches" />
+                    <TextBlock Text="Each junction has three exits. Three or four branches use several Y junctions, never one four-way crossing."
+                               FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <StackPanel Spacing="7" IsVisible="{Binding IsResourcesWorkspace}">
+                <TextBlock Text="Every occurrence on this tile" FontWeight="SemiBold" />
+                <Border Classes="win98-sunken" MinHeight="82"
+                        IsVisible="{Binding HasNoPinnedResourceOccurrences}">
+                  <TextBlock Text="No resource occurrences on the pinned tile."
+                             Margin="7" VerticalAlignment="Center"
+                             Foreground="{StaticResource EditorMutedTextBrush}"
+                             TextWrapping="Wrap" />
+                </Border>
+                <ListBox Classes="resource-occurrences"
+                         ItemsSource="{Binding PinnedResourceOccurrences}"
+                         SelectedItem="{Binding SelectedPinnedResourceOccurrence, Mode=TwoWay}"
+                         IsVisible="{Binding HasPinnedResourceOccurrences}"
+                         MinHeight="82" MaxHeight="260"
+                         AutomationProperties.Name="Pinned tile resource occurrences">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CampaignResourceOccurrenceRow">
+                      <StackPanel Spacing="2" Margin="3">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="7">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                          <TextBlock Grid.Column="1" Text="{Binding PotentialText}" Classes="measurement" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="7">
+                          <TextBlock Text="{Binding CategoryText}" FontSize="11"
+                                     Foreground="{StaticResource EditorMutedTextBrush}" />
+                          <TextBlock Grid.Column="1" Text="{Binding LockText}" FontSize="11" />
+                        </Grid>
+                        <Border Background="{StaticResource Win98WindowBrush}"
+                                BorderBrush="{StaticResource Win98ErrorBrush}" BorderThickness="1"
+                                Padding="3,2" IsVisible="{Binding HasHardWarnings}">
+                          <StackPanel Spacing="1">
+                            <TextBlock Text="WARNING" Classes="warning" />
+                            <TextBlock Text="{Binding HardWarningText}" FontSize="11"
+                                       Foreground="{StaticResource EditorTextBrush}" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Border>
+                        <TextBlock Text="{Binding UnevaluatedFactorsText}" FontSize="10"
+                                   Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="6"
+                      IsVisible="{Binding HasPinnedResourceOccurrences}">
+                  <Button Content="Use selected" Classes="quiet" Click="AdoptPinnedResource_OnClick"
+                          IsEnabled="{Binding CanAdoptPinnedResource}"
+                          ToolTip.Tip="Use this occurrence's resource and potential as the active paint settings" />
+                  <Button Grid.Column="1" Content="Erase" Classes="quiet" Click="ErasePinnedResource_OnClick"
+                          IsEnabled="{Binding CanErasePinnedResource}"
+                          ToolTip.Tip="Remove only this occurrence from the pinned tile" />
+                  <Button Grid.Row="1" Content="Lock" Classes="quiet" Click="LockPinnedResource_OnClick"
+                          IsEnabled="{Binding CanLockPinnedResource}" />
+                  <Button Grid.Row="1" Grid.Column="1" Content="Unlock" Classes="quiet"
+                          Click="UnlockPinnedResource_OnClick" IsEnabled="{Binding CanUnlockPinnedResource}" />
+                </Grid>
+                <TextBlock Text="Warnings report implemented terrain rules only. Climate, geology, associations, and final generator suitability remain unevaluated."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+
+              <TextBlock Text="Right-click another tile to change the pinned target."
+                         FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <TextBlock Classes="section-title" Text="WORLD" />
+            <StackPanel Spacing="9">
+              <StackPanel Spacing="2">
+                <TextBlock Text="World scale" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding WorldScaleText}" Classes="measurement" />
+              </StackPanel>
+              <StackPanel Spacing="2">
+                <TextBlock Text="Campaign grid" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding WorldSummary}" Classes="measurement" TextWrapping="Wrap" />
+              </StackPanel>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Tile size" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding TileSizeText}" Classes="measurement" />
+              </Grid>
+              <StackPanel Spacing="2">
+                <TextBlock Text="Allowed height" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding HeightRangeText}" Classes="measurement" />
+              </StackPanel>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Default height" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding DefaultHeightText}" Classes="measurement" />
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+              <TextBlock Classes="section-title" Text="PROJECT" />
+              <TextBlock Text="{Binding ProjectPathText}" FontSize="12" TextWrapping="Wrap"
+                         Foreground="{StaticResource EditorMutedTextBrush}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="4" Background="{StaticResource EditorPanelBrush}" Padding="3,2">
+      <Grid ColumnDefinitions="150,*,120,250" ColumnSpacing="3" VerticalAlignment="Stretch">
+        <Border Grid.Column="0" Classes="win98-status">
+          <TextBlock Text="{Binding DocumentStateText}" FontSize="12" FontWeight="Bold" />
+        </Border>
+        <Border Grid.Column="1" Classes="win98-status">
+          <TextBlock Text="{Binding StatusMessage}" FontSize="12" TextTrimming="CharacterEllipsis" />
+        </Border>
+        <Border Grid.Column="2" Classes="win98-status">
+          <TextBlock Text="{Binding ZoomText}" Classes="measurement" />
+        </Border>
+        <Border Grid.Column="3" Classes="win98-status">
+          <TextBlock Text="{Binding FooterFormatText}" Classes="measurement"
+                     TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FooterFormatText}" />
+        </Border>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

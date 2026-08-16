@@ -1,0 +1,108 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dialogs="using:Kingdom.World.Editor.Dialogs"
+        x:Class="Kingdom.World.Editor.Dialogs.CustomTerrainTypesDialog"
+        Title="Custom tile types"
+        Width="760"
+        Height="610"
+        MinWidth="660"
+        MinHeight="520"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Background="{StaticResource EditorPanelBrush}">
+    <Border Grid.Row="0" Padding="12,10" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="4">
+        <TextBlock Text="CUSTOM LAND TILE TYPES" Classes="section-title" />
+        <TextBlock Text="Name and color a safe land variant. It always keeps its Plains, Steppe, Desert, Forest, Hills, or Mountain base, so water, shore, and river rules stay intact."
+                   Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" Margin="12" ColumnDefinitions="220,12,*">
+      <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" RowSpacing="9">
+        <TextBlock Text="TILE TYPES" Classes="section-title" />
+        <ListBox x:Name="DefinitionsList" Grid.Row="1" MinHeight="230"
+                 AutomationProperties.Name="Custom tile types">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="dialogs:CustomTerrainTypeEditorItem">
+              <Grid ColumnDefinitions="16,*" ColumnSpacing="8" Margin="2">
+                <Border Width="14" Height="14" Margin="0,2,0,0"
+                        Background="{Binding SwatchBrush}" BorderBrush="{StaticResource Win98DarkShadowBrush}" BorderThickness="1" />
+                <StackPanel Grid.Column="1" Spacing="1">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding BaseLabel}" FontSize="11"
+                             Foreground="{StaticResource EditorMutedTextBrush}" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="8">
+          <Button Content="Add type" Classes="quiet" Click="Add_OnClick" />
+          <Button Grid.Column="1" x:Name="DeleteButton" Content="Delete" Classes="quiet" Click="Delete_OnClick" />
+        </Grid>
+      </Grid>
+
+      <Border Grid.Column="2" Classes="win98-group">
+      <StackPanel Spacing="10">
+        <StackPanel Spacing="3">
+          <TextBlock Text="TYPE SETTINGS" Classes="section-title" />
+          <TextBlock x:Name="UsageMessage" FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="5">
+          <TextBlock Text="Name" />
+          <TextBox x:Name="NameInput" MaxLength="48"
+                   AutomationProperties.Name="Custom tile type name" />
+        </StackPanel>
+
+        <StackPanel Spacing="5">
+          <TextBlock Text="Safe base terrain" />
+          <ComboBox x:Name="BaseTypeInput" HorizontalAlignment="Stretch"
+                    AutomationProperties.Name="Custom tile safe base terrain" />
+          <TextBlock Text="The base supplies a safe fallback and material texture; it does not own this type’s generation ratio."
+                     FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="*,74" ColumnSpacing="10">
+          <StackPanel Spacing="5">
+            <TextBlock Text="Color" />
+            <TextBox x:Name="ColorInput" MaxLength="7" PlaceholderText="#RRGGBB"
+                     AutomationProperties.Name="Custom tile type color" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="5">
+            <TextBlock Text="Preview" />
+            <Border x:Name="ColorPreview" Height="32"
+                    BorderBrush="{StaticResource Win98DarkShadowBrush}" BorderThickness="1" />
+          </StackPanel>
+        </Grid>
+
+        <StackPanel Spacing="5">
+          <TextBlock Text="Terrain mix (%)" />
+          <NumericUpDown x:Name="GenerationShareInput" Minimum="0" Maximum="100" Increment="1" FormatString="N0"
+                           HorizontalAlignment="Stretch"
+                           AutomationProperties.Name="Custom tile inland terrain mix percent" />
+          <TextBlock Text="0% means paint-only. A positive share is this type’s own portion of the inland mix; include it with the default terrain ratios to total 100%."
+                     FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Border x:Name="ValidationPanel" IsVisible="False" Padding="8" Background="{StaticResource Win98WindowBrush}"
+                BorderBrush="{StaticResource Win98ErrorBrush}" BorderThickness="2">
+          <TextBlock x:Name="ValidationText" Foreground="{StaticResource Win98ErrorBrush}" TextWrapping="Wrap" />
+        </Border>
+      </StackPanel>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2" Padding="10,8" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98HighlightBrush}" BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+        <Button Content="Cancel" MinWidth="92" Click="Cancel_OnClick" IsCancel="True" />
+        <Button Content="Apply types" Classes="primary" MinWidth="112" Click="Apply_OnClick" IsDefault="True" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

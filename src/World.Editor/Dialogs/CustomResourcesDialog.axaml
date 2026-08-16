@@ -1,0 +1,315 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dialogs="using:Kingdom.World.Editor.Dialogs"
+        x:Class="Kingdom.World.Editor.Dialogs.CustomResourcesDialog"
+        Title="Custom resources"
+        Width="1120"
+        Height="820"
+        MinWidth="940"
+        MinHeight="700"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Background="{StaticResource EditorPanelBrush}">
+    <!--
+    THESIS: Custom-resource authoring is a protected catalog operation, not another paint tool.
+    OWN-WORLD: Windows 98 Property Workshop gray panels, sunken lists, square fields, and explicit text states.
+    STORY: Add or duplicate a definition, configure its generation contract, understand usage locks, then apply atomically.
+    FIRST VIEWPORT: Catalog and template commands stay left; one scrollable definition form owns the larger right side; Apply remains fixed in the footer.
+    FORM: Established editor property workshop extension; seed key custom-resources-20260816.
+    FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+    -->
+    <Border Grid.Row="0" Padding="12,10" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="4">
+        <TextBlock Text="CUSTOM RESOURCE DEFINITIONS" Classes="section-title" />
+        <TextBlock Text="Create project-specific natural resources without changing terrain. Definitions control where procedural generation may place them; tile occurrences remain separate potential values."
+                   Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" Margin="12" ColumnDefinitions="280,12,*">
+      <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="9">
+        <TextBlock Text="CUSTOM CATALOG" Classes="section-title" />
+        <ListBox x:Name="DefinitionsList" Grid.Row="1" MinHeight="280"
+                 AutomationProperties.Name="Custom resource definitions">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="dialogs:CustomResourceEditorItem">
+              <Grid ColumnDefinitions="16,*" ColumnSpacing="8" Margin="2">
+                <Border Width="14" Height="14" Margin="0,2,0,0"
+                        Background="{Binding SwatchBrush}"
+                        BorderBrush="{StaticResource Win98DarkShadowBrush}" BorderThickness="1" />
+                <StackPanel Grid.Column="1" Spacing="1">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding IdText}" Classes="measurement" FontSize="10"
+                             Foreground="{StaticResource EditorMutedTextBrush}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding SummaryText}" FontSize="10"
+                             Foreground="{StaticResource EditorMutedTextBrush}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="8">
+          <Button Content="Add resource" Classes="quiet" Click="Add_OnClick"
+                  AutomationProperties.Name="Add custom resource" />
+          <Button x:Name="DeleteButton" Grid.Column="1" Content="Delete" Classes="quiet"
+                  Click="Delete_OnClick" AutomationProperties.Name="Delete selected custom resource" />
+        </Grid>
+
+        <Border Grid.Row="3" Classes="win98-group">
+          <StackPanel Spacing="6">
+            <TextBlock Text="DUPLICATE BUILT-IN" Classes="section-title" />
+            <ComboBox x:Name="BuiltInTemplateInput" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Built-in resource template" />
+            <Button Content="Duplicate as custom" Classes="quiet" HorizontalAlignment="Stretch"
+                    Click="Duplicate_OnClick" AutomationProperties.Name="Duplicate built-in as custom resource" />
+            <TextBlock Text="Built-ins remain unchanged. The duplicate receives a new project-owned stable ID."
+                       FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+        <StackPanel x:Name="DetailsPanel" Spacing="10">
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="IDENTITY AND DISPLAY" Classes="section-title" />
+              <TextBlock x:Name="UsageMessage" FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+
+              <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+                  <TextBlock Text="Name" />
+                  <TextBox x:Name="NameInput" MaxLength="64"
+                           AutomationProperties.Name="Custom resource name" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="4">
+                  <TextBlock Text="Stable ID" />
+                  <TextBox x:Name="IdInput" MaxLength="64" PlaceholderText="lowercase-portable-id"
+                           AutomationProperties.Name="Custom resource stable ID" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,8,0,0" Spacing="4">
+                  <TextBlock Text="Category" />
+                  <ComboBox x:Name="CategoryInput" HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Custom resource category" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,8,0,0" Spacing="4">
+                  <TextBlock Text="Medium" />
+                  <ComboBox x:Name="MediumInput" HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Custom resource medium" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,8,0,0" Spacing="4">
+                  <TextBlock Text="Distribution shape" />
+                  <ComboBox x:Name="DistributionInput" HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Custom resource distribution profile" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,8,0,0" Spacing="4">
+                  <TextBlock Text="Portable symbol ID" />
+                  <TextBox x:Name="SymbolInput" MaxLength="32" PlaceholderText="resource"
+                           AutomationProperties.Name="Custom resource symbol ID" />
+                </StackPanel>
+
+                <Grid Grid.Row="3" Grid.Column="0" Margin="0,8,0,0" ColumnDefinitions="*,64" ColumnSpacing="8">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="Map color" />
+                    <TextBox x:Name="ColorInput" MaxLength="7" PlaceholderText="#RRGGBB"
+                             AutomationProperties.Name="Custom resource map color" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Text="Preview" />
+                    <Border x:Name="ColorPreview" Height="28"
+                            BorderBrush="{StaticResource Win98DarkShadowBrush}" BorderThickness="1" />
+                  </StackPanel>
+                </Grid>
+                <StackPanel Grid.Row="3" Grid.Column="2" Margin="0,8,0,0" Spacing="4">
+                  <TextBlock Text="Map priority (1–100)" />
+                  <NumericUpDown x:Name="MapPriorityInput" Minimum="1" Maximum="100"
+                                 Increment="1" FormatString="N0"
+                                 AutomationProperties.Name="Custom resource map priority" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="GENERATION DEFAULTS" Classes="section-title" />
+              <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto">
+                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+                  <TextBlock Text="Coverage of eligible tiles (%)" />
+                  <NumericUpDown x:Name="CoverageInput" Minimum="0" Maximum="100"
+                                 Increment="1" FormatString="N0"
+                                 AutomationProperties.Name="Custom resource default coverage percent" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="4">
+                  <TextBlock Text="Richness" />
+                  <ComboBox x:Name="RichnessInput" HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Custom resource default richness" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,8,0,0" Spacing="4">
+                  <TextBlock Text="Concentration" />
+                  <ComboBox x:Name="ConcentrationInput" HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Custom resource default concentration" />
+                </StackPanel>
+                <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,8,0,0"
+                           Text="0% keeps this resource manual-only. Positive coverage joins generation independently; resource percentages do not sum to 100%."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="HARD ELIGIBILITY RANGES" Classes="section-title" />
+              <TextBlock Text="Unchecked ranges impose no hard limit. Minimum and maximum are inclusive."
+                         FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+
+              <Grid ColumnDefinitions="180,*,12,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="7">
+                <CheckBox x:Name="ElevationRangeToggle" Grid.Row="0" Content="Elevation (m)"
+                          AutomationProperties.Name="Limit custom resource elevation" />
+                <NumericUpDown x:Name="ElevationMinimumInput" Grid.Row="0" Grid.Column="1"
+                               Minimum="-32768" Maximum="32767" Increment="10" FormatString="N0"
+                               AutomationProperties.Name="Minimum custom resource elevation metres" />
+                <NumericUpDown x:Name="ElevationMaximumInput" Grid.Row="0" Grid.Column="3"
+                               Minimum="-32768" Maximum="32767" Increment="10" FormatString="N0"
+                               AutomationProperties.Name="Maximum custom resource elevation metres" />
+
+                <CheckBox x:Name="GradeRangeToggle" Grid.Row="1" Content="Cardinal grade"
+                          AutomationProperties.Name="Limit custom resource grade" />
+                <NumericUpDown x:Name="GradeMinimumInput" Grid.Row="1" Grid.Column="1"
+                               Minimum="0" Maximum="100" Increment="0.05" FormatString="N2"
+                               AutomationProperties.Name="Minimum custom resource grade" />
+                <NumericUpDown x:Name="GradeMaximumInput" Grid.Row="1" Grid.Column="3"
+                               Minimum="0" Maximum="100" Increment="0.05" FormatString="N2"
+                               AutomationProperties.Name="Maximum custom resource grade" />
+
+                <CheckBox x:Name="WaterDistanceRangeToggle" Grid.Row="2" Content="Water distance (km)"
+                          AutomationProperties.Name="Limit custom resource water distance" />
+                <NumericUpDown x:Name="WaterDistanceMinimumInput" Grid.Row="2" Grid.Column="1"
+                               Minimum="0" Maximum="100000" Increment="0.5" FormatString="N1"
+                               AutomationProperties.Name="Minimum custom resource water distance kilometres" />
+                <NumericUpDown x:Name="WaterDistanceMaximumInput" Grid.Row="2" Grid.Column="3"
+                               Minimum="0" Maximum="100000" Increment="0.5" FormatString="N1"
+                               AutomationProperties.Name="Maximum custom resource water distance kilometres" />
+
+                <CheckBox x:Name="RegionScaleRangeToggle" Grid.Row="3" Content="Region scale (km)"
+                          AutomationProperties.Name="Limit custom resource region scale" />
+                <NumericUpDown x:Name="RegionScaleMinimumInput" Grid.Row="3" Grid.Column="1"
+                               Minimum="0.1" Maximum="100000" Increment="0.5" FormatString="N1"
+                               AutomationProperties.Name="Minimum custom resource region scale kilometres" />
+                <NumericUpDown x:Name="RegionScaleMaximumInput" Grid.Row="3" Grid.Column="3"
+                               Minimum="0.1" Maximum="100000" Increment="0.5" FormatString="N1"
+                               AutomationProperties.Name="Maximum custom resource region scale kilometres" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="SUITABILITY FACTORS" Classes="section-title" />
+              <TextBlock Text="Preferred and avoided lists combine alternative soft cues; one strong cue can carry its list. Weighted factors remain independent controls from -10 through 10; positive favors a field and negative favors its inverse."
+                         FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="6">
+                <ComboBox x:Name="SupportedFactorInput" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Supported resource suitability factor" />
+                <Button Grid.Column="1" Content="Add preferred" Classes="quiet" Click="AddPreferredFactor_OnClick" />
+                <Button Grid.Column="2" Content="Add avoided" Classes="quiet" Click="AddAvoidedFactor_OnClick" />
+                <Button Grid.Column="3" Content="Add field" Classes="quiet" Click="AddFieldWeight_OnClick" />
+                <Button Grid.Column="4" Content="Add association" Classes="quiet" Click="AddAssociationWeight_OnClick" />
+              </Grid>
+              <Grid ColumnDefinitions="*,12,*">
+                <StackPanel Grid.Column="0" Spacing="4">
+                  <TextBlock Text="Preferred factors (comma separated)" />
+                  <TextBox x:Name="PreferredTagsInput" MinHeight="48" AcceptsReturn="True" TextWrapping="Wrap"
+                           ScrollViewer.VerticalScrollBarVisibility="Auto"
+                           AutomationProperties.Name="Custom resource preferred suitability factors" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Text="Avoided factors (comma separated)" />
+                  <TextBox x:Name="AvoidedTagsInput" MinHeight="48" AcceptsReturn="True" TextWrapping="Wrap"
+                           ScrollViewer.VerticalScrollBarVisibility="Auto"
+                           AutomationProperties.Name="Custom resource avoided suitability factors" />
+                </StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,12,*">
+                <StackPanel Grid.Column="0" Spacing="4">
+                  <TextBlock Text="Field weights (factor=weight)" />
+                  <TextBox x:Name="FieldWeightsInput" MinHeight="84" AcceptsReturn="True"
+                           ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Courier New"
+                           AutomationProperties.Name="Custom resource field weights" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Text="Association weights (factor=weight)" />
+                  <TextBox x:Name="AssociationWeightsInput" MinHeight="84" AcceptsReturn="True"
+                           ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Courier New"
+                           AutomationProperties.Name="Custom resource association weights" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="HARD TERRAIN RULES" Classes="section-title" />
+              <TextBlock Text="Excluded built-in surfaces are hard bans during generation. Existing manual or locked occurrences remain and show a warning."
+                         FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <ComboBox x:Name="ExcludedSurfaceInput" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Built-in terrain surface to hard exclude" />
+                <Button Grid.Column="1" Content="Add excluded tile" Classes="quiet"
+                        Click="AddExcludedSurface_OnClick" />
+              </Grid>
+              <StackPanel Spacing="4">
+                <TextBlock Text="Excluded built-in surfaces (comma separated)" />
+                <TextBox x:Name="ExcludedSurfacesInput" MinHeight="48" AcceptsReturn="True"
+                         TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         AutomationProperties.Name="Hard-excluded built-in terrain surfaces" />
+              </StackPanel>
+              <TextBlock x:Name="CustomTerrainHelpText" FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="*,12,*">
+                <StackPanel Grid.Column="0" Spacing="4">
+                  <TextBlock Text="Include only these custom terrain IDs" />
+                  <TextBox x:Name="CustomTerrainIncludesInput" MinHeight="48" AcceptsReturn="True"
+                           TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                           AutomationProperties.Name="Included custom terrain IDs" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Text="Exclude these custom terrain IDs" />
+                  <TextBox x:Name="CustomTerrainExcludesInput" MinHeight="48" AcceptsReturn="True"
+                           TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                           AutomationProperties.Name="Excluded custom terrain IDs" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border x:Name="ValidationPanel" IsVisible="False" Padding="8"
+                  Focusable="True" AutomationProperties.Name="Custom resource validation error"
+                  Background="{StaticResource Win98WindowBrush}"
+                  BorderBrush="{StaticResource Win98ErrorBrush}" BorderThickness="2">
+            <TextBlock x:Name="ValidationText" Foreground="{StaticResource Win98ErrorBrush}"
+                       TextWrapping="Wrap" />
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+
+    <Border Grid.Row="2" Padding="10,8" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98HighlightBrush}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="Applying catalog changes preserves valid occurrences and clears Undo/Redo. Cancel leaves the document untouched."
+                   VerticalAlignment="Center" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6" Margin="12,0,0,0">
+          <Button Content="Cancel" MinWidth="92" Click="Cancel_OnClick" IsCancel="True" />
+          <Button Content="Apply resources" Classes="primary" MinWidth="124"
+                  Click="Apply_OnClick" IsDefault="True" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

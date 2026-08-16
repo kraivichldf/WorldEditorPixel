@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Kingdom.World.Editor.Dialogs.ChoiceDialog"
+        Width="480"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="*,Auto" Background="{StaticResource EditorPanelBrush}">
+    <StackPanel Grid.Row="0" Margin="12" Spacing="8">
+      <TextBlock x:Name="HeadingText" Classes="section-title" TextWrapping="Wrap" />
+      <Border Classes="win98-group">
+        <TextBlock x:Name="MessageText" TextWrapping="Wrap" MaxWidth="420" />
+      </Border>
+    </StackPanel>
+    <Border Grid.Row="1" Padding="10,8" Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98HighlightBrush}" BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+        <Button x:Name="CancelButton" MinWidth="84" Click="Cancel_OnClick" IsCancel="True" />
+        <Button x:Name="SecondaryButton" MinWidth="84" Click="Secondary_OnClick" />
+        <Button x:Name="PrimaryButton" Classes="primary" MinWidth="84" Click="Primary_OnClick" IsDefault="True" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

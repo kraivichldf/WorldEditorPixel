@@ -1,0 +1,498 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-16T01:41:49+07:00",
+  "title": "Design System: Kingdom World Editor",
+  "extensions": {
+    "colorMeta": {
+      "editor-background": {
+        "role": "neutral",
+        "displayName": "System Face",
+        "canonical": "#C0C0C0",
+        "tonalRamp": [
+          "#2F2F2F",
+          "#525252",
+          "#747474",
+          "#979797",
+          "#C0C0C0",
+          "#D4D4D4",
+          "#E7E7E7",
+          "#F8F8F8"
+        ]
+      },
+      "editor-panel": {
+        "role": "neutral",
+        "displayName": "Editor Panel",
+        "canonical": "#C0C0C0",
+        "tonalRamp": [
+          "#2F2F2F",
+          "#525252",
+          "#747474",
+          "#979797",
+          "#C0C0C0",
+          "#D4D4D4",
+          "#E7E7E7",
+          "#F8F8F8"
+        ]
+      },
+      "editor-raised": {
+        "role": "neutral",
+        "displayName": "Raised Surface",
+        "canonical": "#D4D0C8",
+        "tonalRamp": [
+          "#34322F",
+          "#5A5752",
+          "#807C76",
+          "#A9A39A",
+          "#D4D0C8",
+          "#DFDCD6",
+          "#ECE9E4",
+          "#F8F6F3"
+        ]
+      },
+      "editor-pressed": {
+        "role": "neutral",
+        "displayName": "Pressed Surface",
+        "canonical": "#A0A0A0",
+        "tonalRamp": [
+          "#282828",
+          "#444444",
+          "#606060",
+          "#7F7F7F",
+          "#A0A0A0",
+          "#BABABA",
+          "#D3D3D3",
+          "#ECECEC"
+        ]
+      },
+      "editor-border": {
+        "role": "neutral",
+        "displayName": "Control Shadow",
+        "canonical": "#808080",
+        "tonalRamp": [
+          "#202020",
+          "#373737",
+          "#4D4D4D",
+          "#666666",
+          "#808080",
+          "#9D9D9D",
+          "#C0C0C0",
+          "#E1E1E1"
+        ]
+      },
+      "editor-text": {
+        "role": "neutral",
+        "displayName": "Editor Text",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "#000000",
+          "#1A1A1A",
+          "#333333",
+          "#4D4D4D",
+          "#666666",
+          "#808080",
+          "#A6A6A6",
+          "#D9D9D9"
+        ]
+      },
+      "editor-muted-text": {
+        "role": "neutral",
+        "displayName": "Muted Text",
+        "canonical": "#404040",
+        "tonalRamp": [
+          "#101010",
+          "#1D1D1D",
+          "#2B2B2B",
+          "#363636",
+          "#404040",
+          "#666666",
+          "#949494",
+          "#C8C8C8"
+        ]
+      },
+      "editor-accent": {
+        "role": "primary",
+        "displayName": "Active Title Blue",
+        "canonical": "#000080",
+        "tonalRamp": [
+          "#000020",
+          "#000036",
+          "#00004D",
+          "#000066",
+          "#000080",
+          "#2A2A95",
+          "#7474BD",
+          "#C7C7E8"
+        ]
+      },
+      "editor-accent-hot": {
+        "role": "primary",
+        "displayName": "Accent Hot",
+        "canonical": "#000080",
+        "tonalRamp": [
+          "#000020",
+          "#000036",
+          "#00004D",
+          "#000066",
+          "#000080",
+          "#2A2A95",
+          "#7474BD",
+          "#C7C7E8"
+        ]
+      },
+      "editor-window-text": {
+        "role": "primary",
+        "displayName": "Active Title Text",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#4D4D4D",
+          "#737373",
+          "#999999",
+          "#BFBFBF",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF"
+        ]
+      },
+      "primary-ink": {
+        "role": "neutral",
+        "displayName": "Primary Ink",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "#000000",
+          "#1A1A1A",
+          "#333333",
+          "#4D4D4D",
+          "#666666",
+          "#808080",
+          "#A6A6A6",
+          "#D9D9D9"
+        ]
+      },
+      "selection-amber": {
+        "role": "secondary",
+        "displayName": "Pinned Amber",
+        "canonical": "#E3B557",
+        "tonalRamp": [
+          "#392D16",
+          "#614C25",
+          "#896B34",
+          "#B18C44",
+          "#E3B557",
+          "#E8C677",
+          "#F0DAA6",
+          "#F8EED6"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Campaign Canvas",
+        "canonical": "#0D1317",
+        "tonalRamp": [
+          "#030405",
+          "#05080A",
+          "#070B0D",
+          "#0A0F12",
+          "#0D1317",
+          "#353A3D",
+          "#7A7E80",
+          "#C8CACC"
+        ]
+      },
+      "overlay-panel": {
+        "role": "neutral",
+        "displayName": "Help Overlay",
+        "canonical": "rgba(255, 255, 255, 0.90)",
+        "tonalRamp": [
+          "#666666",
+          "#8A8A8A",
+          "#ADADAD",
+          "#D1D1D1",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF"
+        ]
+      },
+      "campaign-unassigned": {
+        "role": "tertiary",
+        "displayName": "Unassigned Terrain",
+        "canonical": "#59666A"
+      },
+      "campaign-plains": {
+        "role": "tertiary",
+        "displayName": "Plains Terrain",
+        "canonical": "#73945D"
+      },
+      "campaign-desert": {
+        "role": "tertiary",
+        "displayName": "Desert Terrain",
+        "canonical": "#C99142"
+      },
+      "campaign-forest": {
+        "role": "tertiary",
+        "displayName": "Forest Terrain",
+        "canonical": "#2F684F"
+      },
+      "campaign-hills": {
+        "role": "tertiary",
+        "displayName": "Hills Terrain",
+        "canonical": "#8B8A62"
+      },
+      "campaign-mountain": {
+        "role": "tertiary",
+        "displayName": "Mountain Terrain",
+        "canonical": "#858784"
+      },
+      "campaign-sea": {
+        "role": "tertiary",
+        "displayName": "Sea Terrain",
+        "canonical": "#1E6A8B"
+      },
+      "campaign-lake": {
+        "role": "tertiary",
+        "displayName": "Lake Terrain",
+        "canonical": "#2D8EA3"
+      },
+      "campaign-river": {
+        "role": "tertiary",
+        "displayName": "River Terrain",
+        "canonical": "#3B9BC1"
+      },
+      "campaign-large-river": {
+        "role": "tertiary",
+        "displayName": "Large River Terrain",
+        "canonical": "#237FA6"
+      },
+      "campaign-beach": {
+        "role": "tertiary",
+        "displayName": "Beach Terrain",
+        "canonical": "#C3A86D"
+      },
+      "campaign-cliff": {
+        "role": "tertiary",
+        "displayName": "Cliff Terrain",
+        "canonical": "#6F665E"
+      },
+      "elevation-number": {
+        "role": "secondary",
+        "displayName": "Elevation Number",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#4D4D4D",
+          "#737373",
+          "#999999",
+          "#BFBFBF",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF"
+        ]
+      },
+      "elevation-number-edge": {
+        "role": "secondary",
+        "displayName": "Elevation Number Edge",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "#000000",
+          "#1A1A1A",
+          "#333333",
+          "#4D4D4D",
+          "#666666",
+          "#808080",
+          "#A6A6A6",
+          "#D9D9D9"
+        ]
+      },
+      "blocked-action": {
+        "role": "secondary",
+        "displayName": "Blocked Action",
+        "canonical": "#FF6B6B",
+        "tonalRamp": [
+          "#401B1B",
+          "#6D2E2E",
+          "#994040",
+          "#CC5656",
+          "#FF6B6B",
+          "#FF8B8B",
+          "#FFB6B6",
+          "#FFE1E1"
+        ]
+      },
+      "status-well": {
+        "role": "neutral",
+        "displayName": "Status Well",
+        "canonical": "#C0C0C0",
+        "tonalRamp": [
+          "#2F2F2F",
+          "#525252",
+          "#747474",
+          "#979797",
+          "#C0C0C0",
+          "#D4D4D4",
+          "#E7E7E7",
+          "#F8F8F8"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "Body",
+        "purpose": "Normal controls, labels, and helper text.",
+        "fontFamily": "Tahoma, Microsoft Sans Serif, Segoe UI, sans-serif",
+        "fontSize": "12px",
+        "fontWeight": 400,
+        "lineHeight": 1.35
+      },
+      "section-title": {
+        "displayName": "Section Title",
+        "purpose": "Grouped control headers.",
+        "fontFamily": "Tahoma, Microsoft Sans Serif, Segoe UI, sans-serif",
+        "fontSize": "12px",
+        "fontWeight": 700,
+        "lineHeight": 1.25
+      },
+      "measurement": {
+        "displayName": "Measurement",
+        "purpose": "Coordinates, heights, counters, and dimensions.",
+        "fontFamily": "Courier New, Consolas, monospace",
+        "fontSize": "12px",
+        "fontWeight": 400,
+        "lineHeight": 1.2
+      }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": [
+      {
+        "name": "minimum-window-width",
+        "value": "1040px"
+      },
+      {
+        "name": "minimum-window-height",
+        "value": "680px"
+      },
+      {
+        "name": "default-window-width",
+        "value": "1440px"
+      },
+      {
+        "name": "default-window-height",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Command Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default raised Win98 command for Save, New world, and other commit actions.",
+      "html": "<button class=\"ds-button-primary\">Save</button>",
+      "css": ".ds-button-primary { min-height:26px; padding:4px 12px; border:1px solid #808080; box-shadow: inset 1px 1px 0 #FFFFFF, inset -1px -1px 0 #000000; background:#C0C0C0; color:#000000; font:700 12px/1.2 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; } .ds-button-primary:hover { background:#D4D0C8; } .ds-button-primary:focus-visible { outline:1px dotted #000000; outline-offset:-4px; } .ds-button-primary:active { padding:5px 11px 3px 13px; background:#A0A0A0; box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #FFFFFF; } .ds-button-primary:disabled { color:#808080; text-shadow:1px 1px 0 #FFFFFF; }"
+    },
+    {
+      "name": "Quiet Command Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Routine toolbar and inspector command that keeps the same tactile square geometry without bold emphasis.",
+      "html": "<button class=\"ds-button-quiet\">Fit world</button>",
+      "css": ".ds-button-quiet { min-height:26px; padding:4px 12px; border:1px solid #808080; box-shadow: inset 1px 1px 0 #FFFFFF, inset -1px -1px 0 #000000; background:#C0C0C0; color:#000000; font:400 12px/1.2 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; } .ds-button-quiet:hover { background:#D4D0C8; } .ds-button-quiet:focus-visible { outline:1px dotted #000000; outline-offset:-4px; } .ds-button-quiet:active { padding:5px 11px 3px 13px; background:#A0A0A0; box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #FFFFFF; } .ds-button-quiet:disabled { color:#808080; text-shadow:1px 1px 0 #FFFFFF; }"
+    },
+    {
+      "name": "Workspace Toggle",
+      "kind": "custom",
+      "refersTo": "workspace-button",
+      "description": "Terrain and Resources workspace switch that reads like a short property-sheet tab rather than a modern pill.",
+      "html": "<button class=\"ds-workspace-toggle ds-workspace-toggle-active\">Terrain</button>",
+      "css": ".ds-workspace-toggle { min-width:92px; min-height:24px; padding:2px 12px; border:1px solid #808080; box-shadow: inset 1px 1px 0 #FFFFFF, inset -1px -1px 0 #000000; background:#C0C0C0; color:#000000; font:400 12px/1.2 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; } .ds-workspace-toggle:hover { background:#D4D0C8; } .ds-workspace-toggle:focus-visible { outline:1px dotted #000000; outline-offset:-4px; } .ds-workspace-toggle-active { border-color:#000000; border-width:2px 2px 1px 2px; box-shadow:none; background:#FFFFFF; color:#000080; font-weight:700; } .ds-workspace-toggle-active:active { padding:2px 12px; }"
+    },
+    {
+      "name": "Measurement Field",
+      "kind": "input",
+      "refersTo": "text-input",
+      "description": "Square white entry surface for numeric up/down, combo-box text, and exact stamp values.",
+      "html": "<label class=\"ds-field-wrap\"><span class=\"ds-field-label\">Tile elevation</span><input class=\"ds-field\" value=\"250\" /><span class=\"ds-field-unit\">m at centre</span></label>",
+      "css": ".ds-field-wrap { display:grid; grid-template-columns:1fr auto; gap:4px 8px; width:220px; color:#000000; font:400 12px/1.35 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; } .ds-field-label { grid-column:1; } .ds-field-unit { grid-column:2; color:#404040; } .ds-field { grid-column:1 / -1; box-sizing:border-box; width:100%; min-height:24px; padding:4px 7px; border:1px solid #808080; box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #DFDFDF; background:#FFFFFF; color:#000000; font:400 12px/1.2 \"Courier New\", Consolas, monospace; } .ds-field:hover { border-color:#000000; } .ds-field:focus-visible { outline:1px dotted #000000; outline-offset:-3px; } .ds-field:disabled { background:#C0C0C0; color:#808080; }"
+    },
+    {
+      "name": "Inspector Rail",
+      "kind": "card",
+      "refersTo": "inspector-panel",
+      "description": "Compact right-rail truth surface for live tile, pinned tile, world, and project facts.",
+      "html": "<section class=\"ds-inspector\"><div class=\"ds-inspector-title\">LIVE TILE</div><dl class=\"ds-inspector-grid\"><dt>Tile X</dt><dd>12</dd><dt>Stored centre</dt><dd>250 m</dd><dt>Selected resource</dt><dd>Iron 72</dd></dl></section>",
+      "css": ".ds-inspector { box-sizing:border-box; width:270px; padding:8px; border:1px solid #808080; background:#C0C0C0; color:#000000; font:400 12px/1.35 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; } .ds-inspector-title { margin-bottom:9px; padding:3px 5px; background:#000080; color:#FFFFFF; font:700 12px/1.25 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; } .ds-inspector-grid { display:grid; grid-template-columns:1fr auto; gap:7px 10px; margin:0; } .ds-inspector-grid dt { color:#404040; } .ds-inspector-grid dd { margin:0; color:#000000; font:400 12px/1.2 \"Courier New\", Consolas, monospace; text-align:right; } .ds-inspector:focus-within { outline:1px dotted #000000; outline-offset:-4px; }"
+    },
+    {
+      "name": "Warning Block",
+      "kind": "custom",
+      "refersTo": "warning-panel",
+      "description": "Pinned resource hard-rule warning that stays explicit with text, maroon edge, and white data surface.",
+      "html": "<section class=\"ds-warning\"><div class=\"ds-warning-label\">WARNING</div><p class=\"ds-warning-copy\">This occurrence breaks one implemented terrain rule and will not be removed automatically.</p></section>",
+      "css": ".ds-warning { box-sizing:border-box; width:260px; padding:3px; border:1px solid #800000; background:#FFFFFF; color:#000000; font:400 11px/1.35 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; } .ds-warning-label { margin-bottom:3px; color:#800000; font:700 11px/1.2 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; } .ds-warning-copy { margin:0; } .ds-warning:focus-within { outline:1px dotted #000000; outline-offset:2px; }"
+    },
+    {
+      "name": "Status Strip",
+      "kind": "custom",
+      "refersTo": "status-well",
+      "description": "Segmented bottom wells for document state, status message, zoom, and data format truth.",
+      "html": "<div class=\"ds-status-strip\"><div class=\"ds-status-well ds-status-strong\">Modified</div><div class=\"ds-status-well\">Potential labels hide below 28 px/tile.</div><div class=\"ds-status-well ds-status-measure\">125%</div><div class=\"ds-status-well ds-status-measure\">world.json | .kworld</div></div>",
+      "css": ".ds-status-strip { display:grid; grid-template-columns:150px 1fr 120px 250px; gap:3px; width:720px; background:#C0C0C0; } .ds-status-well { min-height:20px; padding:3px 6px; border:1px solid #808080; box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #DFDFDF; background:#C0C0C0; color:#000000; font:400 12px/1.2 Tahoma, \"Microsoft Sans Serif\", \"Segoe UI\", sans-serif; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; } .ds-status-strong { font-weight:700; } .ds-status-measure { font-family:\"Courier New\", Consolas, monospace; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Windows 98 Property Workshop",
+    "overview": "The map workstation is designed around one authoritative unit: one complete campaign tile. Terrain/height and sparse resource occurrences remain separate authorities at that same coordinate. The interface uses a Windows 98 workstation language around a dominant central surface.\n\nThe dominant viewport is a sunken map area with map commands above it, explicit Terrain/Resources workspace buttons, a grouped active-tool rail, a compact inspector rail, and segmented status wells. Editors can create or open a world, stamp terrain/height or one selected resource over complete tiles, inspect exact authority and diagnostics, then save or export.\n\nControls are compact, explicit, and non-ornamental. Texture and shading are visual aids; terrain values remain explicit in the model and inspector.",
+    "keyCharacteristics": [
+      "System-gray surfaces and square controls with raised/sunken states.",
+      "One-tile atomicity as the only terrain/height authoring unit.",
+      "One selected resource ID per resource paint operation; other resources and terrain remain untouched.",
+      "Explicit mode and validation visibility in menus, rails, and status wells.",
+      "Separable and inspectable semantics for stored centre height versus derived surface."
+    ],
+    "rules": [
+      {
+        "name": "Authority Rule",
+        "body": "Terrain, centre-height, and resource-occurrence edits are model edits; visual overlays, map textures, heatmaps, and diagnostics do not introduce extra stored authority.",
+        "section": "colors"
+      },
+      {
+        "name": "Elevation marker rule",
+        "body": "Elevation uses white centre numbers as the explicit overlay layer. The old elevation square raster is not part of the rasterized tile map.",
+        "section": "colors"
+      },
+      {
+        "name": "Numeric Truth Rule",
+        "body": "comparison and transfer values use the measurement face and include units.",
+        "section": "typography"
+      },
+      {
+        "name": "Flat-By-Default Rule",
+        "body": "Depth emerges from panel state and overlay contrast, not complex shadow stacks.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep one-tile atomicity as the only terrain/height edit unit.",
+      "**Do** keep controls explicit, low-noise, and square.",
+      "**Do** keep save and export paths distinct.",
+      "**Do** show stored vs derived values in separate labels.",
+      "**Do** show terrain surface and selected-resource potential as separate inspector facts.",
+      "**Do** pair resource heatmap color, lock state, and warnings with exact text.",
+      "**Do** keep generated-world preview in review/commit mode until accepted.",
+      "**Do** preserve project identity and current tiles while a regeneration preview is being adjusted.",
+      "**Do** keep regeneration generation options as session-only: previously accepted options may prefill, but no generation recipe is persisted to project storage.",
+      "**Do** expose elevation label visibility controls in toolbar and View menu.",
+      "**Do** keep disabled control states obvious during generation-option changes.",
+      "**Do** finish with review verdict and updated docs before closing the work item."
+    ],
+    "donts": [
+      "**Don't** add sub-tile brush strength, falloff, radius, sample-mode, or additional height authority.",
+      "**Don't** rely on non-text cues for pinned/blocked/pending states.",
+      "**Don't** hide validation outcomes behind transient visual styling.",
+      "**Don't** reintroduce elevation raster squares to communicate heights.",
+      "**Don't** blur boundaries between reviewed preview and saved authoring document.",
+      "**Don't** let a resource paint/erase operation change another resource ID or any terrain authority."
+    ]
+  }
+}

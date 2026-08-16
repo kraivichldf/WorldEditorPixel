@@ -1,0 +1,203 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Kingdom.World.Editor.App"
+             RequestedThemeVariant="Light">
+  <Application.Resources>
+    <Color x:Key="EditorBackgroundColor">#C0C0C0</Color>
+    <Color x:Key="EditorPanelColor">#C0C0C0</Color>
+    <Color x:Key="EditorRaisedColor">#D4D0C8</Color>
+    <Color x:Key="EditorBorderColor">#808080</Color>
+    <Color x:Key="EditorTextColor">#000000</Color>
+    <Color x:Key="EditorMutedTextColor">#404040</Color>
+    <Color x:Key="EditorAccentColor">#000080</Color>
+    <Color x:Key="EditorWarmAccentColor">#808000</Color>
+    <Color x:Key="Win98HighlightColor">#FFFFFF</Color>
+    <Color x:Key="Win98LightColor">#DFDFDF</Color>
+    <Color x:Key="Win98ShadowColor">#808080</Color>
+    <Color x:Key="Win98DarkShadowColor">#000000</Color>
+    <Color x:Key="Win98WindowColor">#FFFFFF</Color>
+    <Color x:Key="Win98ActiveTitleColor">#000080</Color>
+    <Color x:Key="Win98ActiveTitleTextColor">#FFFFFF</Color>
+    <Color x:Key="Win98SelectionColor">#000080</Color>
+    <Color x:Key="Win98SelectionTextColor">#FFFFFF</Color>
+    <Color x:Key="Win98ErrorColor">#800000</Color>
+    <SolidColorBrush x:Key="EditorBackgroundBrush" Color="{StaticResource EditorBackgroundColor}" />
+    <SolidColorBrush x:Key="EditorPanelBrush" Color="{StaticResource EditorPanelColor}" />
+    <SolidColorBrush x:Key="EditorRaisedBrush" Color="{StaticResource EditorRaisedColor}" />
+    <SolidColorBrush x:Key="EditorBorderBrush" Color="{StaticResource EditorBorderColor}" />
+    <SolidColorBrush x:Key="EditorTextBrush" Color="{StaticResource EditorTextColor}" />
+    <SolidColorBrush x:Key="EditorMutedTextBrush" Color="{StaticResource EditorMutedTextColor}" />
+    <SolidColorBrush x:Key="EditorAccentBrush" Color="{StaticResource EditorAccentColor}" />
+    <SolidColorBrush x:Key="EditorWarmAccentBrush" Color="{StaticResource EditorWarmAccentColor}" />
+    <SolidColorBrush x:Key="Win98HighlightBrush" Color="{StaticResource Win98HighlightColor}" />
+    <SolidColorBrush x:Key="Win98LightBrush" Color="{StaticResource Win98LightColor}" />
+    <SolidColorBrush x:Key="Win98ShadowBrush" Color="{StaticResource Win98ShadowColor}" />
+    <SolidColorBrush x:Key="Win98DarkShadowBrush" Color="{StaticResource Win98DarkShadowColor}" />
+    <SolidColorBrush x:Key="Win98WindowBrush" Color="{StaticResource Win98WindowColor}" />
+    <SolidColorBrush x:Key="Win98ActiveTitleBrush" Color="{StaticResource Win98ActiveTitleColor}" />
+    <SolidColorBrush x:Key="Win98ActiveTitleTextBrush" Color="{StaticResource Win98ActiveTitleTextColor}" />
+    <SolidColorBrush x:Key="Win98ErrorBrush" Color="{StaticResource Win98ErrorColor}" />
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme DensityStyle="Compact" />
+
+    <Style Selector="Window">
+      <Setter Property="Background" Value="{StaticResource EditorBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+      <Setter Property="FontFamily" Value="Tahoma, Microsoft Sans Serif, Segoe UI, sans-serif" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style Selector="Menu">
+      <Setter Property="Background" Value="{StaticResource EditorPanelBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+    </Style>
+
+    <Style Selector="MenuItem">
+      <Setter Property="Background" Value="{StaticResource EditorPanelBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+      <Setter Property="Padding" Value="8,4" />
+    </Style>
+
+    <Style Selector="MenuItem:pointerover">
+      <Setter Property="Background" Value="{StaticResource Win98ActiveTitleBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource Win98ActiveTitleTextBrush}" />
+    </Style>
+
+    <Style Selector="Button">
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="12,4" />
+      <Setter Property="Background" Value="{StaticResource EditorPanelBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98ShadowBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="Button:pointerover">
+      <Setter Property="Background" Value="{StaticResource EditorRaisedBrush}" />
+    </Style>
+
+    <Style Selector="Button:pressed">
+      <Setter Property="Background" Value="#A0A0A0" />
+      <Setter Property="Padding" Value="13,5,11,3" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98DarkShadowBrush}" />
+    </Style>
+
+    <Style Selector="Button:focus-visible">
+      <Setter Property="BorderBrush" Value="{StaticResource Win98DarkShadowBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource EditorPanelBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98DarkShadowBrush}" />
+    </Style>
+
+    <Style Selector="Button.quiet">
+      <Setter Property="Background" Value="{StaticResource EditorPanelBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98ShadowBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="Button.workspace">
+      <Setter Property="MinWidth" Value="92" />
+      <Setter Property="MinHeight" Value="24" />
+      <Setter Property="Padding" Value="12,2" />
+    </Style>
+
+    <Style Selector="Button.workspace.primary">
+      <Setter Property="Background" Value="{StaticResource Win98WindowBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource EditorAccentBrush}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98DarkShadowBrush}" />
+      <Setter Property="BorderThickness" Value="2,2,2,1" />
+    </Style>
+
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{StaticResource Win98ActiveTitleTextBrush}" />
+      <Setter Property="Background" Value="{StaticResource Win98ActiveTitleBrush}" />
+      <Setter Property="Padding" Value="5,3" />
+      <Setter Property="LetterSpacing" Value="0" />
+    </Style>
+
+    <Style Selector="TextBlock.measurement">
+      <Setter Property="FontFamily" Value="Courier New, Consolas, monospace" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style Selector="TextBlock.warning">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{StaticResource Win98ErrorBrush}" />
+    </Style>
+
+    <Style Selector="TextBox, ComboBox, NumericUpDown">
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Background" Value="{StaticResource Win98WindowBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98ShadowBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="ComboBox.tile-type-selector">
+      <Setter Property="Padding" Value="7,5" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+    </Style>
+
+    <Style Selector="ListBox">
+      <Setter Property="Background" Value="{StaticResource Win98WindowBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98ShadowBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+
+    <Style Selector="ProgressBar">
+      <Setter Property="Background" Value="{StaticResource Win98WindowBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource Win98ActiveTitleBrush}" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+
+    <Style Selector="Border.win98-group">
+      <Setter Property="Background" Value="{StaticResource EditorPanelBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98ShadowBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="9" />
+    </Style>
+
+    <Style Selector="Border.win98-sunken">
+      <Setter Property="Background" Value="{StaticResource Win98WindowBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98ShadowBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+
+    <Style Selector="Border.win98-status">
+      <Setter Property="Background" Value="{StaticResource EditorPanelBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Win98ShadowBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="6,3" />
+    </Style>
+
+    <Style Selector="ScrollViewer.terrain-tools:disabled">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+
+    <Style Selector="ScrollViewer.resource-tools:disabled">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+  </Application.Styles>
+</Application>
