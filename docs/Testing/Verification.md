@@ -503,7 +503,7 @@ The executable domain tests are authoritative for exact values; this path checks
 
 ## Public repository publication on 2026-08-17
 
-- The canonical public source repository is [kraivichldf/KingdomWorldEditor](https://github.com/kraivichldf/KingdomWorldEditor).
+- The canonical public source repository is [kraivichldf/WorldEditorPixel](https://github.com/kraivichldf/WorldEditorPixel).
 - The initial publication includes the application source, tests, Obsidian-compatible documentation vault, and checked-in design/review evidence.
 - `.gitignore` excludes `artifacts/`, `bin/`, `obj/`, Visual Studio/JetBrains state, user settings, and temporary files. Published executables and local build outputs are intentionally rebuilt from source rather than committed.
 - The publication baseline is the `433/433` Release test suite plus a clean solution format check.
