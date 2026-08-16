@@ -100,15 +100,11 @@ World.Editor (Avalonia shell, shared canvas/input/history, terrain/resource insp
 
 `World.Core` has no UI or game-engine dependency. `CampaignWorld` owns one validated definition and one sparse `CampaignTileMap`. An absent map entry means `Unassigned` at the world's default height. `CampaignMapGenerator` optionally materializes deterministic ordinary tiles from analytic land masks, kilometre-scaled shelf/landmark/island hierarchy, compact regional coast skeletons, simplex geology, transient tectonic boundary fields, bounded erosion, optional lowland tidal-inlet carving, priority-flood drainage, basin selection, flow accumulation, constrained custom land-ratio targets, semi-arid Steppe transition, and safe custom land identity targets. Flowing Capes keeps its protected-root curved peninsula; Smooth/Natural/Rugged fade that compact symbol out by `4,200 km` and use broad stochastic shelf plus distributed geographic features at continental scale. Only the named Sea edge is forced; a seeded broad shelf retreat allows any other boundary to contain natural land, connected Sea, or both. `CampaignTileMap` derives river exits, validates per-type river topology atomically, validates custom IDs against their safe bases, and resolves automatic 10% water-facing material bands for every non-water tile. `CampaignRiverSplitBuilder` constructs collision-free multi-Y footprints as one command. `CampaignTileStampBuilder` records the first before-value and final after-value for each tile touched during a drag. `WorldCanvas` rasterizes original built-in/custom materials, automatic coast water edges, and derived height shading, then draws connected river channels, the grid, optional culled elevation-number labels, cursor, border, and pinned selection.
 
-See [[docs/Architecture/World Terrain Editor|the architecture note]], [[docs/Reference/Campaign World Generation|the generation formulas]], [[docs/Decisions/ADR-0004 - Tile-Authoritative Campaign Surface|ADR-0004]], [[docs/Decisions/ADR-0005 - Water and River Tile Topology|ADR-0005]], [[docs/Decisions/ADR-0006 - Procedural Materials and Directional Coasts|ADR-0006]], [[docs/Decisions/ADR-0008 - Deterministic Editable Campaign World Generation|ADR-0008]], [[docs/Decisions/ADR-0010 - Tectonic Erosion and Hierarchical Drainage|ADR-0010]], [[docs/Decisions/ADR-0011 - Physical Terrain Noise and Boundary-Aligned Ridges|ADR-0011]], [[docs/Decisions/ADR-0012 - Regional Geographic Coast Skeletons|ADR-0012]], [[docs/Decisions/ADR-0013 - Opportunity-Based Tidal Inlets|ADR-0013]], [[docs/Decisions/ADR-0014 - Open Directional Coast Boundaries|ADR-0014]], [[docs/Decisions/ADR-0024 - Scale-Hierarchical Directional Coasts|ADR-0024]], [[docs/Decisions/ADR-0025 - Built-in Steppe Terrain|ADR-0025]], [[docs/Decisions/ADR-0026 - Soft Avoided Resource Terrain Factors|ADR-0026]], and [[docs/Decisions/ADR-0027 - Hard Resource Surface Exclusions|ADR-0027]].
-
 ## Persistence and legacy projects
 
 A version-2 project is portable when `world.json` and `campaign-tiles.json` are copied together; include `custom-terrain.json`, `resource-definitions.json`, `resource-generation.json`, and `resource-tiles.json` when those optional files exist. The project coordinator stages the complete terrain/resource file set before replacement and removes stale resource sidecars when the saved map becomes empty. Loading rejects unsupported versions, duplicate records, unknown types/custom IDs, invalid heights, and coordinates outside the exact grid.
 
 Opening a version-1 project converts it in memory. Each campaign tile receives its existing type and the rounded average of the legacy samples owned by that cell. Legacy `Water` becomes `Sea`. The editor marks the result unsaved and requires a different destination folder, so the original manifest, chunks, and campaign file remain unchanged.
-
-The full contract is in [[docs/Reference/World File Format|World File Format]].
 
 ## Repository layout
 
@@ -116,7 +112,6 @@ The full contract is in [[docs/Reference/World File Format|World File Format]].
 src/World.Core/    engine-neutral campaign world and persistence; legacy v1 reader retained
 src/World.Editor/  Avalonia desktop application
 src/World.Tests/   xUnit behavior, interpolation, conversion, and roundtrip coverage
-docs/              Obsidian-compatible architecture, guides, ADRs, and verification
 ```
 
 ## Current limits
@@ -135,10 +130,6 @@ docs/              Obsidian-compatible architecture, guides, ADRs, and verificat
 - Editing is local and single-user, without autosave, collaboration, cloud persistence, or a crash-recovery journal.
 - Mouse input is required for map stamping; keyboard shortcuts cover commands but not tile traversal or painting.
 
-The accepted [[docs/Reference/Campaign Tile Taxonomy v3|Tile Taxonomy v3]] addresses the remaining mixed palette by adding Wetland, Tundra, and BarrenRock; deriving terrain form; moving River to an overlay; and moving Beach/Cliff to shore edges. Version 2 now has full-tile Desert and Steppe values. Desert maps one-to-one to the future base surface; Steppe maps to Grassland until a later biome/climate layer owns the finer ecological distinction. Its isolated engine-neutral Phase 1 domain and validation are implemented under `src/World.Core/Campaign/V3`. The current executable, editor UI, and project files remain version 2.
+The isolated version-3 prototype addresses the remaining mixed palette by adding Wetland, Tundra, and BarrenRock; deriving terrain form; moving River to an overlay; and moving Beach/Cliff to shore edges. Version 2 now has full-tile Desert and Steppe values. Desert maps one-to-one to the future base surface; Steppe maps to Grassland until a later biome/climate layer owns the finer ecological distinction. Its engine-neutral Phase 1 domain and validation are implemented under `src/World.Core/Campaign/V3`. The current executable, editor UI, and project files remain version 2.
 
 Future resources, roads, detailed biomes, geology, climate, settlements, advanced hydrology, and engine importers should consume the same tile coordinate and derived-surface contract without hiding extra meaning inside the height value.
-
-## Documentation
-
-Start at [[docs/index|the documentation index]]. The vault uses ordinary Markdown and relative Obsidian wikilinks.

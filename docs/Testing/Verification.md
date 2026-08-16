@@ -508,6 +508,11 @@ The executable domain tests are authoritative for exact values; this path checks
 - `.gitignore` excludes `artifacts/`, `bin/`, `obj/`, Visual Studio/JetBrains state, user settings, and temporary files. Published executables and local build outputs are intentionally rebuilt from source rather than committed.
 - The publication baseline is the `433/433` Release test suite plus a clean solution format check.
 
+## Standalone repository README verification on 2026-08-17
+
+- `README.md` is a self-contained GitHub landing page. It contains no Obsidian syntax, `docs/` navigation, ADR link bundle, or dependency on documentation-vault context.
+- Product capabilities, requirements, build/run commands, controls, height/type semantics, architecture, persistence, repository source layout, and current limits remain explained directly in the README.
+
 ## Full-definition preview-first regeneration verification on 2026-08-14
 
 - Added **Regenerate** to the toolbar, **Terrain → Regenerate world…**, and `Ctrl+R`. The command is disabled until a world is open.
