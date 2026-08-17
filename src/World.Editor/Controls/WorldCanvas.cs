@@ -4,13 +4,16 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Kingdom.World.Core.Campaign;
 using Kingdom.World.Core.Campaign.Resources;
+using Kingdom.World.Core.Campaign.Seasons;
 using Kingdom.World.Core.Commands;
 using Kingdom.World.Core.Models;
 using Kingdom.World.Editor.Models;
+using Kingdom.World.Editor.ViewModels;
 
 namespace Kingdom.World.Editor.Controls;
 
@@ -66,6 +69,36 @@ public sealed class WorldCanvas : Control
     public static readonly StyledProperty<int> ResourcePaintAreaRadiusProperty =
         AvaloniaProperty.Register<WorldCanvas, int>(nameof(ResourcePaintAreaRadius));
 
+    public static readonly StyledProperty<CampaignSeasonMap?> SeasonMapProperty =
+        AvaloniaProperty.Register<WorldCanvas, CampaignSeasonMap?>(nameof(SeasonMap));
+
+    public static readonly StyledProperty<bool> IsSeasonWorkspaceProperty =
+        AvaloniaProperty.Register<WorldCanvas, bool>(nameof(IsSeasonWorkspace));
+
+    public static readonly StyledProperty<string?> SelectedSeasonIdProperty =
+        AvaloniaProperty.Register<WorldCanvas, string?>(nameof(SelectedSeasonId));
+
+    public static readonly StyledProperty<CampaignSeasonPaintTool> SeasonPaintToolProperty =
+        AvaloniaProperty.Register<WorldCanvas, CampaignSeasonPaintTool>(nameof(SeasonPaintTool));
+
+    public static readonly StyledProperty<bool> LockManualSeasonEditsProperty =
+        AvaloniaProperty.Register<WorldCanvas, bool>(nameof(LockManualSeasonEdits), true);
+
+    public static readonly StyledProperty<int> SeasonPaintAreaRadiusProperty =
+        AvaloniaProperty.Register<WorldCanvas, int>(nameof(SeasonPaintAreaRadius));
+
+    public static readonly StyledProperty<bool> ShowSeasonLabelsProperty =
+        AvaloniaProperty.Register<WorldCanvas, bool>(nameof(ShowSeasonLabels), true);
+
+    public static readonly StyledProperty<bool> BlendSeasonBoundariesProperty =
+        AvaloniaProperty.Register<WorldCanvas, bool>(nameof(BlendSeasonBoundaries), true);
+
+    public static readonly StyledProperty<bool> AllowAreaSelectionProperty =
+        AvaloniaProperty.Register<WorldCanvas, bool>(nameof(AllowAreaSelection));
+
+    public static readonly StyledProperty<CampaignTileArea?> SelectedAreaProperty =
+        AvaloniaProperty.Register<WorldCanvas, CampaignTileArea?>(nameof(SelectedArea));
+
     private const double MinimumZoom = 0.000001;
     private const double MaximumZoom = 256;
     private const int MaximumRasterWidth = 1100;
@@ -73,35 +106,40 @@ public sealed class WorldCanvas : Control
     private const int ParallelRasterPixelThreshold = 128 * 1024;
     private const double MinimumElevationLabelZoom = 28;
     private const double MinimumResourcePotentialLabelZoom = 28;
+    private const double MinimumSeasonLabelZoom = 28;
 
-    private static readonly IBrush CanvasBackground = new SolidColorBrush(Color.Parse("#0D1317"));
+    private static readonly IBrush CanvasBackground =
+        new ImmutableSolidColorBrush(Color.Parse("#0D1317").ToUInt32());
     private static readonly IBrush ResourceTerrainMuteBrush =
-        new SolidColorBrush(Color.FromArgb(132, 17, 22, 24));
-    private static readonly IPen WorldBorderPen = new Pen(
-        new SolidColorBrush(Color.FromArgb(210, 170, 190, 190)),
+        new ImmutableSolidColorBrush(Color.FromArgb(132, 17, 22, 24).ToUInt32());
+    private static readonly IPen WorldBorderPen = new ImmutablePen(
+        Color.FromArgb(210, 170, 190, 190).ToUInt32(),
         1.2);
-    private static readonly IPen TileCursorPen = new Pen(
-        new SolidColorBrush(Color.Parse("#72D4DC")),
+    private static readonly IPen TileCursorPen = new ImmutablePen(
+        Color.Parse("#72D4DC").ToUInt32(),
         2);
-    private static readonly IPen BlockedTileCursorPen = new Pen(
-        new SolidColorBrush(Color.Parse("#FF6B6B")),
+    private static readonly IPen BlockedTileCursorPen = new ImmutablePen(
+        Color.Parse("#FF6B6B").ToUInt32(),
         2.2);
-    private static readonly IPen SelectionPen = new Pen(
-        new SolidColorBrush(Color.Parse("#E3B557")),
+    private static readonly IPen SelectionPen = new ImmutablePen(
+        Color.Parse("#E3B557").ToUInt32(),
         2.2);
+    private static readonly IBrush AreaSelectionBrush =
+        new ImmutableSolidColorBrush(Color.FromArgb(48, 227, 181, 87).ToUInt32());
     private static readonly IBrush ElevationLabelOutlineBrush =
-        new SolidColorBrush(Color.FromArgb(235, 0, 0, 0));
-    private static readonly IBrush ElevationLabelTextBrush = Brushes.White;
+        new ImmutableSolidColorBrush(Color.FromArgb(235, 0, 0, 0).ToUInt32());
+    private static readonly IBrush ElevationLabelTextBrush =
+        new ImmutableSolidColorBrush(Colors.White.ToUInt32());
     private static readonly Typeface ElevationLabelTypeface = new(
         "Tahoma",
         FontStyle.Normal,
         FontWeight.Bold,
         FontStretch.Normal);
-    private static readonly IPen MinorGridPen = new Pen(
-        new SolidColorBrush(Color.FromArgb(62, 225, 235, 232)),
+    private static readonly IPen MinorGridPen = new ImmutablePen(
+        Color.FromArgb(62, 225, 235, 232).ToUInt32(),
         0.7);
-    private static readonly IPen MajorGridPen = new Pen(
-        new SolidColorBrush(Color.FromArgb(120, 225, 235, 232)),
+    private static readonly IPen MajorGridPen = new ImmutablePen(
+        Color.FromArgb(120, 225, 235, 232).ToUInt32(),
         1.2);
     private static readonly (int X, int Y, RiverConnections Connection)[] RiverRenderNeighbors =
     [
@@ -113,20 +151,20 @@ public sealed class WorldCanvas : Control
     private static readonly IReadOnlyDictionary<CampaignTileType, IBrush> PreviewBrushes =
         new Dictionary<CampaignTileType, IBrush>
         {
-            [CampaignTileType.Unassigned] = new SolidColorBrush(Color.FromArgb(92, 89, 102, 106)),
-            [CampaignTileType.Water] = new SolidColorBrush(Color.FromArgb(92, 36, 125, 154)),
-            [CampaignTileType.Plains] = new SolidColorBrush(Color.FromArgb(92, 115, 148, 93)),
-            [CampaignTileType.Steppe] = new SolidColorBrush(Color.FromArgb(92, 164, 154, 88)),
-            [CampaignTileType.Desert] = new SolidColorBrush(Color.FromArgb(92, 201, 145, 66)),
-            [CampaignTileType.Forest] = new SolidColorBrush(Color.FromArgb(92, 47, 104, 79)),
-            [CampaignTileType.Hills] = new SolidColorBrush(Color.FromArgb(92, 139, 138, 98)),
-            [CampaignTileType.Mountain] = new SolidColorBrush(Color.FromArgb(92, 133, 135, 132)),
-            [CampaignTileType.Sea] = new SolidColorBrush(Color.FromArgb(92, 30, 106, 139)),
-            [CampaignTileType.Lake] = new SolidColorBrush(Color.FromArgb(92, 45, 142, 163)),
-            [CampaignTileType.River] = new SolidColorBrush(Color.FromArgb(72, 88, 132, 78)),
-            [CampaignTileType.LargeRiver] = new SolidColorBrush(Color.FromArgb(72, 78, 127, 79)),
-            [CampaignTileType.Beach] = new SolidColorBrush(Color.FromArgb(92, 195, 168, 109)),
-            [CampaignTileType.Cliff] = new SolidColorBrush(Color.FromArgb(92, 111, 102, 94)),
+            [CampaignTileType.Unassigned] = new ImmutableSolidColorBrush(Color.FromArgb(92, 89, 102, 106).ToUInt32()),
+            [CampaignTileType.Water] = new ImmutableSolidColorBrush(Color.FromArgb(92, 36, 125, 154).ToUInt32()),
+            [CampaignTileType.Plains] = new ImmutableSolidColorBrush(Color.FromArgb(92, 115, 148, 93).ToUInt32()),
+            [CampaignTileType.Steppe] = new ImmutableSolidColorBrush(Color.FromArgb(92, 164, 154, 88).ToUInt32()),
+            [CampaignTileType.Desert] = new ImmutableSolidColorBrush(Color.FromArgb(92, 201, 145, 66).ToUInt32()),
+            [CampaignTileType.Forest] = new ImmutableSolidColorBrush(Color.FromArgb(92, 47, 104, 79).ToUInt32()),
+            [CampaignTileType.Hills] = new ImmutableSolidColorBrush(Color.FromArgb(92, 139, 138, 98).ToUInt32()),
+            [CampaignTileType.Mountain] = new ImmutableSolidColorBrush(Color.FromArgb(92, 133, 135, 132).ToUInt32()),
+            [CampaignTileType.Sea] = new ImmutableSolidColorBrush(Color.FromArgb(92, 30, 106, 139).ToUInt32()),
+            [CampaignTileType.Lake] = new ImmutableSolidColorBrush(Color.FromArgb(92, 45, 142, 163).ToUInt32()),
+            [CampaignTileType.River] = new ImmutableSolidColorBrush(Color.FromArgb(72, 88, 132, 78).ToUInt32()),
+            [CampaignTileType.LargeRiver] = new ImmutableSolidColorBrush(Color.FromArgb(72, 78, 127, 79).ToUInt32()),
+            [CampaignTileType.Beach] = new ImmutableSolidColorBrush(Color.FromArgb(92, 195, 168, 109).ToUInt32()),
+            [CampaignTileType.Cliff] = new ImmutableSolidColorBrush(Color.FromArgb(92, 111, 102, 94).ToUInt32()),
         };
 
     private WriteableBitmap? _surfaceBitmap;
@@ -134,26 +172,38 @@ public sealed class WorldCanvas : Control
     private WriteableBitmap? _resourceBitmap;
     private ResourceRasterKey? _resourceRasterKey;
     private ResourceRasterSnapshot? _resourceRasterSnapshot;
+    private WriteableBitmap? _seasonBitmap;
+    private SeasonRasterKey? _seasonRasterKey;
+    private SeasonRasterSnapshot? _seasonRasterSnapshot;
     private double _zoom = 1;
     private double _originX;
     private double _originY;
     private bool _fitRequested = true;
     private bool _isPanning;
+    private bool _isSelectingArea;
     private Point _lastPointerPosition;
     private CampaignTilePointerInfo? _hover;
     private CampaignTileCoordinate? _selectedCoordinate;
+    private CampaignTileCoordinate? _areaSelectionStart;
+    private CampaignTileArea? _areaSelectionBeforeDrag;
     private CampaignTileCoordinate? _lastStampCoordinate;
     private CampaignTileStampBuilder? _stroke;
     private CampaignResourceStrokeBuilder? _resourceStroke;
+    private CampaignSeasonStrokeBuilder? _seasonStroke;
     private string? _strokeResourceId;
     private byte _strokeResourcePotential;
     private bool _strokeLocksResource;
     private bool _strokeErasesResource;
     private int _strokeResourcePaintAreaRadius;
+    private string? _strokeSeasonId;
+    private CampaignSeasonPaintTool _strokeSeasonTool;
+    private bool _strokeLocksSeason;
+    private int _strokeSeasonPaintAreaRadius;
     private readonly HashSet<CampaignTileCoordinate> _blockedRiverCoordinates = [];
     private readonly Dictionary<ElevationLabelKey, ElevationLabelText> _elevationLabelCache = [];
     private readonly Dictionary<ResourcePotentialLabelKey, ElevationLabelText>
         _resourcePotentialLabelCache = [];
+    private readonly Dictionary<SeasonLabelKey, ElevationLabelText> _seasonLabelCache = [];
     private RiverRenderStyleCache? _riverRenderStyleCache;
     private RiverRenderStyleCache? _largeRiverRenderStyleCache;
     private RiverRenderStyleCache? _previewRiverRenderStyleCache;
@@ -178,7 +228,17 @@ public sealed class WorldCanvas : Control
             ResourcePotentialProperty,
             LockManualResourceEditsProperty,
             EraseSelectedResourceProperty,
-            ResourcePaintAreaRadiusProperty);
+            ResourcePaintAreaRadiusProperty,
+            SeasonMapProperty,
+            IsSeasonWorkspaceProperty,
+            SelectedSeasonIdProperty,
+            SeasonPaintToolProperty,
+            LockManualSeasonEditsProperty,
+            SeasonPaintAreaRadiusProperty,
+            ShowSeasonLabelsProperty,
+            BlendSeasonBoundariesProperty,
+            AllowAreaSelectionProperty,
+            SelectedAreaProperty);
     }
 
     public WorldCanvas()
@@ -191,15 +251,20 @@ public sealed class WorldCanvas : Control
 
     public event EventHandler<CampaignTilePointerEventArgs>? TileSelected;
 
+    public event EventHandler<CampaignTileAreaSelectedEventArgs>? TileAreaSelected;
+
     public event EventHandler<CampaignTileStrokeEventArgs>? StrokeCompleted;
 
     public event EventHandler<CampaignResourceStrokeEventArgs>? ResourceStrokeCompleted;
+
+    public event EventHandler<CampaignSeasonStrokeEventArgs>? SeasonStrokeCompleted;
 
     public event EventHandler<ZoomChangedEventArgs>? ZoomChanged;
 
     public event EventHandler<WorldCanvasViewportChangedEventArgs>? ViewportChanged;
 
-    public bool HasActiveStroke => _stroke is not null || _resourceStroke is not null;
+    public bool HasActiveStroke =>
+        _stroke is not null || _resourceStroke is not null || _seasonStroke is not null;
 
     public CampaignWorld? World
     {
@@ -297,6 +362,66 @@ public sealed class WorldCanvas : Control
         set => SetValue(ResourcePaintAreaRadiusProperty, value);
     }
 
+    public CampaignSeasonMap? SeasonMap
+    {
+        get => GetValue(SeasonMapProperty);
+        set => SetValue(SeasonMapProperty, value);
+    }
+
+    public bool IsSeasonWorkspace
+    {
+        get => GetValue(IsSeasonWorkspaceProperty);
+        set => SetValue(IsSeasonWorkspaceProperty, value);
+    }
+
+    public string? SelectedSeasonId
+    {
+        get => GetValue(SelectedSeasonIdProperty);
+        set => SetValue(SelectedSeasonIdProperty, value);
+    }
+
+    public CampaignSeasonPaintTool SeasonPaintTool
+    {
+        get => GetValue(SeasonPaintToolProperty);
+        set => SetValue(SeasonPaintToolProperty, value);
+    }
+
+    public bool LockManualSeasonEdits
+    {
+        get => GetValue(LockManualSeasonEditsProperty);
+        set => SetValue(LockManualSeasonEditsProperty, value);
+    }
+
+    public int SeasonPaintAreaRadius
+    {
+        get => GetValue(SeasonPaintAreaRadiusProperty);
+        set => SetValue(SeasonPaintAreaRadiusProperty, value);
+    }
+
+    public bool ShowSeasonLabels
+    {
+        get => GetValue(ShowSeasonLabelsProperty);
+        set => SetValue(ShowSeasonLabelsProperty, value);
+    }
+
+    public bool BlendSeasonBoundaries
+    {
+        get => GetValue(BlendSeasonBoundariesProperty);
+        set => SetValue(BlendSeasonBoundariesProperty, value);
+    }
+
+    public bool AllowAreaSelection
+    {
+        get => GetValue(AllowAreaSelectionProperty);
+        set => SetValue(AllowAreaSelectionProperty, value);
+    }
+
+    public CampaignTileArea? SelectedArea
+    {
+        get => GetValue(SelectedAreaProperty);
+        set => SetValue(SelectedAreaProperty, value);
+    }
+
     public void ZoomToFit()
     {
         _fitRequested = true;
@@ -317,6 +442,7 @@ public sealed class WorldCanvas : Control
         _fitRequested = false;
         MarkSurfaceBitmapDirty();
         MarkResourceBitmapDirty();
+        MarkSeasonBitmapDirty();
         if (raiseEvent)
         {
             RaiseViewportChanged();
@@ -329,6 +455,7 @@ public sealed class WorldCanvas : Control
     {
         MarkSurfaceBitmapDirty();
         MarkResourceBitmapDirty();
+        MarkSeasonBitmapDirty();
         InvalidateVisual();
     }
 
@@ -374,6 +501,10 @@ public sealed class WorldCanvas : Control
             DrawResourceTerrainMute(context, world);
             DrawResourceHeatmap(context, world);
         }
+        else if (IsSeasonWorkspace)
+        {
+            DrawSeasonOverlay(context, world);
+        }
 
         DrawWorldBorder(context, world);
         if (ShowCampaignGrid)
@@ -384,6 +515,10 @@ public sealed class WorldCanvas : Control
         if (IsResourceWorkspace)
         {
             DrawResourcePotentialNumbers(context, world);
+        }
+        else if (IsSeasonWorkspace && ShowSeasonLabels)
+        {
+            DrawSeasonLabels(context, world);
         }
         else if (ShowElevationNumbers)
         {
@@ -406,6 +541,7 @@ public sealed class WorldCanvas : Control
         {
             MarkSurfaceBitmapDirty();
             MarkResourceBitmapDirty();
+            MarkSeasonBitmapDirty();
             _fitRequested = true;
         }
 
@@ -420,9 +556,14 @@ public sealed class WorldCanvas : Control
             _fitRequested = true;
             _hover = null;
             _selectedCoordinate = null;
+            SelectedArea = null;
+            _isSelectingArea = false;
+            _areaSelectionStart = null;
+            _areaSelectionBeforeDrag = null;
             _blockedRiverCoordinates.Clear();
             MarkSurfaceBitmapDirty();
             MarkResourceBitmapDirty();
+            MarkSeasonBitmapDirty();
         }
         else if (change.Property == UseGrayscaleProperty)
         {
@@ -432,6 +573,11 @@ public sealed class WorldCanvas : Control
                  change.Property == SelectedResourceIdProperty)
         {
             MarkResourceBitmapDirty();
+        }
+        else if (change.Property == SeasonMapProperty ||
+                 change.Property == BlendSeasonBoundariesProperty)
+        {
+            MarkSeasonBitmapDirty();
         }
     }
 
@@ -460,6 +606,24 @@ public sealed class WorldCanvas : Control
             return;
         }
 
+        if (current.Properties.IsLeftButtonPressed &&
+            AllowAreaSelection &&
+            World is { } selectionWorld &&
+            pointer is { } areaPointer)
+        {
+            _isSelectingArea = true;
+            _areaSelectionStart = areaPointer.Coordinate;
+            _areaSelectionBeforeDrag = SelectedArea;
+            SelectedArea = CreateAreaSelection(
+                selectionWorld.Definition,
+                areaPointer.Coordinate,
+                areaPointer.Coordinate);
+            e.Pointer.Capture(this);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (!current.Properties.IsLeftButtonPressed || !AllowTileEditing || World is null || pointer is null)
         {
             return;
@@ -467,7 +631,21 @@ public sealed class WorldCanvas : Control
 
         _lastStampCoordinate = null;
         _blockedRiverCoordinates.Clear();
-        if (IsResourceWorkspace)
+        if (IsSeasonWorkspace)
+        {
+            if (!TryGetActiveSeason(World, out var seasons))
+            {
+                return;
+            }
+
+            _seasonStroke = new CampaignSeasonStrokeBuilder(seasons);
+            _strokeSeasonId = SelectedSeasonId;
+            _strokeSeasonTool = SeasonPaintTool;
+            _strokeLocksSeason = LockManualSeasonEdits;
+            _strokeSeasonPaintAreaRadius = EffectiveSeasonPaintAreaRadius;
+            ApplySeasonAt(pointer.Value.Coordinate);
+        }
+        else if (IsResourceWorkspace)
         {
             if (!TryGetActiveResource(World, out var resources, out var definition))
             {
@@ -519,11 +697,31 @@ public sealed class WorldCanvas : Control
             TileHovered?.Invoke(this, new CampaignTilePointerEventArgs(pointer));
         }
 
-        if ((_stroke is not null || _resourceStroke is not null) &&
+        if (_isSelectingArea &&
+            current.Properties.IsLeftButtonPressed &&
+            World is { } selectionWorld &&
+            _areaSelectionStart is { } start &&
+            pointer is { } areaPointer)
+        {
+            SelectedArea = CreateAreaSelection(
+                selectionWorld.Definition,
+                start,
+                areaPointer.Coordinate);
+            _lastPointerPosition = position;
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
+        if ((_stroke is not null || _resourceStroke is not null || _seasonStroke is not null) &&
             current.Properties.IsLeftButtonPressed &&
             pointer is { } stamp)
         {
-            if (_resourceStroke is not null)
+            if (_seasonStroke is not null)
+            {
+                ApplySeasonAt(stamp.Coordinate);
+            }
+            else if (_resourceStroke is not null)
             {
                 ApplyResourceAt(stamp.Coordinate);
             }
@@ -548,18 +746,42 @@ public sealed class WorldCanvas : Control
             e.Pointer.Capture(null);
             MarkSurfaceBitmapDirty();
             MarkResourceBitmapDirty();
+            MarkSeasonBitmapDirty();
             RaiseViewportChanged();
             InvalidateVisual();
             e.Handled = true;
             return;
         }
 
-        if ((_stroke is null && _resourceStroke is null) || World is null)
+        if (_isSelectingArea)
+        {
+            _isSelectingArea = false;
+            _areaSelectionStart = null;
+            _areaSelectionBeforeDrag = null;
+            e.Pointer.Capture(null);
+            if (SelectedArea is { } selectedArea)
+            {
+                TileAreaSelected?.Invoke(this, new CampaignTileAreaSelectedEventArgs(selectedArea));
+            }
+
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
+        if ((_stroke is null && _resourceStroke is null && _seasonStroke is null) || World is null)
         {
             return;
         }
 
-        if (_resourceStroke is not null)
+        if (_seasonStroke is not null)
+        {
+            var command = _seasonStroke.Complete(BuildSeasonStrokeDescription());
+            _seasonStroke = null;
+            ResetSeasonStrokeSettings();
+            SeasonStrokeCompleted?.Invoke(this, new CampaignSeasonStrokeEventArgs(command));
+        }
+        else if (_resourceStroke is not null)
         {
             var command = _resourceStroke.Complete(BuildResourceStrokeDescription());
             _resourceStroke = null;
@@ -605,6 +827,7 @@ public sealed class WorldCanvas : Control
         _originY = tileY - position.Y / _zoom;
         MarkSurfaceBitmapDirty();
         MarkResourceBitmapDirty();
+        MarkSeasonBitmapDirty();
         RaiseZoomChanged();
         RaiseViewportChanged();
         InvalidateVisual();
@@ -614,7 +837,7 @@ public sealed class WorldCanvas : Control
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
-        if (_stroke is null && _resourceStroke is null)
+        if (_stroke is null && _resourceStroke is null && _seasonStroke is null)
         {
             _hover = null;
             TileHovered?.Invoke(this, new CampaignTilePointerEventArgs(null));
@@ -625,7 +848,7 @@ public sealed class WorldCanvas : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key != Key.Escape || !HasActiveStroke)
+        if (e.Key != Key.Escape || (!HasActiveStroke && !_isSelectingArea))
         {
             return;
         }
@@ -643,23 +866,36 @@ public sealed class WorldCanvas : Control
     public bool CancelActiveInteraction()
     {
         var cancelledStroke = HasActiveStroke;
+        var cancelledAreaSelection = _isSelectingArea;
         _stroke?.Cancel();
         _resourceStroke?.Cancel();
+        _seasonStroke?.Cancel();
         _stroke = null;
         _resourceStroke = null;
+        _seasonStroke = null;
         ResetResourceStrokeSettings();
+        ResetSeasonStrokeSettings();
         _lastStampCoordinate = null;
         _blockedRiverCoordinates.Clear();
+        if (cancelledAreaSelection)
+        {
+            SelectedArea = _areaSelectionBeforeDrag;
+        }
+
+        _isSelectingArea = false;
+        _areaSelectionStart = null;
+        _areaSelectionBeforeDrag = null;
 
         var cancelledPan = _isPanning;
         _isPanning = false;
-        if (!cancelledStroke && !cancelledPan)
+        if (!cancelledStroke && !cancelledPan && !cancelledAreaSelection)
         {
             return false;
         }
 
         MarkSurfaceBitmapDirty();
         MarkResourceBitmapDirty();
+        MarkSeasonBitmapDirty();
         InvalidateVisual();
         return true;
     }
@@ -779,6 +1015,123 @@ public sealed class WorldCanvas : Control
         }
     }
 
+    private void ApplySeasonAt(CampaignTileCoordinate coordinate)
+    {
+        if (_seasonStroke is null || World is null)
+        {
+            return;
+        }
+
+        if (_lastStampCoordinate is not { } previous)
+        {
+            ApplySeasonPaintArea(coordinate);
+        }
+        else
+        {
+            var dx = coordinate.X - previous.X;
+            var dy = coordinate.Y - previous.Y;
+            var steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
+            if (steps == 0)
+            {
+                ApplySeasonPaintArea(coordinate);
+            }
+            else
+            {
+                for (var step = 1; step <= steps; step++)
+                {
+                    var x = previous.X + (int)Math.Round(
+                        (double)dx * step / steps,
+                        MidpointRounding.AwayFromZero);
+                    var y = previous.Y + (int)Math.Round(
+                        (double)dy * step / steps,
+                        MidpointRounding.AwayFromZero);
+                    ApplySeasonPaintArea(new CampaignTileCoordinate(x, y));
+                }
+            }
+        }
+
+        _lastStampCoordinate = coordinate;
+        InvalidateVisual();
+    }
+
+    private void ApplySeasonPaintArea(CampaignTileCoordinate center)
+    {
+        if (_seasonStroke is null ||
+            World is null ||
+            SeasonMap is not { } seasons ||
+            seasons.Definition != World.Definition)
+        {
+            return;
+        }
+
+        ApplySeasonToolToArea(
+            _seasonStroke,
+            seasons,
+            center,
+            _strokeSeasonPaintAreaRadius,
+            _strokeSeasonTool,
+            _strokeSeasonId,
+            _strokeLocksSeason);
+    }
+
+    internal static void ApplySeasonToolToArea(
+        CampaignSeasonStrokeBuilder stroke,
+        CampaignSeasonMap seasons,
+        CampaignTileCoordinate center,
+        int paintAreaRadius,
+        CampaignSeasonPaintTool tool,
+        string? selectedSeasonId,
+        bool lockPaintedTiles)
+    {
+        ArgumentNullException.ThrowIfNull(stroke);
+        ArgumentNullException.ThrowIfNull(seasons);
+        if (paintAreaRadius is < 0 or > 12)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(paintAreaRadius),
+                paintAreaRadius,
+                "Season paint area radius must be from 0 through 12 tiles.");
+        }
+
+        if (!Enum.IsDefined(tool))
+        {
+            throw new ArgumentOutOfRangeException(nameof(tool), tool, "Unknown season paint tool.");
+        }
+
+        if (tool == CampaignSeasonPaintTool.Paint &&
+            !seasons.Catalog.Contains(selectedSeasonId))
+        {
+            throw new ArgumentException(
+                "Painting requires a season ID from the active season catalog.",
+                nameof(selectedSeasonId));
+        }
+
+        var area = CampaignTileArea.Centered(
+            seasons.Definition,
+            center,
+            paintAreaRadius);
+        foreach (var coordinate in area.EnumerateCoordinates())
+        {
+            switch (tool)
+            {
+                case CampaignSeasonPaintTool.Paint:
+                    stroke.Paint(coordinate, selectedSeasonId!, lockPaintedTiles);
+                    break;
+                case CampaignSeasonPaintTool.ResetToDefault:
+                    stroke.ResetToDefault(coordinate, locked: false);
+                    break;
+                case CampaignSeasonPaintTool.Lock:
+                    stroke.SetLocked(coordinate, locked: true);
+                    break;
+                case CampaignSeasonPaintTool.Unlock:
+                    stroke.SetLocked(coordinate, locked: false);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(tool), tool, "Unknown season paint tool.");
+            }
+        }
+    }
+
     private void ApplyFourConnectedRiverPath(
         CampaignTileCoordinate start,
         CampaignTileCoordinate target,
@@ -848,6 +1201,9 @@ public sealed class WorldCanvas : Control
     private int EffectiveResourcePaintAreaRadius =>
         Math.Clamp(ResourcePaintAreaRadius, 0, 12);
 
+    private int EffectiveSeasonPaintAreaRadius =>
+        Math.Clamp(SeasonPaintAreaRadius, 0, 12);
+
     private CampaignTileArea GetPaintArea(CampaignWorld world, CampaignTileCoordinate center) =>
         CampaignTileArea.Centered(world.Definition, center, EffectivePaintAreaRadius);
 
@@ -871,6 +1227,21 @@ public sealed class WorldCanvas : Control
 
         var lockText = _strokeLocksResource ? ", locked" : "";
         return $"Paint {resourceName}{area} at {_strokeResourcePotential} potential{lockText}";
+    }
+
+    private string BuildSeasonStrokeDescription()
+    {
+        var sideLength = 1 + _strokeSeasonPaintAreaRadius * 2;
+        var area = sideLength == 1 ? string.Empty : $" {sideLength} × {sideLength} tiles";
+        return _strokeSeasonTool switch
+        {
+            CampaignSeasonPaintTool.Paint =>
+                $"Paint {GetSelectedSeasonName()}{area}{(_strokeLocksSeason ? ", locked" : ", unlocked")}",
+            CampaignSeasonPaintTool.ResetToDefault => $"Reset seasons to default{area}",
+            CampaignSeasonPaintTool.Lock => $"Lock seasons{area}",
+            CampaignSeasonPaintTool.Unlock => $"Unlock seasons{area}",
+            _ => $"Edit seasons{area}",
+        };
     }
 
     private string GetSelectedTerrainName() =>
@@ -898,6 +1269,30 @@ public sealed class WorldCanvas : Control
         return false;
     }
 
+    private bool TryGetActiveSeason(CampaignWorld world, out CampaignSeasonMap seasons)
+    {
+        var candidate = SeasonMap;
+        if (candidate is not null &&
+            candidate.Definition == world.Definition &&
+            (SeasonPaintTool != CampaignSeasonPaintTool.Paint ||
+             candidate.Catalog.Contains(SelectedSeasonId)))
+        {
+            seasons = candidate;
+            return true;
+        }
+
+        seasons = null!;
+        return false;
+    }
+
+    private string GetSelectedSeasonName()
+    {
+        var seasonId = _strokeSeasonId ?? SelectedSeasonId;
+        return SeasonMap?.Catalog.TryGet(seasonId, out var definition) == true
+            ? definition.Name
+            : seasonId ?? "season";
+    }
+
     private void ResetResourceStrokeSettings()
     {
         _strokeResourceId = null;
@@ -905,6 +1300,14 @@ public sealed class WorldCanvas : Control
         _strokeLocksResource = false;
         _strokeErasesResource = false;
         _strokeResourcePaintAreaRadius = 0;
+    }
+
+    private void ResetSeasonStrokeSettings()
+    {
+        _strokeSeasonId = null;
+        _strokeSeasonTool = default;
+        _strokeLocksSeason = false;
+        _strokeSeasonPaintAreaRadius = 0;
     }
 
     private CampaignTilePointerInfo? ToPointerInfo(Point position)
@@ -1052,6 +1455,285 @@ public sealed class WorldCanvas : Control
             _resourceBitmap,
             new Rect(_resourceBitmap.Size),
             destination);
+    }
+
+    private void DrawSeasonOverlay(DrawingContext context, CampaignWorld world)
+    {
+        var seasons = SeasonMap;
+        if (seasons is null || seasons.Definition != world.Definition)
+        {
+            return;
+        }
+
+        if (!_isPanning || _seasonBitmap is null || _seasonRasterKey is null)
+        {
+            EnsureSeasonBitmap(seasons);
+        }
+
+        if (_seasonBitmap is null || _seasonRasterKey is not { } cached)
+        {
+            return;
+        }
+
+        var destination = new Rect(Bounds.Size);
+        if (_isPanning)
+        {
+            var zoomRatio = _zoom / cached.Zoom;
+            destination = new Rect(
+                (cached.OriginX - _originX) * _zoom,
+                (cached.OriginY - _originY) * _zoom,
+                cached.ViewportWidth * zoomRatio,
+                cached.ViewportHeight * zoomRatio);
+        }
+
+        context.DrawImage(
+            _seasonBitmap,
+            new Rect(_seasonBitmap.Size),
+            destination);
+    }
+
+    private void EnsureSeasonBitmap(CampaignSeasonMap seasons)
+    {
+        var boundsWidth = Math.Max(1, (int)Math.Ceiling(Bounds.Width));
+        var boundsHeight = Math.Max(1, (int)Math.Ceiling(Bounds.Height));
+        var scale = Math.Max(
+            1,
+            Math.Max((double)boundsWidth / MaximumRasterWidth, (double)boundsHeight / MaximumRasterHeight));
+        var rasterWidth = Math.Max(1, (int)Math.Ceiling(boundsWidth / scale));
+        var rasterHeight = Math.Max(1, (int)Math.Ceiling(boundsHeight / scale));
+        var key = new SeasonRasterKey(
+            seasons.Revision,
+            rasterWidth,
+            rasterHeight,
+            Bounds.Width,
+            Bounds.Height,
+            _originX,
+            _originY,
+            _zoom,
+            BlendSeasonBoundaries);
+        if (_seasonBitmap is not null &&
+            _seasonRasterSnapshot is not null &&
+            _seasonRasterKey == key)
+        {
+            return;
+        }
+
+        var pixelSize = new PixelSize(rasterWidth, rasterHeight);
+        if (_seasonBitmap is null || _seasonBitmap.PixelSize != pixelSize)
+        {
+            _seasonBitmap?.Dispose();
+            _seasonBitmap = new WriteableBitmap(
+                pixelSize,
+                new Vector(96, 96),
+                PixelFormat.Bgra8888,
+                AlphaFormat.Premul);
+        }
+
+        _seasonRasterSnapshot?.Dispose();
+        _seasonRasterSnapshot = SeasonRasterSnapshot.Create(
+            seasons,
+            Bounds.Width,
+            Bounds.Height,
+            _originX,
+            _originY,
+            _zoom);
+        FillSeasonBitmap(
+            _seasonBitmap,
+            _seasonRasterSnapshot,
+            Bounds.Width,
+            Bounds.Height,
+            _originX,
+            _originY,
+            _zoom,
+            BlendSeasonBoundaries);
+        _seasonRasterKey = key;
+    }
+
+    private static unsafe void FillSeasonBitmap(
+        WriteableBitmap bitmap,
+        SeasonRasterSnapshot snapshot,
+        double viewportWidth,
+        double viewportHeight,
+        double originX,
+        double originY,
+        double zoom,
+        bool blendBoundaries)
+    {
+        var width = bitmap.PixelSize.Width;
+        var height = bitmap.PixelSize.Height;
+        var sourceRowBytes = checked(width * 4);
+        var pixels = ArrayPool<byte>.Shared.Rent(checked(sourceRowBytes * height));
+        try
+        {
+            Array.Clear(pixels, 0, sourceRowBytes * height);
+            if ((long)width * height >= ParallelRasterPixelThreshold &&
+                Environment.ProcessorCount > 1)
+            {
+                Parallel.For(0, height, pixelY => FillSeasonRow(
+                    pixels,
+                    pixelY,
+                    width,
+                    height,
+                    snapshot,
+                    viewportWidth,
+                    viewportHeight,
+                    originX,
+                    originY,
+                    zoom,
+                    blendBoundaries));
+            }
+            else
+            {
+                for (var pixelY = 0; pixelY < height; pixelY++)
+                {
+                    FillSeasonRow(
+                        pixels,
+                        pixelY,
+                        width,
+                        height,
+                        snapshot,
+                        viewportWidth,
+                        viewportHeight,
+                        originX,
+                        originY,
+                        zoom,
+                        blendBoundaries);
+                }
+            }
+
+            using var framebuffer = bitmap.Lock();
+            fixed (byte* sourceAddress = pixels)
+            {
+                var destinationAddress = (byte*)framebuffer.Address;
+                for (var pixelY = 0; pixelY < height; pixelY++)
+                {
+                    Buffer.MemoryCopy(
+                        sourceAddress + pixelY * sourceRowBytes,
+                        destinationAddress + pixelY * framebuffer.RowBytes,
+                        framebuffer.RowBytes,
+                        sourceRowBytes);
+                }
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(pixels);
+        }
+    }
+
+    private static void FillSeasonRow(
+        byte[] pixels,
+        int pixelY,
+        int width,
+        int height,
+        SeasonRasterSnapshot snapshot,
+        double viewportWidth,
+        double viewportHeight,
+        double originX,
+        double originY,
+        double zoom,
+        bool blendBoundaries)
+    {
+        var screenY = (pixelY + 0.5) * viewportHeight / height;
+        var tileSpaceY = originY + screenY / zoom;
+        if (tileSpaceY < 0 || tileSpaceY >= snapshot.Definition.TilesY)
+        {
+            return;
+        }
+
+        var tileY = (int)Math.Floor(tileSpaceY);
+        for (var pixelX = 0; pixelX < width; pixelX++)
+        {
+            var screenX = (pixelX + 0.5) * viewportWidth / width;
+            var tileSpaceX = originX + screenX / zoom;
+            if (tileSpaceX < 0 || tileSpaceX >= snapshot.Definition.TilesX)
+            {
+                continue;
+            }
+
+            var tileX = (int)Math.Floor(tileSpaceX);
+            var seasonIndex = snapshot.GetSeasonIndex(tileX, tileY);
+            var color = snapshot.GetColor(seasonIndex);
+            var alpha = snapshot.GetAlpha(seasonIndex);
+            if (blendBoundaries)
+            {
+                color = BlendSeasonBoundary(
+                    snapshot,
+                    tileX,
+                    tileY,
+                    tileSpaceX - tileX,
+                    tileSpaceY - tileY,
+                    seasonIndex,
+                    color);
+            }
+
+            var pixel = checked((pixelY * width + pixelX) * 4);
+            pixels[pixel] = Premultiply(color.B, alpha);
+            pixels[pixel + 1] = Premultiply(color.G, alpha);
+            pixels[pixel + 2] = Premultiply(color.R, alpha);
+            pixels[pixel + 3] = alpha;
+        }
+    }
+
+    private static Rgb BlendSeasonBoundary(
+        SeasonRasterSnapshot snapshot,
+        int x,
+        int y,
+        double localX,
+        double localY,
+        ushort seasonIndex,
+        Rgb color)
+    {
+        const double blendWidth = 0.16;
+        var nearestDistance = blendWidth;
+        var neighborX = x;
+        var neighborY = y;
+        if (localX < nearestDistance)
+        {
+            nearestDistance = localX;
+            neighborX = x - 1;
+        }
+
+        if (1 - localX < nearestDistance)
+        {
+            nearestDistance = 1 - localX;
+            neighborX = x + 1;
+            neighborY = y;
+        }
+
+        if (localY < nearestDistance)
+        {
+            nearestDistance = localY;
+            neighborX = x;
+            neighborY = y - 1;
+        }
+
+        if (1 - localY < nearestDistance)
+        {
+            nearestDistance = 1 - localY;
+            neighborX = x;
+            neighborY = y + 1;
+        }
+
+        if (nearestDistance >= blendWidth ||
+            (uint)neighborX >= (uint)snapshot.Definition.TilesX ||
+            (uint)neighborY >= (uint)snapshot.Definition.TilesY)
+        {
+            return color;
+        }
+
+        var neighborIndex = snapshot.GetSeasonIndex(neighborX, neighborY);
+        if (neighborIndex == seasonIndex)
+        {
+            return color;
+        }
+
+        var amount = 0.5 * (1 - nearestDistance / blendWidth);
+        var neighbor = snapshot.GetColor(neighborIndex);
+        return new Rgb(
+            (byte)Math.Round(Lerp(color.R, neighbor.R, amount)),
+            (byte)Math.Round(Lerp(color.G, neighbor.G, amount)),
+            (byte)Math.Round(Lerp(color.B, neighbor.B, amount)));
     }
 
     private void EnsureResourceBitmap(
@@ -1965,6 +2647,46 @@ public sealed class WorldCanvas : Control
         }
     }
 
+    private void DrawSeasonLabels(DrawingContext context, CampaignWorld world)
+    {
+        if (_zoom < MinimumSeasonLabelZoom || SeasonMap is not { } seasons)
+        {
+            return;
+        }
+
+        var minimumX = Math.Max(0, (int)Math.Floor(_originX));
+        var maximumX = Math.Min(
+            world.Definition.TilesX - 1,
+            (int)Math.Ceiling(_originX + Bounds.Width / _zoom) - 1);
+        var minimumY = Math.Max(0, (int)Math.Floor(_originY));
+        var maximumY = Math.Min(
+            world.Definition.TilesY - 1,
+            (int)Math.Ceiling(_originY + Bounds.Height / _zoom) - 1);
+        var fontSize = (int)Math.Round(Math.Clamp(_zoom * 0.24, 7, 11));
+
+        for (var y = minimumY; y <= maximumY; y++)
+        {
+            for (var x = minimumX; x <= maximumX; x++)
+            {
+                var tile = seasons.GetTile(x, y);
+                var definition = seasons.Catalog.Get(tile.SeasonId);
+                var label = GetSeasonLabel(definition, tile.Locked, fontSize);
+                if (label.Foreground.Width > _zoom - 2 || label.Foreground.Height > _zoom - 2)
+                {
+                    continue;
+                }
+
+                var center = new Point(
+                    (x + 0.5 - _originX) * _zoom,
+                    (y + 0.5 - _originY) * _zoom);
+                var origin = new Point(
+                    center.X - label.Foreground.Width / 2,
+                    center.Y - label.Foreground.Height / 2);
+                DrawOutlinedLabel(context, label, origin);
+            }
+        }
+    }
+
     private ElevationLabelText GetElevationLabel(short heightMeters, int fontSize)
     {
         var key = new ElevationLabelKey(heightMeters, fontSize);
@@ -2031,10 +2753,74 @@ public sealed class WorldCanvas : Control
         return label;
     }
 
+    private ElevationLabelText GetSeasonLabel(
+        CampaignSeasonDefinition definition,
+        bool locked,
+        int fontSize)
+    {
+        var key = new SeasonLabelKey(definition.Id, definition.Name, locked, fontSize);
+        if (_seasonLabelCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        if (_seasonLabelCache.Count >= 1_024)
+        {
+            _seasonLabelCache.Clear();
+        }
+
+        var letters = new string(definition.Name
+            .Where(char.IsLetterOrDigit)
+            .Take(3)
+            .Select(char.ToUpperInvariant)
+            .ToArray());
+        if (letters.Length == 0)
+        {
+            letters = "SEA";
+        }
+
+        var text = locked ? $"{letters} L" : letters;
+        var label = new ElevationLabelText(
+            new FormattedText(
+                text,
+                CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight,
+                ElevationLabelTypeface,
+                fontSize,
+                ElevationLabelOutlineBrush),
+            new FormattedText(
+                text,
+                CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight,
+                ElevationLabelTypeface,
+                fontSize,
+                ElevationLabelTextBrush));
+        _seasonLabelCache.Add(key, label);
+        return label;
+    }
+
+    private static void DrawOutlinedLabel(
+        DrawingContext context,
+        ElevationLabelText label,
+        Point origin)
+    {
+        context.DrawText(label.Outline, origin + new Vector(-1, 0));
+        context.DrawText(label.Outline, origin + new Vector(1, 0));
+        context.DrawText(label.Outline, origin + new Vector(0, -1));
+        context.DrawText(label.Outline, origin + new Vector(0, 1));
+        context.DrawText(label.Foreground, origin);
+    }
+
     private void DrawStampCursor(DrawingContext context)
     {
         if (_hover is not { } hover)
         {
+            return;
+        }
+
+        if (IsSeasonWorkspace)
+        {
+            DrawSeasonStampCursor(context, hover.Coordinate);
             return;
         }
 
@@ -2101,8 +2887,51 @@ public sealed class WorldCanvas : Control
         }
     }
 
+    private void DrawSeasonStampCursor(
+        DrawingContext context,
+        CampaignTileCoordinate coordinate)
+    {
+        if (World is not { } world || !TryGetActiveSeason(world, out var seasons))
+        {
+            return;
+        }
+
+        var area = CampaignTileArea.Centered(
+            world.Definition,
+            coordinate,
+            EffectiveSeasonPaintAreaRadius);
+        var rectangle = GetTileAreaScreenRect(area);
+        IBrush brush;
+        if (SeasonPaintTool == CampaignSeasonPaintTool.Paint &&
+            seasons.Catalog.TryGet(SelectedSeasonId, out var selected))
+        {
+            var color = Color.Parse(selected.ColorHex);
+            brush = new SolidColorBrush(Color.FromArgb(112, color.R, color.G, color.B));
+        }
+        else if (SeasonPaintTool == CampaignSeasonPaintTool.ResetToDefault)
+        {
+            var definition = seasons.Catalog.Get(seasons.DefaultSeasonId);
+            var color = Color.Parse(definition.ColorHex);
+            brush = new SolidColorBrush(Color.FromArgb(86, color.R, color.G, color.B));
+        }
+        else
+        {
+            brush = new SolidColorBrush(Color.FromArgb(44, 227, 181, 87));
+        }
+
+        context.DrawRectangle(brush, TileCursorPen, rectangle);
+    }
+
     private void DrawSelection(DrawingContext context)
     {
+        if (SelectedArea is { } area)
+        {
+            context.DrawRectangle(
+                AreaSelectionBrush,
+                SelectionPen,
+                GetTileAreaScreenRect(area).Deflate(1.5));
+        }
+
         if (_selectedCoordinate is not { } coordinate)
         {
             return;
@@ -2125,9 +2954,35 @@ public sealed class WorldCanvas : Control
             area.Width * _zoom,
             area.Height * _zoom);
 
+    internal static CampaignTileArea CreateAreaSelection(
+        CampaignWorldDefinition definition,
+        CampaignTileCoordinate start,
+        CampaignTileCoordinate end)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        CampaignWorldDefinition.EnsureValid(definition);
+        var maximumX = definition.TilesX - 1;
+        var maximumY = definition.TilesY - 1;
+        var startX = Math.Clamp(start.X, 0, maximumX);
+        var startY = Math.Clamp(start.Y, 0, maximumY);
+        var endX = Math.Clamp(end.X, 0, maximumX);
+        var endY = Math.Clamp(end.Y, 0, maximumY);
+        return new CampaignTileArea(
+            Math.Min(startX, endX),
+            Math.Min(startY, endY),
+            Math.Max(startX, endX),
+            Math.Max(startY, endY));
+    }
+
     private readonly record struct ElevationLabelKey(short HeightMeters, int FontSize);
 
     private readonly record struct ResourcePotentialLabelKey(byte Potential, int FontSize);
+
+    private readonly record struct SeasonLabelKey(
+        string SeasonId,
+        string Name,
+        bool Locked,
+        int FontSize);
 
     private sealed record ElevationLabelText(FormattedText Outline, FormattedText Foreground);
 
@@ -2218,6 +3073,13 @@ public sealed class WorldCanvas : Control
         _resourceRasterKey = null;
         _resourceRasterSnapshot?.Dispose();
         _resourceRasterSnapshot = null;
+    }
+
+    private void MarkSeasonBitmapDirty()
+    {
+        _seasonRasterKey = null;
+        _seasonRasterSnapshot?.Dispose();
+        _seasonRasterSnapshot = null;
     }
 
     private static long GetNiceStride(double minimumStride)
@@ -2364,6 +3226,138 @@ public sealed class WorldCanvas : Control
 
             _disposed = true;
             ArrayPool<byte>.Shared.Return(_potentials);
+        }
+
+        private static int ClampFloor(double value, int maximum) =>
+            (int)Math.Floor(Math.Clamp(value, 0, maximum));
+
+        private static int ClampCeiling(double value, int maximum) =>
+            (int)Math.Ceiling(Math.Clamp(value, 0, maximum));
+    }
+
+    private sealed class SeasonRasterSnapshot : IDisposable
+    {
+        private const int SamplingPaddingTiles = 1;
+
+        private readonly ushort[] _seasonIndexes;
+        private readonly Rgb[] _colors;
+        private readonly byte[] _alphas;
+        private readonly int _minimumX;
+        private readonly int _minimumY;
+        private readonly int _width;
+        private readonly int _height;
+        private bool _disposed;
+
+        private SeasonRasterSnapshot(
+            CampaignWorldDefinition definition,
+            ushort[] seasonIndexes,
+            Rgb[] colors,
+            byte[] alphas,
+            int minimumX,
+            int minimumY,
+            int width,
+            int height)
+        {
+            Definition = definition;
+            _seasonIndexes = seasonIndexes;
+            _colors = colors;
+            _alphas = alphas;
+            _minimumX = minimumX;
+            _minimumY = minimumY;
+            _width = width;
+            _height = height;
+        }
+
+        public CampaignWorldDefinition Definition { get; }
+
+        public static SeasonRasterSnapshot Create(
+            CampaignSeasonMap seasons,
+            double viewportWidth,
+            double viewportHeight,
+            double originX,
+            double originY,
+            double zoom)
+        {
+            var definition = seasons.Definition;
+            var maximumWorldX = definition.TilesX - 1;
+            var maximumWorldY = definition.TilesY - 1;
+            var minimumX = ClampFloor(originX - SamplingPaddingTiles, maximumWorldX);
+            var minimumY = ClampFloor(originY - SamplingPaddingTiles, maximumWorldY);
+            var maximumX = ClampCeiling(
+                originX + viewportWidth / zoom + SamplingPaddingTiles,
+                maximumWorldX);
+            var maximumY = ClampCeiling(
+                originY + viewportHeight / zoom + SamplingPaddingTiles,
+                maximumWorldY);
+            var width = checked(maximumX - minimumX + 1);
+            var height = checked(maximumY - minimumY + 1);
+            var length = checked(width * height);
+            var indexes = ArrayPool<ushort>.Shared.Rent(length);
+            var colors = seasons.Catalog.Definitions
+                .Select(static definition => FromColor(Color.Parse(definition.ColorHex)))
+                .ToArray();
+            var alphas = seasons.Catalog.Definitions
+                .Select(static definition => (byte)Math.Clamp(
+                    125 + definition.TintStrengthPercent * 1.1,
+                    125,
+                    235))
+                .ToArray();
+
+            try
+            {
+                var area = new CampaignTileArea(minimumX, minimumY, maximumX, maximumY);
+                foreach (var entry in seasons.GetTiles(area))
+                {
+                    var localX = entry.X - minimumX;
+                    var localY = entry.Y - minimumY;
+                    indexes[localY * width + localX] =
+                        seasons.Catalog.GetIndex(entry.Tile.SeasonId);
+                }
+
+                return new SeasonRasterSnapshot(
+                    definition,
+                    indexes,
+                    colors,
+                    alphas,
+                    minimumX,
+                    minimumY,
+                    width,
+                    height);
+            }
+            catch
+            {
+                ArrayPool<ushort>.Shared.Return(indexes);
+                throw;
+            }
+        }
+
+        public ushort GetSeasonIndex(int x, int y)
+        {
+            x = Math.Clamp(x, 0, Definition.TilesX - 1);
+            y = Math.Clamp(y, 0, Definition.TilesY - 1);
+            var localX = x - _minimumX;
+            var localY = y - _minimumY;
+            if ((uint)localX >= (uint)_width || (uint)localY >= (uint)_height)
+            {
+                return 0;
+            }
+
+            return _seasonIndexes[localY * _width + localX];
+        }
+
+        public Rgb GetColor(ushort seasonIndex) => _colors[seasonIndex];
+
+        public byte GetAlpha(ushort seasonIndex) => _alphas[seasonIndex];
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            ArrayPool<ushort>.Shared.Return(_seasonIndexes);
         }
 
         private static int ClampFloor(double value, int maximum) =>
@@ -2608,6 +3602,17 @@ public sealed class WorldCanvas : Control
         double OriginY,
         double Zoom);
 
+    private readonly record struct SeasonRasterKey(
+        long Revision,
+        int Width,
+        int Height,
+        double ViewportWidth,
+        double ViewportHeight,
+        double OriginX,
+        double OriginY,
+        double Zoom,
+        bool BlendBoundaries);
+
     private readonly record struct Rgb(byte R, byte G, byte B);
 
     private readonly record struct SurfaceAppearance(Rgb Color, SurfaceTexture Texture);
@@ -2647,6 +3652,11 @@ public sealed class CampaignTilePointerEventArgs(CampaignTilePointerInfo? info) 
     public CampaignTilePointerInfo? Info { get; } = info;
 }
 
+public sealed class CampaignTileAreaSelectedEventArgs(CampaignTileArea area) : EventArgs
+{
+    public CampaignTileArea Area { get; } = area;
+}
+
 public sealed class CampaignTileStrokeEventArgs(
     CampaignTileStampCommand command,
     int blockedRiverTileCount) : EventArgs
@@ -2660,6 +3670,12 @@ public sealed class CampaignResourceStrokeEventArgs(
     CampaignResourceEditCommand command) : EventArgs
 {
     public CampaignResourceEditCommand Command { get; } = command;
+}
+
+public sealed class CampaignSeasonStrokeEventArgs(
+    CampaignSeasonEditCommand command) : EventArgs
+{
+    public CampaignSeasonEditCommand Command { get; } = command;
 }
 
 public sealed class ZoomChangedEventArgs(double pixelsPerTile) : EventArgs

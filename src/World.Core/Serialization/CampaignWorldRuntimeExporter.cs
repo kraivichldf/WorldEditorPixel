@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Kingdom.World.Core.Campaign;
 using Kingdom.World.Core.Campaign.Resources;
+using Kingdom.World.Core.Campaign.Seasons;
 using Kingdom.World.Core.Models;
 
 namespace Kingdom.World.Core.Serialization;
@@ -15,12 +16,15 @@ public static class CampaignWorldRuntimeExporter
     public const string TileDataEntryName = "tiles.bin";
     public const string ResourceIndexEntryName = "resource-index.bin";
     public const string ResourceRecordsEntryName = "resource-records.bin";
+    public const string SeasonTilesEntryName = "season-tiles.bin";
     public const string FormatIdentifier = "kingdom-world-runtime";
     public const int FormatVersion = 1;
     public const int ResourceFormatVersion = 2;
+    public const int SeasonFormatVersion = 3;
     public const int TileRecordSizeBytes = 4;
     public const int ResourceIndexRecordSizeBytes = 8;
     public const int ResourceRecordSizeBytes = 4;
+    public const int SeasonRecordSizeBytes = 2;
     public const byte NoCustomTerrainIndex = byte.MaxValue;
 
     private const int ExportBufferSize = 64 * 1024;
@@ -283,6 +287,217 @@ public static class CampaignWorldRuntimeExporter
         }
     }
 
+    public static async Task ExportAsync(
+        CampaignWorld world,
+        CampaignResourceMap resources,
+        CampaignSeasonMap seasons,
+        string packagePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(resources);
+        ArgumentNullException.ThrowIfNull(seasons);
+        ArgumentException.ThrowIfNullOrWhiteSpace(packagePath);
+        CampaignWorldDefinition.EnsureValid(world.Definition);
+        CampaignWorldDefinition.EnsureValid(resources.Definition);
+        CampaignWorldDefinition.EnsureValid(seasons.Definition);
+        if (world.Definition != resources.Definition)
+        {
+            throw new ArgumentException(
+                "The campaign resource map must use a value-equal world definition.",
+                nameof(resources));
+        }
+
+        if (world.Definition != seasons.Definition)
+        {
+            throw new ArgumentException(
+                "The campaign season map must use a value-equal world definition.",
+                nameof(seasons));
+        }
+
+        if (!string.Equals(
+                Path.GetExtension(packagePath),
+                PackageExtension,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                $"Runtime world packages must use the '{PackageExtension}' extension.",
+                nameof(packagePath));
+        }
+
+        var worldRevision = world.Revision;
+        var resourceRevision = resources.Revision;
+        var seasonRevision = seasons.Revision;
+        resources.EnsureValid();
+        seasons.EnsureValid();
+        EnsureWorldRevisionUnchanged(world, worldRevision);
+        EnsureResourceRevisionUnchanged(resources, resourceRevision);
+        EnsureSeasonRevisionUnchanged(seasons, seasonRevision);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var resourceRecordCount = resources.OccurrenceCount;
+        var tileByteLength = checked(world.Definition.TileCount * TileRecordSizeBytes);
+        var resourceIndexByteLength = checked(
+            world.Definition.TileCount * ResourceIndexRecordSizeBytes);
+        var resourceRecordsByteLength = checked(
+            (long)resourceRecordCount * ResourceRecordSizeBytes);
+        var seasonByteLength = checked(world.Definition.TileCount * SeasonRecordSizeBytes);
+
+        var customDefinitions = world.Tiles.CustomTerrainDefinitions
+            .OrderBy(static definition => definition.Id, StringComparer.Ordinal)
+            .ToArray();
+        var customIndices = customDefinitions
+            .Select(static (definition, index) => (definition.Id, Index: checked((byte)index)))
+            .ToDictionary(static item => item.Id, static item => item.Index, StringComparer.Ordinal);
+        var resourceDefinitions = resources.Catalog.Definitions
+            .OrderBy(static definition => definition.Id, StringComparer.Ordinal)
+            .ToArray();
+        var resourceIndices = resourceDefinitions
+            .Select(static (definition, index) => (definition.Id, Index: checked((ushort)index)))
+            .ToDictionary(static item => item.Id, static item => item.Index, StringComparer.Ordinal);
+        var seasonDefinitions = seasons.Catalog.Definitions.ToArray();
+
+        var fullPackagePath = Path.GetFullPath(packagePath);
+        var packageDirectory = Path.GetDirectoryName(fullPackagePath)
+            ?? throw new ArgumentException("Runtime package has no containing directory.", nameof(packagePath));
+        Directory.CreateDirectory(packageDirectory);
+        var temporaryPath = fullPackagePath + $".{Guid.NewGuid():N}.tmp";
+
+        try
+        {
+            await using (var packageStream = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                ExportBufferSize,
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                using (var archive = new ZipArchive(packageStream, ZipArchiveMode.Create, leaveOpen: true))
+                {
+                    var tileEntry = archive.CreateEntry(TileDataEntryName, CompressionLevel.Optimal);
+                    tileEntry.LastWriteTime = StableArchiveTimestamp;
+                    string tileSha256;
+                    await using (var tileStream = tileEntry.Open())
+                    {
+                        tileSha256 = await WriteDenseTileDataAsync(
+                            world,
+                            customIndices,
+                            tileStream,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    EnsureWorldRevisionUnchanged(world, worldRevision);
+                    EnsureResourceRevisionUnchanged(resources, resourceRevision);
+                    EnsureSeasonRevisionUnchanged(seasons, seasonRevision);
+
+                    var resourceIndexEntry = archive.CreateEntry(
+                        ResourceIndexEntryName,
+                        CompressionLevel.Optimal);
+                    resourceIndexEntry.LastWriteTime = StableArchiveTimestamp;
+                    RuntimeBinaryWriteResult resourceIndexResult;
+                    await using (var resourceIndexStream = resourceIndexEntry.Open())
+                    {
+                        resourceIndexResult = await WriteResourceIndexDataAsync(
+                            resources,
+                            resourceIndexStream,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    EnsureWorldRevisionUnchanged(world, worldRevision);
+                    EnsureResourceRevisionUnchanged(resources, resourceRevision);
+                    EnsureSeasonRevisionUnchanged(seasons, seasonRevision);
+                    if (resourceIndexResult.ReferencedRecordCount != resourceRecordCount)
+                    {
+                        throw new InvalidOperationException(
+                            "The resource occurrence count changed while the runtime package was being exported.");
+                    }
+
+                    var resourceRecordsEntry = archive.CreateEntry(
+                        ResourceRecordsEntryName,
+                        CompressionLevel.Optimal);
+                    resourceRecordsEntry.LastWriteTime = StableArchiveTimestamp;
+                    RuntimeBinaryWriteResult resourceRecordsResult;
+                    await using (var resourceRecordsStream = resourceRecordsEntry.Open())
+                    {
+                        resourceRecordsResult = await WriteResourceRecordsDataAsync(
+                            resources,
+                            resourceIndices,
+                            resourceRecordsStream,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    EnsureWorldRevisionUnchanged(world, worldRevision);
+                    EnsureResourceRevisionUnchanged(resources, resourceRevision);
+                    EnsureSeasonRevisionUnchanged(seasons, seasonRevision);
+                    if (resourceRecordsResult.ReferencedRecordCount != resourceRecordCount)
+                    {
+                        throw new InvalidOperationException(
+                            "The resource occurrence count changed while the runtime package was being exported.");
+                    }
+
+                    var seasonEntry = archive.CreateEntry(
+                        SeasonTilesEntryName,
+                        CompressionLevel.Optimal);
+                    seasonEntry.LastWriteTime = StableArchiveTimestamp;
+                    string seasonSha256;
+                    await using (var seasonStream = seasonEntry.Open())
+                    {
+                        seasonSha256 = await WriteSeasonTileDataAsync(
+                            seasons,
+                            seasonStream,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    EnsureWorldRevisionUnchanged(world, worldRevision);
+                    EnsureResourceRevisionUnchanged(resources, resourceRevision);
+                    EnsureSeasonRevisionUnchanged(seasons, seasonRevision);
+                    var manifest = CreateManifestV3(
+                        world,
+                        customDefinitions,
+                        resourceDefinitions,
+                        seasonDefinitions,
+                        tileSha256,
+                        tileByteLength,
+                        resourceIndexResult.Sha256,
+                        resourceIndexByteLength,
+                        resourceRecordsResult.Sha256,
+                        resourceRecordsByteLength,
+                        resourceRecordCount,
+                        seasonSha256,
+                        seasonByteLength,
+                        resources.Catalog,
+                        seasons.Catalog);
+                    var manifestEntry = archive.CreateEntry(ManifestEntryName, CompressionLevel.Optimal);
+                    manifestEntry.LastWriteTime = StableArchiveTimestamp;
+                    await using var manifestStream = manifestEntry.Open();
+                    await JsonSerializer.SerializeAsync(
+                        manifestStream,
+                        manifest,
+                        JsonOptions,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                await packageStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureWorldRevisionUnchanged(world, worldRevision);
+            EnsureResourceRevisionUnchanged(resources, resourceRevision);
+            EnsureSeasonRevisionUnchanged(seasons, seasonRevision);
+            File.Move(temporaryPath, fullPackagePath, overwrite: true);
+        }
+        catch
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+
+            throw;
+        }
+    }
+
     private static async Task<string> WriteDenseTileDataAsync(
         CampaignWorld world,
         IReadOnlyDictionary<string, byte> customIndices,
@@ -457,6 +672,51 @@ public static class CampaignWorldRuntimeExporter
             recordCount);
     }
 
+    private static async Task<string> WriteSeasonTileDataAsync(
+        CampaignSeasonMap seasons,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[ExportBufferSize];
+        var bufferedBytes = 0;
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        for (var y = 0; y < seasons.Definition.TilesY; y++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            for (var x = 0; x < seasons.Definition.TilesX; x++)
+            {
+                if (bufferedBytes + SeasonRecordSizeBytes > buffer.Length)
+                {
+                    await FlushBufferAsync(
+                        destination,
+                        hash,
+                        buffer,
+                        bufferedBytes,
+                        cancellationToken).ConfigureAwait(false);
+                    bufferedBytes = 0;
+                }
+
+                var season = seasons.GetTile(x, y);
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    buffer.AsSpan(bufferedBytes, sizeof(ushort)),
+                    seasons.Catalog.GetIndex(season.SeasonId));
+                bufferedBytes += SeasonRecordSizeBytes;
+            }
+        }
+
+        if (bufferedBytes > 0)
+        {
+            await FlushBufferAsync(
+                destination,
+                hash,
+                buffer,
+                bufferedBytes,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
     private static RuntimeWorldManifest CreateManifest(
         CampaignWorld world,
         IReadOnlyList<CampaignCustomTerrainDefinition> customDefinitions,
@@ -628,6 +888,164 @@ public static class CampaignWorldRuntimeExporter
         };
     }
 
+    private static RuntimeWorldManifestV3 CreateManifestV3(
+        CampaignWorld world,
+        IReadOnlyList<CampaignCustomTerrainDefinition> customDefinitions,
+        IReadOnlyList<CampaignResourceDefinition> resourceDefinitions,
+        IReadOnlyList<CampaignSeasonDefinition> seasonDefinitions,
+        string tileSha256,
+        long tileByteLength,
+        string resourceIndexSha256,
+        long resourceIndexByteLength,
+        string resourceRecordsSha256,
+        long resourceRecordsByteLength,
+        long resourceRecordCount,
+        string seasonSha256,
+        long seasonByteLength,
+        CampaignResourceCatalog resourceCatalog,
+        CampaignSeasonCatalog seasonCatalog)
+    {
+        var definition = world.Definition;
+        return new RuntimeWorldManifestV3
+        {
+            Format = FormatIdentifier,
+            Version = SeasonFormatVersion,
+            World = new RuntimeWorldDimensions
+            {
+                WidthMeters = definition.WorldWidthMeters,
+                HeightMeters = definition.WorldHeightMeters,
+                CampaignTileSizeMeters = definition.CampaignTileSizeMeters,
+                SeaLevelMeters = definition.SeaLevelMeters,
+                MinimumHeightMeters = definition.MinimumHeightMeters,
+                MaximumHeightMeters = definition.MaximumHeightMeters,
+                DefaultTileHeightMeters = definition.DefaultTileHeightMeters,
+            },
+            Grid = new RuntimeGridLayout
+            {
+                TilesX = definition.TilesX,
+                TilesY = definition.TilesY,
+                TileCount = definition.TileCount,
+                Origin = "northWest",
+                XAxis = "east",
+                YAxis = "south",
+                TileOrder = "rowMajorYThenX",
+            },
+            TileRecord = new RuntimeTileRecordLayout
+            {
+                File = TileDataEntryName,
+                RecordSizeBytes = TileRecordSizeBytes,
+                ByteLength = tileByteLength,
+                ByteOrder = "littleEndian",
+                Sha256 = tileSha256,
+                Fields =
+                [
+                    new RuntimeTileField("type", 0, "uint8", "tileTypes"),
+                    new RuntimeTileField(
+                        "customTerrainIndex",
+                        1,
+                        "uint8",
+                        "customTerrain",
+                        NoCustomTerrainIndex),
+                    new RuntimeTileField("heightMeters", 2, "int16", null),
+                ],
+            },
+            TileTypes = Enum.GetValues<CampaignTileType>()
+                .Where(static type => type is not (CampaignTileType.Water or CampaignTileType.Coastal))
+                .Select(static type => new RuntimeTileType((byte)type, GetSerializedTypeName(type)))
+                .ToArray(),
+            CustomTerrain = customDefinitions
+                .Select(static (customDefinition, index) => new RuntimeCustomTerrain(
+                    checked((byte)index),
+                    customDefinition.Id,
+                    customDefinition.Name,
+                    (byte)customDefinition.BaseType,
+                    GetSerializedTypeName(customDefinition.BaseType),
+                    customDefinition.ColorHex,
+                    customDefinition.GenerationSharePercent))
+                .ToArray(),
+            Resources = new RuntimeResourceLayer
+            {
+                Catalog = resourceDefinitions
+                    .Select((resourceDefinition, index) => new RuntimeResourceCatalogEntry(
+                        checked((ushort)index),
+                        resourceDefinition.Id,
+                        resourceDefinition.Name,
+                        GetSerializedResourceCategoryName(resourceDefinition.Category),
+                        resourceCatalog.IsBuiltIn(resourceDefinition.Id)))
+                    .ToArray(),
+                IndexRecord = new RuntimeBinaryRecordLayout
+                {
+                    File = ResourceIndexEntryName,
+                    RecordSizeBytes = ResourceIndexRecordSizeBytes,
+                    RecordCount = definition.TileCount,
+                    ByteLength = resourceIndexByteLength,
+                    ByteOrder = "littleEndian",
+                    Sha256 = resourceIndexSha256,
+                    Fields =
+                    [
+                        new RuntimeBinaryField(
+                            "firstRecordIndex",
+                            0,
+                            "uint32",
+                            "resources.occurrenceRecord"),
+                        new RuntimeBinaryField("recordCount", 4, "uint16"),
+                        new RuntimeBinaryField("reserved", 6, "uint16", ConstantValue: 0),
+                    ],
+                },
+                OccurrenceRecord = new RuntimeBinaryRecordLayout
+                {
+                    File = ResourceRecordsEntryName,
+                    RecordSizeBytes = ResourceRecordSizeBytes,
+                    RecordCount = resourceRecordCount,
+                    ByteLength = resourceRecordsByteLength,
+                    ByteOrder = "littleEndian",
+                    Sha256 = resourceRecordsSha256,
+                    Fields =
+                    [
+                        new RuntimeBinaryField(
+                            "resourceCatalogIndex",
+                            0,
+                            "uint16",
+                            "resources.catalog"),
+                        new RuntimeBinaryField("potential", 2, "uint8"),
+                        new RuntimeBinaryField("reserved", 3, "uint8", ConstantValue: 0),
+                    ],
+                },
+            },
+            Seasons = new RuntimeSeasonLayer
+            {
+                Catalog = seasonDefinitions
+                    .Select((seasonDefinition, index) => new RuntimeSeasonCatalogEntry(
+                        checked((ushort)index),
+                        seasonDefinition.Id,
+                        seasonDefinition.Name,
+                        seasonCatalog.IsBuiltIn(seasonDefinition.Id),
+                        GetSerializedSeasonName(seasonDefinition.Fallback),
+                        seasonDefinition.ColorHex,
+                        seasonDefinition.TintStrengthPercent,
+                        seasonDefinition.EffectIntensityPercent))
+                    .ToArray(),
+                TileRecord = new RuntimeBinaryRecordLayout
+                {
+                    File = SeasonTilesEntryName,
+                    RecordSizeBytes = SeasonRecordSizeBytes,
+                    RecordCount = definition.TileCount,
+                    ByteLength = seasonByteLength,
+                    ByteOrder = "littleEndian",
+                    Sha256 = seasonSha256,
+                    Fields =
+                    [
+                        new RuntimeBinaryField(
+                            "seasonCatalogIndex",
+                            0,
+                            "uint16",
+                            "seasons.catalog"),
+                    ],
+                },
+            },
+        };
+    }
+
     private static byte GetCustomTerrainIndex(
         string? customTerrainId,
         IReadOnlyDictionary<string, byte> customIndices)
@@ -656,6 +1074,9 @@ public static class CampaignWorldRuntimeExporter
     private static string GetSerializedResourceCategoryName(CampaignResourceCategory category) =>
         JsonNamingPolicy.CamelCase.ConvertName(category.ToString());
 
+    private static string GetSerializedSeasonName(CampaignBuiltInSeason season) =>
+        JsonNamingPolicy.CamelCase.ConvertName(season.ToString());
+
     private static void EnsureResourceRevisionUnchanged(
         CampaignResourceMap resources,
         long expectedRevision)
@@ -675,6 +1096,17 @@ public static class CampaignWorldRuntimeExporter
         {
             throw new InvalidOperationException(
                 "The campaign world changed while the runtime package was being exported.");
+        }
+    }
+
+    private static void EnsureSeasonRevisionUnchanged(
+        CampaignSeasonMap seasons,
+        long expectedRevision)
+    {
+        if (seasons.Revision != expectedRevision)
+        {
+            throw new InvalidOperationException(
+                "The season map changed while the runtime package was being exported.");
         }
     }
 
@@ -712,6 +1144,27 @@ public static class CampaignWorldRuntimeExporter
         public required IReadOnlyList<RuntimeCustomTerrain> CustomTerrain { get; init; }
 
         public required RuntimeResourceLayer Resources { get; init; }
+    }
+
+    private sealed class RuntimeWorldManifestV3
+    {
+        public required string Format { get; init; }
+
+        public required int Version { get; init; }
+
+        public required RuntimeWorldDimensions World { get; init; }
+
+        public required RuntimeGridLayout Grid { get; init; }
+
+        public required RuntimeTileRecordLayout TileRecord { get; init; }
+
+        public required IReadOnlyList<RuntimeTileType> TileTypes { get; init; }
+
+        public required IReadOnlyList<RuntimeCustomTerrain> CustomTerrain { get; init; }
+
+        public required RuntimeResourceLayer Resources { get; init; }
+
+        public required RuntimeSeasonLayer Seasons { get; init; }
     }
 
     private sealed class RuntimeWorldDimensions
@@ -807,6 +1260,13 @@ public static class CampaignWorldRuntimeExporter
         public required IReadOnlyList<RuntimeBinaryField> Fields { get; init; }
     }
 
+    private sealed class RuntimeSeasonLayer
+    {
+        public required IReadOnlyList<RuntimeSeasonCatalogEntry> Catalog { get; init; }
+
+        public required RuntimeBinaryRecordLayout TileRecord { get; init; }
+    }
+
     private sealed record RuntimeBinaryField(
         string Name,
         int OffsetBytes,
@@ -820,6 +1280,16 @@ public static class CampaignWorldRuntimeExporter
         string Name,
         string Category,
         bool BuiltIn);
+
+    private sealed record RuntimeSeasonCatalogEntry(
+        ushort Index,
+        string Id,
+        string Name,
+        bool BuiltIn,
+        string Fallback,
+        string Color,
+        int TintStrengthPercent,
+        int EffectIntensityPercent);
 
     private sealed record RuntimeBinaryWriteResult(
         string Sha256,

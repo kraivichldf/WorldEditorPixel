@@ -177,6 +177,24 @@
               </Grid>
             </Border>
 
+            <Border Classes="win98-sunken" Padding="8">
+              <StackPanel Spacing="6">
+                <TextBlock Text="TILE SEASONS" Classes="section-title" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <StackPanel Grid.Column="0" Spacing="4">
+                    <TextBlock Text="Default tile season" />
+                    <ComboBox x:Name="DefaultSeasonInput" HorizontalAlignment="Stretch"
+                              AutomationProperties.Name="Default tile season" />
+                  </StackPanel>
+                  <Button x:Name="ManageSeasonsButton" Grid.Column="1" Content="Manage seasons…"
+                          Classes="quiet" VerticalAlignment="Bottom"
+                          Click="ManageSeasons_OnClick" />
+                </Grid>
+                <TextBlock x:Name="SeasonSettingsSummaryText" FontSize="12"
+                           Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
               <StackPanel Grid.Column="0" Spacing="5">
                 <TextBlock Text="Seed" />
@@ -232,7 +250,7 @@
       </ScrollViewer>
 
       <Border Grid.Column="1" Margin="6,12,12,12" Classes="win98-group">
-        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="12">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
           <StackPanel Grid.Row="0" Spacing="4">
             <TextBlock Text="WORLD PREVIEW" Classes="section-title" />
             <TextBlock Text="Review the generated campaign map before it becomes your editable world."
@@ -245,7 +263,15 @@
                        FontSize="12" TextWrapping="Wrap" />
           </Border>
 
-          <Border Grid.Row="2" MinHeight="300" Background="#101010"
+          <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4"
+                      HorizontalAlignment="Left">
+            <Button x:Name="TerrainPreviewButton" Content="Terrain" Classes="primary"
+                    MinWidth="92" Click="TerrainPreview_OnClick" />
+            <Button x:Name="SeasonPreviewButton" Content="Seasons" Classes="quiet"
+                    MinWidth="92" Click="SeasonPreview_OnClick" />
+          </StackPanel>
+
+          <Border Grid.Row="3" MinHeight="280" Background="#101010"
                   BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="2"
                   ClipToBounds="True">
             <Grid>
@@ -265,24 +291,38 @@
             </Grid>
           </Border>
 
-          <TextBlock x:Name="GenerationPreviewSummaryText" Grid.Row="3"
+          <TextBlock x:Name="GenerationPreviewSummaryText" Grid.Row="4"
                      Text="Generated terrain counts and seed will appear here."
                      FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
                      TextWrapping="Wrap" />
 
-          <Border x:Name="ResourceImpactPanel" Grid.Row="4" Classes="win98-sunken" Padding="8" MaxHeight="170"
-                  IsVisible="False" AutomationProperties.Name="Resource impact before world replacement">
+          <Border x:Name="ResourceImpactPanel" Grid.Row="5" Classes="win98-sunken" Padding="8" MaxHeight="190"
+                  AutomationProperties.Name="Layer impact before world replacement">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-              <StackPanel Spacing="4">
-                <TextBlock Text="RESOURCE IMPACT" Classes="section-title" />
-                <TextBlock x:Name="ResourceImpactSummaryText" FontSize="12" TextWrapping="Wrap" />
-                <TextBlock x:Name="ResourceImpactWarningText" FontSize="12" TextWrapping="Wrap"
-                           Foreground="{StaticResource EditorMutedTextBrush}" />
+              <StackPanel Spacing="7">
+                <TextBlock Text="LAYER IMPACT" Classes="section-title" />
+                <StackPanel x:Name="ResourceImpactSection" Spacing="3" IsVisible="False">
+                  <TextBlock Text="Resources" FontWeight="SemiBold" />
+                  <TextBlock x:Name="ResourceImpactSummaryText" FontSize="12" TextWrapping="Wrap" />
+                  <TextBlock x:Name="ResourceImpactWarningText" FontSize="12" TextWrapping="Wrap"
+                             Foreground="{StaticResource EditorMutedTextBrush}" />
+                </StackPanel>
+                <Border x:Name="LayerImpactDivider" Height="1"
+                        Background="{StaticResource EditorBorderBrush}" IsVisible="False" />
+                <StackPanel Spacing="3">
+                  <TextBlock Text="Seasons" FontWeight="SemiBold" />
+                  <TextBlock x:Name="SeasonImpactSummaryText" FontSize="12" TextWrapping="Wrap" />
+                  <TextBlock x:Name="SeasonImpactWarningText" FontSize="12" TextWrapping="Wrap"
+                             Foreground="{StaticResource EditorMutedTextBrush}" />
+                  <Button x:Name="ResolveSeasonLocksButton" Content="Review locked Season conflicts…"
+                          Classes="quiet" HorizontalAlignment="Left" Margin="0,3,0,0"
+                          IsVisible="False" Click="ResolveSeasonLocks_OnClick" />
+                </StackPanel>
               </StackPanel>
             </ScrollViewer>
           </Border>
 
-          <TextBlock x:Name="PreviewChangeNoticeText" Grid.Row="5"
+          <TextBlock x:Name="PreviewChangeNoticeText" Grid.Row="6"
                      Text="Changing any setting keeps the old image for comparison but disables Use this world until you regenerate."
                      FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
                      TextWrapping="Wrap" />
@@ -295,7 +335,7 @@
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
         <Button Content="Cancel" MinWidth="92" Click="Cancel_OnClick" IsCancel="True" />
         <Button x:Name="GenerateButton" Classes="quiet" Content="Create blank world" MinWidth="138"
-                Click="Generate_OnClick" IsDefault="True" />
+                Click="Generate_OnClick" />
         <Button x:Name="UsePreviewButton" Classes="primary" Content="Use this world" MinWidth="138"
                 Click="UsePreview_OnClick" IsEnabled="False" IsVisible="False" />
       </StackPanel>

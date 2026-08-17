@@ -111,9 +111,9 @@ components:
 
 **Creative North Star: "Windows 98 Property Workshop"**
 
-The map workstation is designed around one authoritative unit: one complete campaign tile. Terrain/height and sparse resource occurrences remain separate authorities at that same coordinate. The interface uses a Windows 98 workstation language around a dominant central surface.
+The map workstation is designed around one authoritative unit: one complete campaign tile. Terrain/height, sparse resource occurrences, and one complete static Season identity remain separate authorities at that same coordinate. The interface uses a Windows 98 workstation language around a dominant central surface.
 
-The dominant viewport is a sunken map area with map commands above it, explicit Terrain/Resources workspace buttons, a grouped active-tool rail, a compact inspector rail, and segmented status wells. Editors can create or open a world, stamp terrain/height or one selected resource over complete tiles, inspect exact authority and diagnostics, then save or export.
+The dominant viewport is a sunken map area with map commands above it, explicit Terrain/Resources/Seasons workspace buttons, a grouped active-tool rail, a compact inspector rail, and segmented status wells. Editors can create or open a world, stamp terrain/height, one selected resource, or one static Season over complete tiles, inspect exact authority, then save or export.
 
 Controls are compact, explicit, and non-ornamental. Texture and shading are visual aids; terrain values remain explicit in the model and inspector.
 
@@ -121,6 +121,7 @@ Controls are compact, explicit, and non-ornamental. Texture and shading are visu
 - System-gray surfaces and square controls with raised/sunken states.
 - One-tile atomicity as the only terrain/height authoring unit.
 - One selected resource ID per resource paint operation; other resources and terrain remain untouched.
+- One selected Season ID per Season paint operation; Reset and lock tools never change terrain or resources.
 - Explicit mode and validation visibility in menus, rails, and status wells.
 - Separable and inspectable semantics for stored centre height versus derived surface.
 
@@ -150,7 +151,7 @@ Controls are compact, explicit, and non-ornamental. Texture and shading are visu
 - **Height number foreground** (`#FFFFFF`) with opaque black outline (`#000000`): centre-meter overlay labels.
 
 ### Named Rules
-**Authority Rule.** Terrain, centre-height, and resource-occurrence edits are model edits; visual overlays, map textures, heatmaps, and diagnostics do not introduce extra stored authority.
+**Authority Rule.** Terrain, centre-height, resource-occurrence, and Tile Season edits are model edits; visual overlays, map textures, heatmaps, Season boundary blending, and diagnostics do not introduce extra stored authority.
 
 ### Elevation marker rule
 Elevation uses white centre numbers as the explicit overlay layer. The old elevation square raster is not part of the rasterized tile map.
@@ -170,8 +171,8 @@ Body and section text uses compact Win98 sans stack for dense desktop controls. 
 
 The desktop shell uses:
 - menu and text-command band at the top,
-- a compact workspace strip,
-- a grouped left rail for either terrain/height stamp settings or selected-resource/potential settings,
+- a compact Terrain/Resources/Seasons workspace strip,
+- a grouped left rail for terrain/height, selected-resource/potential, or selected-Season/tool settings,
 - a dominant campaign map viewport in a sunken frame,
 - a compact right rail for pointer/pinned authority, resource warnings/actions, and world metadata,
 - segmented wells in the status strip.
@@ -180,9 +181,9 @@ Primary flow:
 
 1. Create/Open world, or preview a regeneration of the current document.
 2. Configure or generate.
-3. Choose Terrain or Resources without changing the shared map transform/pin.
+3. Choose Terrain, Resources, or Seasons without changing the shared map transform/pin.
 4. Stamp complete tiles through the active grouped rail.
-5. Inspect saved terrain/elevation or exact resource potential, lock state, and warnings.
+5. Inspect saved terrain/elevation, exact resource potential, or exact Season identity/fallback/lock state.
 6. Save document or export runtime package.
 
 The map remains visually and operationally dominant. Rails are short and dense to protect viewport area at desktop scale.
@@ -223,6 +224,13 @@ Depth is rendered through legacy control articulation and explicit overlays:
 - **Add / update** and **Erase selected** are mutually exclusive tools. Their button state and status text communicate the active operation without relying on color.
 - **Lock manual edits** is on by default and names its regeneration meaning directly.
 
+### Season paint controls
+- The searchable selector shows stable identity, built-in/custom source, fallback, and Generated/Manual-only state.
+- **Paint**, **Reset**, **Lock**, and **Unlock** are explicit mutually exclusive tools. Paint optionally locks the assigned ID; Reset writes the project default unlocked; lock tools preserve identity.
+- Independent Paint Area expands to complete clipped tiles from `1 x 1` through `25 x 25`.
+- **Season labels** and **Blend boundaries** are presentation toggles. Boundary blending never changes identity, persistence, history, or runtime export.
+- **Manage seasons...** opens a detached catalog/priority editor. Existing IDs and built-in identity are protected; referenced custom deletion requires a replacement; the final enabled row is labelled Catch-all.
+
 ### Inspector
 - Pointer and pinned blocks are compact and text-first.
 - Pin helper actions do not alter model data; they only set active stamp height state:
@@ -230,20 +238,23 @@ Depth is rendered through legacy control articulation and explicit overlays:
   - **Blend around**
 - Resources mode keeps terrain surface context visible, adds the selected-resource value, and lists every pinned occurrence with exact potential/category, textual lock state, hard-rule warning, and unevaluated-factor text.
 - Pinned **Use selected**, **Erase**, **Lock**, and **Unlock** commands act on one occurrence only.
+- Seasons mode keeps terrain type/elevation context visible and adds stable ID/name, built-in/custom fallback, lock state, retained rule summary, and accepted-recipe availability. Pinned Season Lock/Unlock is one shared-history command. After accepted generation, the cached immutable support/fingerprint projection adds exact climate and staleness facts; winning/shadowed/higher-priority rule text is re-evaluated from the current catalog and active accepted priority.
 
 ### Canvas
 - Deterministic paint-and-overlay draw order in `WorldCanvas`:
   1. terrain raster,
   2. river layers,
   3. selected-resource heatmap when Resources is active,
-  4. world boundary,
-  5. optional campaign grid,
-  6. context-appropriate elevation or resource-potential numbers,
-  7. pinned selection,
-  8. stamp cursor.
+  4. selected Season categorical overlay when Seasons is active,
+  5. world boundary,
+  6. optional campaign grid,
+  7. context-appropriate elevation, resource-potential, or Season identity labels,
+  8. pinned selection,
+  9. stamp cursor.
 - River, Large River, and junction visuals are network-aware and directional.
 - River previews are route-focused and constrained to tile topology.
 - Resources mode mutes rather than removes terrain. Its heatmap uses a fixed `1..100` scale and the selected definition color; exact numbers appear at `28 px/tile` and above.
+- Seasons mode preserves the terrain surface under one semi-opaque configured Season color per cell. Optional neighbor-color blending is display-only; outlined abbreviations and `L` lock markers appear at `28 px/tile` and above.
 
 #### Derived elevation overlay
 - White centre labels are visible by default.
@@ -254,6 +265,10 @@ Depth is rendered through legacy control articulation and explicit overlays:
 ### Dialogs
 - New-world and custom-terrain dialogs use property-sheet-style fixed action areas and matching controls.
 - Generation previews are explicit and keep settings, preview, and commit actions clear.
+- Season regeneration is a dedicated property workshop: settings and scope on the left; unchanged Current and unapplied Candidate maps plus a text report on the right; fixed Cancel, Generate/Regenerate, and disabled-until-current Use seasons actions below.
+- Current and Candidate share a dispatcher-safe viewport. At narrow width the same two canvas instances switch through Current/Candidate buttons; no duplicate preview controls or divergent state.
+- In-dialog generation-input or scope changes retain the previous Candidate with explicit stale text and disable acceptance. Report selection, grid, labels, boundary blending, pan, zoom, and Current/Candidate display switching are presentation-only. Catalog/priority changes require closing the modal and therefore discard its Candidate; source drift is rejected before acceptance.
+- Rectangle scope selects inclusive complete campaign tiles through numeric bounds or a read-only left-drag on either preview. It never enters a terrain/resource/Season paint path.
 - Regeneration reuses the New World property sheet with a distinct title, editable definition fields initialized from the current world, no Blank option, and the same **Use this world** commit gate. Its right preview keeps terrain dominant and adds one bounded, scrollable **Resource impact** well. The well states same-grid preservation or changed-grid moved/merged/dropped/locked/regenerated counts in text, names locked out-of-bounds coordinates, and labels stale results without relying on color. Acceptance preserves project identity, installs the exact reviewed terrain/resource candidate, marks the document modified, and clears undo history.
 
 ## Do's and don'ts
@@ -264,11 +279,12 @@ Depth is rendered through legacy control articulation and explicit overlays:
 - **Do** keep save and export paths distinct.
 - **Do** show stored vs derived values in separate labels.
 - **Do** show terrain surface and selected-resource potential as separate inspector facts.
+- **Do** show Tile Season identity/fallback/lock as a third separate authority fact.
 - **Do** pair resource heatmap color, lock state, and warnings with exact text.
 - **Do** keep generated-world preview in review/commit mode until accepted.
 - **Do** preserve project identity and current tiles while a regeneration preview is being adjusted.
 - **Do** keep current resources untouched while regeneration is being adjusted, and name physical moves, same-ID merges, locked drops, and saved-recipe regeneration before acceptance.
-- **Do** keep regeneration generation options as session-only: previously accepted options may prefill, but no generation recipe is persisted to project storage.
+- **Do** keep terrain-regeneration options session-only. An accepted Season-generation recipe is different project metadata: it restores generation settings and reports diagnostic staleness, but does not persist rectangular scope, tile provenance, or a retained Candidate.
 - **Do** expose elevation label visibility controls in toolbar and View menu.
 - **Do** keep disabled control states obvious during generation-option changes.
 - **Do** finish with review verdict and updated docs before closing the work item.
@@ -280,6 +296,7 @@ Depth is rendered through legacy control articulation and explicit overlays:
 - **Don't** reintroduce elevation raster squares to communicate heights.
 - **Don't** blur boundaries between reviewed preview and saved authoring document.
 - **Don't** let a resource paint/erase operation change another resource ID or any terrain authority.
+- **Don't** let Season Paint/Reset/Lock/Unlock change terrain, resources, or another tile outside the clipped complete-cell footprint.
 
 ## Accessibility
 

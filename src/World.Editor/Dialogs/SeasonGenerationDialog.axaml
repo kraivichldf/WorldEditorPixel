@@ -1,0 +1,332 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Kingdom.World.Editor.Controls"
+        xmlns:dialogs="using:Kingdom.World.Editor.Dialogs"
+        xmlns:vm="using:Kingdom.World.Editor.ViewModels"
+        x:Class="Kingdom.World.Editor.Dialogs.SeasonGenerationDialog"
+        Title="Generate Seasons"
+        Width="1480"
+        Height="880"
+        MinWidth="980"
+        MinHeight="700"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Background="{StaticResource EditorPanelBrush}">
+    <Border Grid.Row="0"
+            Padding="12,10"
+            Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98ShadowBrush}"
+            BorderThickness="0,0,0,1">
+      <StackPanel Spacing="4">
+        <TextBlock Text="SEASON GENERATION PREVIEW" Classes="section-title" />
+        <TextBlock Text="Build an Earth-like static Season candidate from terrain, latitude, elevation, and water. Current seasons remain authoritative until Use seasons."
+                   Foreground="{StaticResource EditorMutedTextBrush}"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="430,12,*">
+      <ScrollViewer x:Name="SettingsScrollViewer"
+                    Grid.Column="0"
+                    Margin="12,12,0,12"
+                    VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="10">
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="GENERATION SCOPE" Classes="section-title" />
+              <ComboBox x:Name="ScopeModeInput"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="Season generation scope" />
+              <StackPanel x:Name="RectangleScopePanel" Spacing="6" IsVisible="False">
+                <TextBlock Text="Left-drag either preview map to choose an inclusive rectangle, or enter its tile bounds."
+                           FontSize="11"
+                           Foreground="{StaticResource EditorMutedTextBrush}"
+                           TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+                  <StackPanel Grid.Row="0" Grid.Column="0" Spacing="3">
+                    <TextBlock Text="Minimum X" />
+                    <NumericUpDown x:Name="ScopeMinimumXInput" Increment="1" FormatString="N0" />
+                  </StackPanel>
+                  <StackPanel Grid.Row="0" Grid.Column="2" Spacing="3">
+                    <TextBlock Text="Minimum Y" />
+                    <NumericUpDown x:Name="ScopeMinimumYInput" Increment="1" FormatString="N0" />
+                  </StackPanel>
+                  <StackPanel Grid.Row="1" Grid.Column="0" Spacing="3">
+                    <TextBlock Text="Maximum X" />
+                    <NumericUpDown x:Name="ScopeMaximumXInput" Increment="1" FormatString="N0" />
+                  </StackPanel>
+                  <StackPanel Grid.Row="1" Grid.Column="2" Spacing="3">
+                    <TextBlock Text="Maximum Y" />
+                    <NumericUpDown x:Name="ScopeMaximumYInput" Increment="1" FormatString="N0" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock x:Name="ScopeSummaryText"
+                           Classes="measurement"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Text="All locked tiles and every tile outside a rectangular scope are preserved exactly."
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="SEED" Classes="section-title" />
+              <CheckBox x:Name="SeedDerivedToggle"
+                        Content="Use terrain-derived seed"
+                        AutomationProperties.Name="Use terrain-derived season seed" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <NumericUpDown x:Name="SeedInput"
+                               Minimum="-2147483648"
+                               Maximum="2147483647"
+                               Increment="1"
+                               FormatString="N0"
+                               AutomationProperties.Name="Season generation seed" />
+                <Button x:Name="RandomizeSeedButton"
+                        Grid.Column="1"
+                        Content="Randomize"
+                        Classes="quiet"
+                        Click="RandomizeSeed_OnClick" />
+              </Grid>
+              <TextBlock x:Name="SeedHelpText"
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="7">
+              <TextBlock Text="PLANET COVERAGE" Classes="section-title" />
+              <StackPanel Spacing="3">
+                <TextBlock Text="Coverage" />
+                <ComboBox x:Name="CoverageModeInput"
+                          HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Season geographic coverage" />
+              </StackPanel>
+              <StackPanel x:Name="RegionalCenterPanel" Spacing="3" IsVisible="False">
+                <TextBlock Text="Regional centre latitude (degrees)" />
+                <NumericUpDown x:Name="RegionalCenterInput"
+                               Minimum="-90"
+                               Maximum="90"
+                               Increment="1"
+                               FormatString="0.##" />
+              </StackPanel>
+              <StackPanel Spacing="3">
+                <TextBlock Text="Axial tilt (degrees)" />
+                <NumericUpDown x:Name="AxialTiltInput"
+                               Minimum="0"
+                               Maximum="90"
+                               Increment="0.25"
+                               FormatString="0.##" />
+              </StackPanel>
+              <TextBlock x:Name="CoverageHelpText"
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="win98-group">
+            <StackPanel Spacing="6">
+              <TextBlock Text="FIRST-MATCH PRIORITY" Classes="section-title" />
+              <TextBlock x:Name="PrioritySummaryText"
+                         Classes="measurement"
+                         FontSize="11"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="The first matching rule wins. The last enabled definition is always evaluated as Catch-all."
+                         FontSize="11"
+                         Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Expander Header="Advanced climate" IsExpanded="False">
+            <Border Classes="win98-group" Margin="0,6,0,0">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Physical-kilometre controls" Classes="section-title" />
+                <ItemsControl x:Name="ClimateInputList">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="dialogs:SeasonClimateInputRow">
+                      <Grid ColumnDefinitions="190,*,Auto" ColumnSpacing="6" Margin="0,2">
+                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        <NumericUpDown Grid.Column="1"
+                                       Value="{Binding Value, Mode=TwoWay}"
+                                       Minimum="{Binding Minimum}"
+                                       Maximum="{Binding Maximum}"
+                                       Increment="{Binding Increment}"
+                                       FormatString="0.###" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding Unit}"
+                                   MinWidth="34"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource EditorMutedTextBrush}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="These values alter derived climate support only. They never modify terrain, resources, or stored tile elevations."
+                           FontSize="11"
+                           Foreground="{StaticResource EditorMutedTextBrush}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </Expander>
+
+          <Border x:Name="ValidationPanel"
+                  Padding="8"
+                  IsVisible="False"
+                  Background="{StaticResource Win98WindowBrush}"
+                  BorderBrush="{StaticResource Win98ErrorBrush}"
+                  BorderThickness="2">
+            <TextBlock x:Name="ValidationText"
+                       Foreground="{StaticResource Win98ErrorBrush}"
+                       TextWrapping="Wrap" />
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Border Grid.Column="2" Margin="0,12,12,12" Classes="win98-group">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing="9">
+          <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="CURRENT VS CANDIDATE" Classes="section-title" />
+            <TextBlock Text="Both maps are read-only. Pan or zoom either map; their campaign viewport stays synchronized."
+                       FontSize="11"
+                       Foreground="{StaticResource EditorMutedTextBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+
+          <Grid Grid.Row="1" ColumnDefinitions="*,10,Auto" ColumnSpacing="8">
+            <StackPanel Grid.Column="0" Spacing="3">
+              <TextBlock Text="Report season (display only)" />
+              <ComboBox x:Name="PreviewSeasonInput"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="Preview season report selector">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:CampaignSeasonOption">
+                    <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
+                      <Border Width="14" Height="14" VerticalAlignment="Center"
+                              Background="{Binding SwatchBrush}"
+                              BorderBrush="{StaticResource Win98DarkShadowBrush}"
+                              BorderThickness="1" />
+                      <StackPanel Grid.Column="1" Spacing="0">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding IdText}" Classes="measurement" FontSize="10"
+                                   Foreground="{StaticResource EditorMutedTextBrush}" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" Text="{Binding GenerationText}" FontSize="10"
+                                 VerticalAlignment="Center"
+                                 Foreground="{StaticResource EditorMutedTextBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom" Spacing="7">
+              <CheckBox x:Name="ShowGridToggle" Content="Grid" IsChecked="True" />
+              <CheckBox x:Name="ShowLabelsToggle" Content="Labels" IsChecked="True" />
+              <CheckBox x:Name="BlendBoundariesToggle" Content="Blend" IsChecked="True" />
+            </StackPanel>
+          </Grid>
+
+          <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+            <Border Grid.Column="0" Classes="win98-status">
+              <TextBlock x:Name="PreviewStateText"
+                         Text="Generate a candidate to compare it against the current Season Layer."
+                         TextWrapping="Wrap" />
+            </Border>
+            <StackPanel x:Name="NarrowPreviewSwitch" Grid.Column="1"
+                        Margin="8,0,0,0" Orientation="Horizontal" Spacing="4" IsVisible="False">
+              <Button x:Name="ShowCurrentButton" Content="Current" Classes="quiet"
+                      Click="ShowCurrent_OnClick" />
+              <Button x:Name="ShowCandidateButton" Content="Candidate" Classes="quiet"
+                      Click="ShowCandidate_OnClick" />
+            </StackPanel>
+          </Grid>
+
+          <Grid x:Name="PreviewCanvasesGrid" Grid.Row="3" ColumnDefinitions="*,10,*" MinHeight="355">
+            <Border x:Name="CurrentPane" Grid.Column="0" Classes="win98-group">
+              <Grid RowDefinitions="Auto,*,Auto" RowSpacing="6">
+                <TextBlock Text="CURRENT — UNCHANGED" FontWeight="SemiBold" />
+                <Border Grid.Row="1" Background="#101010"
+                        BorderBrush="{StaticResource Win98ShadowBrush}"
+                        BorderThickness="2" ClipToBounds="True">
+                  <controls:WorldCanvas x:Name="CurrentCanvas"
+                                        AllowTileEditing="False"
+                                        AllowAreaSelection="True"
+                                        IsSeasonWorkspace="True"
+                                        ShowElevationNumbers="False"
+                                        AutomationProperties.Name="Current season preview map" />
+                </Border>
+                <TextBlock x:Name="CurrentCanvasSummaryText" Grid.Row="2" FontSize="11"
+                           Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+
+            <Border x:Name="CandidatePane" Grid.Column="2" Classes="win98-group">
+              <Grid RowDefinitions="Auto,*,Auto" RowSpacing="6">
+                <TextBlock Text="CANDIDATE — NOT APPLIED" FontWeight="SemiBold" />
+                <Border Grid.Row="1" Background="#101010"
+                        BorderBrush="{StaticResource Win98ShadowBrush}"
+                        BorderThickness="2" ClipToBounds="True">
+                  <Grid>
+                    <controls:WorldCanvas x:Name="CandidateCanvas"
+                                          AllowTileEditing="False"
+                                          AllowAreaSelection="True"
+                                          IsSeasonWorkspace="True"
+                                          ShowElevationNumbers="False"
+                                          AutomationProperties.Name="Candidate season preview map" />
+                    <StackPanel x:Name="CandidatePlaceholder"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="24" Spacing="6">
+                      <TextBlock Text="No candidate yet" HorizontalAlignment="Center"
+                                 FontSize="16" FontWeight="SemiBold" Foreground="White" />
+                      <TextBlock Text="Generate seasons to compare a temporary result. Closing this window never changes the project."
+                                 MaxWidth="330" TextAlignment="Center" TextWrapping="Wrap"
+                                 Foreground="#D4D0C8" />
+                    </StackPanel>
+                    <ProgressBar x:Name="GenerationProgress" IsVisible="False"
+                                 IsIndeterminate="True" Height="4"
+                                 VerticalAlignment="Top" Margin="8" />
+                  </Grid>
+                </Border>
+                <TextBlock x:Name="CandidateCanvasSummaryText" Grid.Row="2" FontSize="11"
+                           Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+          </Grid>
+
+          <Border Grid.Row="4" Classes="win98-sunken" Padding="8">
+            <TextBlock x:Name="PreviewGeneralSummaryText"
+                       Text="Scope totals, changes, and preserved locks will appear here."
+                       TextWrapping="Wrap" />
+          </Border>
+
+          <Border Grid.Row="5" Classes="win98-sunken" Padding="8">
+            <TextBlock x:Name="PreviewSeasonSummaryText"
+                       Text="Select a Season Definition to inspect its generation report."
+                       TextWrapping="Wrap" />
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2" Padding="10,8"
+            Background="{StaticResource EditorPanelBrush}"
+            BorderBrush="{StaticResource Win98HighlightBrush}"
+            BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+        <Button Content="Cancel" MinWidth="92" Click="Cancel_OnClick" IsCancel="True" />
+        <Button x:Name="GenerateButton" Content="Generate candidate" MinWidth="150"
+                Classes="quiet" Click="Generate_OnClick" />
+        <Button x:Name="UseButton" Content="Use seasons" MinWidth="150"
+                Classes="primary" Click="Use_OnClick" IsEnabled="False" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

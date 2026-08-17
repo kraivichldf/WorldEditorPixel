@@ -6,6 +6,7 @@ using Avalonia.Platform.Storage;
 using Kingdom.World.Core.Campaign;
 using Kingdom.World.Core.Campaign.Generation;
 using Kingdom.World.Core.Campaign.Resources;
+using Kingdom.World.Core.Campaign.Seasons;
 using Kingdom.World.Core.Serialization;
 using Kingdom.World.Core.Validation;
 using Kingdom.World.Editor.Controls;
@@ -52,6 +53,8 @@ public sealed partial class MainWindow : Window
             _viewModel.RecordTileStroke(args.Command, args.BlockedRiverTileCount);
         _worldCanvas.ResourceStrokeCompleted += (_, args) =>
             _viewModel.RecordResourceStroke(args.Command);
+        _worldCanvas.SeasonStrokeCompleted += (_, args) =>
+            _viewModel.RecordSeasonStroke(args.Command);
         _worldCanvas.ZoomChanged += (_, args) => _viewModel.SetZoom(args.PixelsPerTile);
         Deactivated += (_, _) => CancelActiveStroke("Editor focus changed; the active map stroke was cancelled.");
         Closing += MainWindow_OnClosing;
@@ -74,6 +77,10 @@ public sealed partial class MainWindow : Window
                     return;
                 case Key.R when e.KeyModifiers.HasFlag(KeyModifiers.Shift):
                     _ = RegenerateResourcesAsync();
+                    e.Handled = true;
+                    return;
+                case Key.G when e.KeyModifiers.HasFlag(KeyModifiers.Shift):
+                    _ = GenerateSeasonsAsync();
                     e.Handled = true;
                     return;
                 case Key.R:
@@ -118,6 +125,8 @@ public sealed partial class MainWindow : Window
 
     private void RegenerateResources_OnClick(object? sender, RoutedEventArgs e) => _ = RegenerateResourcesAsync();
 
+    private void GenerateSeasons_OnClick(object? sender, RoutedEventArgs e) => _ = GenerateSeasonsAsync();
+
     private void SaveWorld_OnClick(object? sender, RoutedEventArgs e) => _ = SaveWorldAsync(forceChooseDirectory: false);
 
     private void SaveWorldAs_OnClick(object? sender, RoutedEventArgs e) => _ = SaveWorldAsync(forceChooseDirectory: true);
@@ -142,17 +151,38 @@ public sealed partial class MainWindow : Window
         _worldCanvas.NotifyWorldChanged();
     }
 
+    private void SeasonsWorkspace_OnClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.SwitchToSeasonsWorkspace();
+        _worldCanvas.NotifyWorldChanged();
+    }
+
     private void ResourceAddUpdateTool_OnClick(object? sender, RoutedEventArgs e) =>
         _viewModel.SelectResourceAddUpdateTool();
 
     private void ResourceEraseTool_OnClick(object? sender, RoutedEventArgs e) =>
         _viewModel.SelectResourceEraseTool();
 
+    private void SeasonPaintTool_OnClick(object? sender, RoutedEventArgs e) =>
+        _viewModel.SelectSeasonPaintTool();
+
+    private void SeasonResetTool_OnClick(object? sender, RoutedEventArgs e) =>
+        _viewModel.SelectSeasonResetTool();
+
+    private void SeasonLockTool_OnClick(object? sender, RoutedEventArgs e) =>
+        _viewModel.SelectSeasonLockTool();
+
+    private void SeasonUnlockTool_OnClick(object? sender, RoutedEventArgs e) =>
+        _viewModel.SelectSeasonUnlockTool();
+
     private void CustomTerrainTypes_OnClick(object? sender, RoutedEventArgs e) =>
         _ = ManageCustomTerrainTypesAsync();
 
     private void CustomResources_OnClick(object? sender, RoutedEventArgs e) =>
         _ = ManageCustomResourcesAsync();
+
+    private void CustomSeasons_OnClick(object? sender, RoutedEventArgs e) =>
+        _ = ManageCustomSeasonsAsync();
 
     private void CopyPinnedHeight_OnClick(object? sender, RoutedEventArgs e) =>
         _viewModel.UsePinnedCenterHeight();
@@ -195,6 +225,22 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void LockPinnedSeason_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.LockPinnedSeason())
+        {
+            _worldCanvas.NotifyWorldChanged();
+        }
+    }
+
+    private void UnlockPinnedSeason_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.UnlockPinnedSeason())
+        {
+            _worldCanvas.NotifyWorldChanged();
+        }
+    }
+
     private void Exit_OnClick(object? sender, RoutedEventArgs e) => Close();
 
     private async Task CreateNewWorldAsync()
@@ -212,7 +258,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        _viewModel.CreateWorld(result.World, result.GenerationResult);
+        _viewModel.CreateWorld(
+            result.World,
+            result.GenerationResult,
+            result.SeasonMap,
+            result.SeasonPriorityIds,
+            result.SeasonSavedGeneration,
+            result.SeasonSupportFields);
         _worldCanvas.ZoomToFit();
     }
 
@@ -221,7 +273,8 @@ public sealed partial class MainWindow : Window
         if (_viewModel.IsBusy ||
             CancelActiveStroke("Active map stroke cancelled. Choose Regenerate again when ready.") ||
             _viewModel.World is not { } currentWorld ||
-            _viewModel.ResourceMap is not { } currentResources)
+            _viewModel.ResourceMap is not { } currentResources ||
+            _viewModel.SeasonMap is not { } currentSeasons)
         {
             return;
         }
@@ -230,6 +283,9 @@ public sealed partial class MainWindow : Window
                 currentWorld,
                 currentResources,
                 _viewModel.ResourceGenerationSettings,
+                currentSeasons,
+                _viewModel.SeasonPriorityIds,
+                _viewModel.SeasonSavedGeneration,
                 _viewModel.LastGenerationOptions)
             .ShowDialog<NewWorldDialogResult?>(this);
         if (result is null)
@@ -242,7 +298,8 @@ public sealed partial class MainWindow : Window
             _viewModel.RegenerateWorld(
                 result.World,
                 result.GenerationResult,
-                result.ResourceRegenerationResult);
+                result.ResourceRegenerationResult,
+                result.SeasonRegenerationResult);
             _worldCanvas.NotifyWorldChanged();
             _worldCanvas.ZoomToFit();
         }
@@ -310,6 +367,61 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task GenerateSeasonsAsync()
+    {
+        if (_viewModel.IsBusy ||
+            CancelActiveStroke("Active map stroke cancelled. Choose Generate seasons again when ready.") ||
+            !_viewModel.CanGenerateSeasons ||
+            _viewModel.World is not { } world ||
+            _viewModel.SeasonMap is not { } seasons ||
+            _viewModel.SeasonTerrainQuery is not { } terrainQuery)
+        {
+            return;
+        }
+
+        CampaignSeasonGenerationSettings initialSettings;
+        try
+        {
+            initialSettings = _viewModel.ResolveInitialSeasonGenerationSettings();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            await ShowErrorAsync("Season generation could not start", exception.Message);
+            return;
+        }
+
+        SeasonGenerationDialogResult? result;
+        try
+        {
+            result = await new SeasonGenerationDialog(
+                    world,
+                    seasons,
+                    terrainQuery,
+                    initialSettings)
+                .ShowDialog<SeasonGenerationDialogResult?>(this);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            await ShowErrorAsync("Season generation could not start", exception.Message);
+            return;
+        }
+
+        if (result is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _viewModel.AcceptSeasonGeneration(result.GenerationResult);
+            _worldCanvas.NotifyWorldChanged();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            await ShowErrorAsync("Seasons could not be generated", exception.Message);
+        }
+    }
+
     private async Task OpenWorldAsync()
     {
         if (_viewModel.IsBusy ||
@@ -341,15 +453,34 @@ public sealed partial class MainWindow : Window
         try
         {
             SetBusy(true, "Opening world…");
-            var result = await CampaignEditorProjectSerializer.LoadAsync(manifestPath);
+            var result = await CampaignEditorProjectSerializer.LoadWithSeasonsAsync(manifestPath);
             _viewModel.OpenWorld(
                 result.World,
                 result.ResourceMap,
                 result.ResourceGenerationSettings,
+                result.SeasonMap,
+                result.SeasonPriorityIds,
+                result.SeasonSavedGeneration,
                 result.WasConvertedFromLegacy ? null : result.SourceProjectDirectory,
                 result.WasConvertedFromLegacy,
                 result.SourceProjectDirectory,
-                result.NormalizedLegacyCoastalTileCount);
+                result.NormalizedLegacyCoastalTileCount,
+                result.SeasonsWereImplicitCompatibility);
+            if (result.SeasonSavedGeneration is not null)
+            {
+                try
+                {
+                    await _viewModel.RebuildSeasonDiagnosticsAsync();
+                }
+                catch (Exception exception) when (
+                    exception is ArgumentException or InvalidOperationException or OverflowException)
+                {
+                    await ShowErrorAsync(
+                        "Season diagnostics are unavailable",
+                        exception.Message + " The authoritative Season Layer still opened unchanged.");
+                }
+            }
+
             _worldCanvas.ZoomToFit();
         }
         catch (Exception exception) when (
@@ -433,6 +564,46 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task ManageCustomSeasonsAsync()
+    {
+        if (_viewModel.IsBusy ||
+            CancelActiveStroke("Active map stroke cancelled. Open Manage seasons again when ready.") ||
+            _viewModel.SeasonMap is not { } seasons)
+        {
+            return;
+        }
+
+        var usageCounts = seasons.GetUsageCounts(
+            seasons.Catalog.Definitions.Select(static definition => definition.Id));
+        var result = await new CustomSeasonsDialog(
+                seasons.Catalog,
+                _viewModel.SeasonPriorityIds,
+                usageCounts,
+                seasons.DefaultSeasonId)
+            .ShowDialog<CustomSeasonsDialogResult?>(this);
+        if (result is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_viewModel.UpdateSeasons(
+                    result.BuiltInDefinitions,
+                    result.CustomDefinitions,
+                    result.PriorityIds,
+                    result.DeletedSeasonReplacements,
+                    result.SelectedSeasonId))
+            {
+                _worldCanvas.NotifyWorldChanged();
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            await ShowErrorAsync("Seasons could not be updated", exception.Message);
+        }
+    }
+
     private async Task<bool> SaveWorldAsync(bool forceChooseDirectory)
     {
         if (_viewModel.IsBusy ||
@@ -463,7 +634,7 @@ public sealed partial class MainWindow : Window
                 return false;
             }
 
-            var existingManagedFiles = CampaignEditorProjectSerializer.ManagedFileNames
+            var existingManagedFiles = CampaignEditorProjectSerializer.ManagedFileNamesWithSeasons
                 .Where(fileName => File.Exists(Path.Combine(projectDirectory, fileName)))
                 .ToArray();
             if (existingManagedFiles.Length > 0 &&
@@ -485,11 +656,14 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            SetBusy(true, "Staging terrain and resource data…");
-            await CampaignEditorProjectSerializer.SaveAsync(
+            SetBusy(true, "Staging terrain, resource, and season data…");
+            await CampaignEditorProjectSerializer.SaveWithSeasonsAsync(
                 _viewModel.World,
                 _viewModel.ResourceMap ?? throw new InvalidOperationException("The resource layer is unavailable."),
                 _viewModel.ResourceGenerationSettings,
+                _viewModel.SeasonMap ?? throw new InvalidOperationException("The season layer is unavailable."),
+                _viewModel.SeasonPriorityIds,
+                _viewModel.SeasonSavedGeneration,
                 projectDirectory);
             _viewModel.MarkSaved(projectDirectory);
             return true;
@@ -565,13 +739,20 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            SetBusy(true, "Exporting terrain and resource runtime data…");
+            SetBusy(true, "Exporting terrain, resource, and season runtime data…");
             var resources = _viewModel.ResourceMap
                 ?? throw new InvalidOperationException("The resource layer is unavailable.");
-            await CampaignEditorProjectSerializer.ExportAsync(world, resources, packagePath);
+            var seasons = _viewModel.SeasonMap
+                ?? throw new InvalidOperationException("The season layer is unavailable.");
+            await CampaignEditorProjectSerializer.ExportWithSeasonsAsync(
+                world,
+                resources,
+                seasons,
+                packagePath);
             _viewModel.StatusMessage =
                 $"Exported {Path.GetFileName(packagePath)} · {world.Definition.TileCount:N0} terrain records + " +
-                $"{resources.OccurrenceCount:N0} resource occurrence(s) in runtime package v2.";
+                $"{resources.OccurrenceCount:N0} resource occurrence(s) + " +
+                $"{seasons.TileCount:N0} season records in runtime package v3.";
         }
         catch (Exception exception) when (
             exception is ArgumentException or IOException or UnauthorizedAccessException or
@@ -614,7 +795,7 @@ public sealed partial class MainWindow : Window
         var choice = await new ChoiceDialog(
             "Unsaved world",
             "Save changes before continuing?",
-            "The current campaign terrain or resource occurrences are not written to a project folder.",
+            "The current campaign terrain, resources, or seasons are not written to a project folder.",
             "Save",
             "Discard",
             "Cancel").ShowDialog<DialogChoice>(this);

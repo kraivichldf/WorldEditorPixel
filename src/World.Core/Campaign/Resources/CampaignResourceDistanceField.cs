@@ -20,7 +20,8 @@ internal sealed class CampaignResourceDistanceField
         int width,
         int height,
         int tileSizeMeters,
-        Func<int, int, CampaignResourceWaterSources> getSources)
+        Func<int, int, CampaignResourceWaterSources> getSources,
+        CancellationToken cancellationToken = default)
     {
         if (width <= 0)
         {
@@ -38,10 +39,29 @@ internal sealed class CampaignResourceDistanceField
         }
 
         ArgumentNullException.ThrowIfNull(getSources);
+        cancellationToken.ThrowIfCancellationRequested();
         _width = width;
-        _seaDistances = Build(width, height, tileSizeMeters, getSources, CampaignResourceWaterSources.Sea);
-        _lakeDistances = Build(width, height, tileSizeMeters, getSources, CampaignResourceWaterSources.Lake);
-        _riverDistances = Build(width, height, tileSizeMeters, getSources, CampaignResourceWaterSources.River);
+        _seaDistances = Build(
+            width,
+            height,
+            tileSizeMeters,
+            getSources,
+            CampaignResourceWaterSources.Sea,
+            cancellationToken);
+        _lakeDistances = Build(
+            width,
+            height,
+            tileSizeMeters,
+            getSources,
+            CampaignResourceWaterSources.Lake,
+            cancellationToken);
+        _riverDistances = Build(
+            width,
+            height,
+            tileSizeMeters,
+            getSources,
+            CampaignResourceWaterSources.River,
+            cancellationToken);
     }
 
     public (double Sea, double Lake, double River) GetDistances(int x, int y)
@@ -55,7 +75,8 @@ internal sealed class CampaignResourceDistanceField
         int height,
         int tileSizeMeters,
         Func<int, int, CampaignResourceWaterSources> getSources,
-        CampaignResourceWaterSources source)
+        CampaignResourceWaterSources source,
+        CancellationToken cancellationToken)
     {
         var length = checked(width * height);
         var maximumSquaredDistance =
@@ -65,6 +86,7 @@ internal sealed class CampaignResourceDistanceField
         var hasSource = false;
         for (var y = 0; y < height; y++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             for (var x = 0; x < width; x++)
             {
                 var isSource = (getSources(x, y) & source) != 0;
@@ -87,6 +109,7 @@ internal sealed class CampaignResourceDistanceField
 
         for (var x = 0; x < width; x++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             for (var y = 0; y < height; y++)
             {
                 input[y] = values[(y * width) + x];
@@ -101,6 +124,7 @@ internal sealed class CampaignResourceDistanceField
 
         for (var y = 0; y < height; y++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var rowStart = y * width;
             Array.Copy(values, rowStart, input, 0, width);
             TransformLine(input, output, width, sites, boundaries);
@@ -110,6 +134,11 @@ internal sealed class CampaignResourceDistanceField
         var tileSizeKilometers = tileSizeMeters / 1_000.0;
         for (var index = 0; index < values.Length; index++)
         {
+            if ((index & 16_383) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             values[index] = Math.Sqrt(values[index]) * tileSizeKilometers;
         }
 
