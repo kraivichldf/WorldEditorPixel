@@ -1,6 +1,6 @@
 # WorldEditorPixel
 
-WorldEditorPixel contains **Kingdom World Editor**, a standalone Windows app for building large campaign worlds from exact square tiles.
+WorldEditorPixel a standalone Windows app for building large campaign worlds from exact square tiles.
 
 Each tile can store:
 
