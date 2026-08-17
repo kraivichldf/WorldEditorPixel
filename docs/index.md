@@ -10,6 +10,7 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 - [[Reference/Campaign World Generation|Campaign world generation formulas]]
 - [[Reference/Campaign Tile Taxonomy v3|Campaign Tile Taxonomy v3 and Phase 1 status]]
 - [[Reference/Campaign Resource Layer Plan|Campaign resource layer plan and Phase 1 status]]
+- [[Reference/Campaign Season Layer Plan|Campaign season layer accepted implementation plan]]
 - [[Decisions/ADR-0004 - Tile-Authoritative Campaign Surface|ADR-0004: Tile-authoritative campaign surface]]
 - [[Decisions/ADR-0005 - Water and River Tile Topology|ADR-0005: Water and river tile topology]]
 - [[Decisions/ADR-0006 - Procedural Materials and Directional Coasts|ADR-0006: Procedural materials and directional coasts]]
@@ -33,6 +34,7 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 - [[Decisions/ADR-0027 - Hard Resource Surface Exclusions|ADR-0027: Hard resource surface exclusions]]
 - [[Decisions/ADR-0028 - Resource Spawn Opportunity Calibration|ADR-0028: Resource spawn opportunity calibration]]
 - [[Decisions/ADR-0029 - Explicit Resource Generation Selection|ADR-0029: Explicit resource generation selection]]
+- [[Decisions/ADR-0030 - Static Preview-First Campaign Season Layer|ADR-0030: Static preview-first campaign season layer]]
 - [[Decisions/ADR-0002 - Delta-Based Terrain History|ADR-0002: Delta-based edit history]]
 - [[Testing/Verification|Verification]]
 
@@ -43,13 +45,17 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 
 ## Current milestone
 
-`Create exact tile grid -> optionally preview an editable seeded terrain start -> accept the exact result -> stamp textured base/custom type + centre height -> switch to Resources on the same canvas -> paint exact selected-resource potential with optional locks -> pin and inspect warnings -> undo/redo terrain and resources in one history -> save the complete project -> reopen identical authority -> export deterministic runtime package version 2`
+`Create exact tile grid -> optionally preview an editable seeded terrain start -> accept the exact result -> stamp textured base/custom type + centre height -> paint sparse Resources -> paint/reset/lock one static Season ID per complete tile -> inspect exact authority -> undo/redo all three layers in one history -> save/reopen the complete project -> export deterministic runtime package version 3`
 
-The campaign tile is the only authoring resolution. Sea/Lake water, original land/custom tiles with automatic 10% water-facing edges, full-tile Beach/Cliff, River/Large River paths, and three-exit River Junctions are current terrain classifications. Sparse campaign resources are a separate authority at the same coordinates: multiple different IDs may coexist, each with exact potential `1..100` and an authoring lock. The editor can preview-first regenerate them against accepted terrain and can review physical-position moves, same-ID merges, out-of-bounds drops, and regenerated unlocked results before accepting a changed campaign lattice. Gameplay, 3D rendering, engine integration, roads, detailed biomes, persistent geology/climate field overlays, settlements, and advanced hydrology remain later explicit systems.
+The campaign tile is the only authoring resolution. Sea/Lake water, original land/custom tiles with automatic 10% water-facing edges, full-tile Beach/Cliff, River/Large River paths, and three-exit River Junctions are current terrain classifications. Sparse campaign resources are a separate authority at the same coordinates: multiple different IDs may coexist, each with exact potential `1..100` and an authoring lock. Tile Season is another orthogonal authority: every tile has exactly one static built-in/custom Season ID plus a lock, with no month or clock. The editor can preview-first regenerate Resources or static Seasons against accepted terrain, accepts generated terrain and its complete Season Layer atomically, and reviews changed-lattice Resource and Season impact before replacement. Gameplay, 3D rendering, engine integration, roads, detailed biomes, persistent weather, settlements, and advanced hydrology remain later explicit systems.
 
 ## Campaign resources — manual + preview-first generation implemented
 
 [[Reference/Campaign Resource Layer Plan|Campaign Resource Layer Plan]] records the complete accepted resource design. ADR-0016 through [[Decisions/ADR-0029 - Explicit Resource Generation Selection|ADR-0029]] now ship the manual, generation, changed-lattice, custom-definition, soft terrain-avoidance, hard normalized-surface safety, calibrated spawn-opportunity, and explicit Include/Exclude path in the native editor: built-in/custom catalog loading and management, Terrain/Resources workspaces, selected-resource heatmap and exact labels, complete-tile add/update/erase, default locks, pinned warnings/actions, shared history, staged project save/reopen, deterministic climate/geology-backed generation, deliberate mixed-subset replacement, side-by-side resource comparison, and exact reviewed full-world terrain/resource replacement. Overview symbols, field diagnostics, and full World/Terrain/Resources property pages remain pending.
+
+## Campaign seasons — Slices 1-7 implemented
+
+[[Reference/Campaign Season Layer Plan|Campaign Season Layer Plan]] and [[Decisions/ADR-0030 - Static Preview-First Campaign Season Layer|ADR-0030]] define one complete static Tile Season authority with Spring/Summer/Autumn/Winter plus safe custom definitions, explicit first-match priority, Earth-like seed-derived hemispheric generation, manual full-tile painting and locks, preview-first replacement, strict sidecars, and runtime package version 3. Slices 1-7 implement the domain, generator, reports, persistence/export, season-aware editor lifecycle, Terrain/Resources/Seasons workspace switching, complete-cell Paint/Reset/Lock/Unlock, labels/blending, pinned authority, shared history, protected custom-definition/priority management, Current/Candidate Season regeneration, exact acceptance, cached climate/rule/staleness diagnostics, Terrain-and-Season new-world candidates, explicit blank-world defaults, reviewed changed-lattice lock decisions, native normal/narrow and keyboard verification, maximum-grid coverage, and a self-contained Windows build. It deliberately has no month, calendar, automatic time progression, resource dependency, or terrain rewrite.
 
 ## Accepted next milestone — Phase 1 core implemented
 
@@ -57,6 +63,6 @@ The campaign tile is the only authoring resolution. Sea/Lake water, original lan
 
 ## Source map
 
-- `src/World.Core`: active version-2 campaign world, resource authority/diagnostics/commands/persistence/runtime v2, interpolation, validation, the retained version-1 importer, and the isolated `Campaign/V3` Phase 1 domain.
-- `src/World.Editor`: Avalonia shell, Terrain/Resources workspaces, document coordinator, dialogs, inspectors, input routing, and custom cached raster canvas.
-- `src/World.Tests`: executable version-1/version-2 contracts, hierarchical Continental-world ADR-0023, maximum-size directional Coast ADR-0024, built-in Steppe ADR-0025 coverage, plus version-3 and campaign-resource ADR-0016 through ADR-0029 coverage.
+- `src/World.Core`: active version-2 campaign world, resource authority/diagnostics/commands/persistence, interpolation, validation, the retained version-1 importer, the isolated `Campaign/V3` terrain Phase 1 domain, and campaign-season authority/generator/sidecars/runtime-v3 exporter.
+- `src/World.Editor`: Avalonia Terrain/Resources/Seasons shell, shared canvas/history, custom terrain/resource/season managers, preview-first terrain/resource workflows, and the season-aware staged load/save/runtime-v3 export boundary.
+- `src/World.Tests`: executable version-1/version-2 contracts, hierarchical Continental-world ADR-0023, maximum-size directional Coast ADR-0024, built-in Steppe ADR-0025 coverage, terrain-taxonomy version-3 and campaign-resource ADR-0016 through ADR-0029 coverage, plus campaign-season ADR-0030 Slices 1-7 including headless native dialogs and the `250,000 x 256` diagnostic.

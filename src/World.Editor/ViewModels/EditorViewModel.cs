@@ -3,6 +3,7 @@ using Avalonia.Media;
 using Kingdom.World.Core.Campaign;
 using Kingdom.World.Core.Campaign.Generation;
 using Kingdom.World.Core.Campaign.Resources;
+using Kingdom.World.Core.Campaign.Seasons;
 using Kingdom.World.Core.Commands;
 using Kingdom.World.Core.Models;
 using Kingdom.World.Editor.Models;
@@ -11,6 +12,11 @@ namespace Kingdom.World.Editor.ViewModels;
 
 public sealed class EditorViewModel : ViewModelBase
 {
+    private sealed record SeasonDiagnosticProjection(
+        CampaignSeasonSupportFields SupportFields,
+        string CurrentSourceTerrainFingerprint,
+        string CurrentInputFingerprint);
+
     private static readonly (int X, int Y)[] CardinalOffsets =
         [(0, -1), (1, 0), (0, 1), (-1, 0)];
 
@@ -19,16 +25,29 @@ public sealed class EditorViewModel : ViewModelBase
     private CampaignResourceMap? _resourceMap;
     private CampaignResourceGenerationSettings? _resourceGenerationSettings;
     private CampaignResourceTerrainQueryV2? _resourceTerrainQuery;
+    private CampaignSeasonMap? _seasonMap;
+    private IReadOnlyList<string> _seasonPriorityIds = CampaignSeasonGenerationSettings.DefaultPriority;
+    private CampaignSeasonSavedGeneration? _seasonSavedGeneration;
+    private CampaignSeasonTerrainQueryV2? _seasonTerrainQuery;
+    private SeasonDiagnosticProjection? _seasonDiagnosticProjection;
     private CampaignTileTypeOption _selectedCampaignTileTypeOption;
     private CampaignResourceOption? _selectedResourceOption;
+    private CampaignSeasonOption? _selectedSeasonOption;
     private CampaignResourceOccurrenceRow? _selectedPinnedResourceOccurrence;
     private double _stampHeight;
     private int _paintAreaRadius;
     private int _resourcePotential = 50;
     private int _resourcePaintAreaRadius;
+    private int _seasonPaintAreaRadius;
     private bool _lockManualResourceEdits = true;
+    private bool _lockManualSeasonEdits = true;
     private bool _isResourceEraseTool;
     private bool _isResourcesWorkspace;
+    private bool _isSeasonsWorkspace;
+    private CampaignSeasonPaintTool _seasonPaintTool;
+    private string _seasonSearchText = string.Empty;
+    private bool _showSeasonLabels = true;
+    private bool _blendSeasonBoundaries = true;
     private CampaignResourceCategoryFilter _selectedResourceCategoryFilter;
     private bool _showCampaignGrid = true;
     private bool _showElevationNumbers = true;
@@ -72,6 +91,12 @@ public sealed class EditorViewModel : ViewModelBase
     public ObservableCollection<CampaignTileTypeOption> CampaignTileTypeOptions { get; }
 
     public ObservableCollection<CampaignResourceOption> ResourceOptions { get; } = [];
+
+    public ObservableCollection<CampaignSeasonOption> SeasonOptions { get; } = [];
+
+    public bool HasSeasonOptions => SeasonOptions.Count > 0;
+
+    public bool HasNoSeasonOptions => !HasSeasonOptions;
 
     public ObservableCollection<CampaignResourceOccurrenceRow> PinnedResourceOccurrences { get; } = [];
 
@@ -192,9 +217,130 @@ public sealed class EditorViewModel : ViewModelBase
         }
     }
 
-    public bool IsTerrainWorkspace => !IsResourcesWorkspace;
+    public CampaignSeasonOption? SelectedSeasonOption
+    {
+        get => _selectedSeasonOption;
+        set
+        {
+            if (value is not null && !SeasonOptions.Any(option =>
+                    string.Equals(option.Id, value.Id, StringComparison.Ordinal)))
+            {
+                return;
+            }
+
+            if (SetProperty(ref _selectedSeasonOption, value))
+            {
+                OnPropertyChanged(nameof(SelectedSeasonId));
+                OnPropertyChanged(nameof(CanEditSeasons));
+                NotifySeasonStampChanged();
+                NotifySeasonInspectorChanged();
+                if (value is not null)
+                {
+                    StatusMessage = $"{value.Name} selected for season painting.";
+                }
+            }
+        }
+    }
+
+    public string? SelectedSeasonId => SelectedSeasonOption?.Id;
+
+    public string SeasonSearchText
+    {
+        get => _seasonSearchText;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (SetProperty(ref _seasonSearchText, normalized))
+            {
+                RefreshSeasonOptions();
+            }
+        }
+    }
+
+    public int SeasonPaintAreaRadius
+    {
+        get => _seasonPaintAreaRadius;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 12);
+            if (SetProperty(ref _seasonPaintAreaRadius, clamped))
+            {
+                NotifySeasonStampChanged();
+                StatusMessage = $"Season paint area set to {SeasonPaintAreaText}.";
+            }
+        }
+    }
+
+    public string SeasonPaintAreaText
+    {
+        get
+        {
+            var sideLength = 1 + SeasonPaintAreaRadius * 2;
+            return $"{sideLength} × {sideLength} tiles";
+        }
+    }
+
+    public bool LockManualSeasonEdits
+    {
+        get => _lockManualSeasonEdits;
+        set
+        {
+            if (SetProperty(ref _lockManualSeasonEdits, value))
+            {
+                NotifySeasonStampChanged();
+                StatusMessage = value
+                    ? "Manual season painting will be locked against later generation."
+                    : "Manual season painting will remain unlocked.";
+            }
+        }
+    }
+
+    public CampaignSeasonPaintTool SeasonPaintTool => _seasonPaintTool;
+
+    public bool IsSeasonPaintTool => SeasonPaintTool == CampaignSeasonPaintTool.Paint;
+
+    public bool IsSeasonResetTool => SeasonPaintTool == CampaignSeasonPaintTool.ResetToDefault;
+
+    public bool IsSeasonLockTool => SeasonPaintTool == CampaignSeasonPaintTool.Lock;
+
+    public bool IsSeasonUnlockTool => SeasonPaintTool == CampaignSeasonPaintTool.Unlock;
+
+    public string SeasonStampSummary
+    {
+        get
+        {
+            var tool = SeasonPaintTool switch
+            {
+                CampaignSeasonPaintTool.Paint => SelectedSeasonOption is { } selected
+                    ? $"Paint {selected.Name} · {(LockManualSeasonEdits ? "locked" : "unlocked")}"
+                    : "No season selected",
+                CampaignSeasonPaintTool.ResetToDefault =>
+                    $"Reset to {GetDefaultSeasonName()} · unlocked",
+                CampaignSeasonPaintTool.Lock => "Lock existing season",
+                CampaignSeasonPaintTool.Unlock => "Unlock existing season",
+                _ => "Season tool unavailable",
+            };
+            return $"{tool} · {SeasonPaintAreaText}";
+        }
+    }
+
+    public bool ShowSeasonLabels
+    {
+        get => _showSeasonLabels;
+        set => SetProperty(ref _showSeasonLabels, value);
+    }
+
+    public bool BlendSeasonBoundaries
+    {
+        get => _blendSeasonBoundaries;
+        set => SetProperty(ref _blendSeasonBoundaries, value);
+    }
+
+    public bool IsTerrainWorkspace => !IsResourcesWorkspace && !IsSeasonsWorkspace;
 
     public bool IsResourcesWorkspace => _isResourcesWorkspace;
+
+    public bool IsSeasonsWorkspace => _isSeasonsWorkspace;
 
     public CampaignTileTypeOption SelectedCampaignTileTypeOption
     {
@@ -404,25 +550,38 @@ public sealed class EditorViewModel : ViewModelBase
     public bool CanEditResources =>
         IsResourcesWorkspace && ResourceMap is not null && SelectedResourceId is not null && !IsBusy;
 
+    public bool CanEditSeasons =>
+        IsSeasonsWorkspace && SeasonMap is not null &&
+        (SeasonPaintTool != CampaignSeasonPaintTool.Paint || SelectedSeasonId is not null) &&
+        !IsBusy;
+
     public bool CanAdjustCampaignView => HasWorld && !IsBusy;
 
     public string CanvasTitle => IsResourcesWorkspace
         ? "Campaign resource potential"
-        : "Campaign tile surface";
+        : IsSeasonsWorkspace
+            ? "Campaign season authority"
+            : "Campaign tile surface";
 
     public string CanvasHelpTitle => IsResourcesWorkspace
         ? "Cell color = selected resource potential · number = exact value / 100"
-        : "Cell = textured type · number = stored centre elevation (m)";
+        : IsSeasonsWorkspace
+            ? "Cell tint = authoritative season · label = abbreviated season name"
+            : "Cell = textured type · number = stored centre elevation (m)";
 
     public string CanvasHelpText => IsResourcesWorkspace
         ? "Potential numbers appear when tiles are large enough · terrain remains visible beneath the heatmap"
-        : "Elevation numbers appear when tiles are large enough · middle-drag pans · wheel zooms";
+        : IsSeasonsWorkspace
+            ? "Season labels appear when tiles are large enough · boundary blending is display-only"
+            : "Elevation numbers appear when tiles are large enough · middle-drag pans · wheel zooms";
 
     public string HoverSurfaceLabel => "Surface here";
 
     public string FooterFormatText => IsResourcesWorkspace
         ? "Resources · potential 1–100 · locks"
-        : "Type + Int16 centre height · auto slopes";
+        : IsSeasonsWorkspace
+            ? "Seasons · one ID per tile · locks"
+            : "Type + Int16 centre height · auto slopes";
 
     public CampaignWorld? World
     {
@@ -432,13 +591,16 @@ public sealed class EditorViewModel : ViewModelBase
             if (SetProperty(ref _world, value))
             {
                 _resourceTerrainQuery = value is null ? null : new CampaignResourceTerrainQueryV2(value);
+                _seasonTerrainQuery = value is null ? null : new CampaignSeasonTerrainQueryV2(value);
                 OnPropertyChanged(nameof(HasWorld));
                 OnPropertyChanged(nameof(ShowEmptyState));
                 OnPropertyChanged(nameof(CanEditCampaignTiles));
                 OnPropertyChanged(nameof(CanEditResources));
+                OnPropertyChanged(nameof(CanEditSeasons));
                 OnPropertyChanged(nameof(CanAdjustCampaignView));
                 OnPropertyChanged(nameof(CanRegenerateWorld));
                 OnPropertyChanged(nameof(CanRegenerateResources));
+                OnPropertyChanged(nameof(CanGenerateSeasons));
                 OnPropertyChanged(nameof(DocumentStateText));
                 OnPropertyChanged(nameof(WorldSummary));
                 OnPropertyChanged(nameof(WorldScaleText));
@@ -477,9 +639,42 @@ public sealed class EditorViewModel : ViewModelBase
 
     public ICampaignResourceTerrainQuery? ResourceTerrainQuery => _resourceTerrainQuery;
 
+    public CampaignSeasonMap? SeasonMap
+    {
+        get => _seasonMap;
+        private set
+        {
+            if (SetProperty(ref _seasonMap, value))
+            {
+                OnPropertyChanged(nameof(HasSeasonMap));
+                OnPropertyChanged(nameof(CanEditSeasons));
+                OnPropertyChanged(nameof(CanGenerateSeasons));
+                NotifySeasonStatusChanged();
+            }
+        }
+    }
+
+    public IReadOnlyList<string> SeasonPriorityIds => _seasonPriorityIds;
+
+    public CampaignSeasonSavedGeneration? SeasonSavedGeneration
+    {
+        get => _seasonSavedGeneration;
+        private set
+        {
+            if (SetProperty(ref _seasonSavedGeneration, value))
+            {
+                NotifySeasonInspectorChanged();
+            }
+        }
+    }
+
+    public ICampaignSeasonTerrainQuery? SeasonTerrainQuery => _seasonTerrainQuery;
+
     public bool HasWorld => World is not null;
 
     public bool HasResourceMap => ResourceMap is not null;
+
+    public bool HasSeasonMap => SeasonMap is not null;
 
     public int ResourceOccurrenceCount => ResourceMap?.OccurrenceCount ?? 0;
 
@@ -489,10 +684,20 @@ public sealed class EditorViewModel : ViewModelBase
             ? "No resource occurrences"
             : $"{ResourceOccurrenceCount:N0} resource occurrence(s)";
 
+    public int SeasonLockedTileCount => SeasonMap?.LockedTileCount ?? 0;
+
+    public string SeasonStatusText => SeasonMap is null
+        ? "No season layer"
+        : $"{SeasonMap.Catalog.Definitions.Count:N0} season(s) · " +
+          $"{SeasonLockedTileCount:N0} locked tile(s)";
+
     public bool CanRegenerateWorld => HasWorld && !IsBusy;
 
     public bool CanRegenerateResources =>
         HasWorld && ResourceMap is not null && _resourceTerrainQuery is not null && !IsBusy;
+
+    public bool CanGenerateSeasons =>
+        HasWorld && SeasonMap is not null && _seasonTerrainQuery is not null && !IsBusy;
 
     public CampaignResourceGenerationSettings ResolveInitialResourceGenerationSettings()
     {
@@ -584,6 +789,166 @@ public sealed class EditorViewModel : ViewModelBase
         NotifyResourceStatusChanged();
     }
 
+    public CampaignSeasonGenerationSettings ResolveInitialSeasonGenerationSettings()
+    {
+        if (World is not { } world ||
+            SeasonMap is not { } seasons ||
+            _seasonTerrainQuery is not { } terrainQuery)
+        {
+            throw new InvalidOperationException(
+                "A world and Season Layer must be open before Season generation settings can be resolved.");
+        }
+
+        ValidateSeasonDocument(world, seasons, _seasonPriorityIds, SeasonSavedGeneration);
+        if (SeasonSavedGeneration is { } saved)
+        {
+            return saved.Settings;
+        }
+
+        var seed = LastGenerationOptions is { } terrainRecipe
+            ? CampaignSeasonSeed.FromTerrainSeed(terrainRecipe.Seed)
+            : CampaignSeasonSeed.FromCurrentWorld(
+                CampaignSeasonGenerationSource.Capture(terrainQuery, seasons));
+        return new CampaignSeasonGenerationSettings(
+            seed,
+            seedDerivedFromTerrain: true,
+            priorityIds: _seasonPriorityIds);
+    }
+
+    public void AcceptSeasonGeneration(CampaignSeasonGenerationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (World is not { } world ||
+            SeasonMap is not { } currentSeasons ||
+            _seasonTerrainQuery is not { } terrainQuery)
+        {
+            throw new InvalidOperationException(
+                "A world and Season Layer must be open before generated seasons can be accepted.");
+        }
+
+        if (terrainQuery.Revision != result.SourceTerrainRevision ||
+            currentSeasons.Revision != result.SourceSeasonRevision)
+        {
+            throw new InvalidOperationException(
+                "Terrain or the Season Layer changed after this candidate was generated. " +
+                "Generate a fresh Season preview before accepting it.");
+        }
+
+        if (result.CandidateMap.Definition != world.Definition)
+        {
+            throw new ArgumentException(
+                "The generated Season candidate must use the current value-equal world definition.",
+                nameof(result));
+        }
+
+        if (!ReferenceEquals(result.CandidateMap.Catalog, currentSeasons.Catalog))
+        {
+            throw new ArgumentException(
+                "The generated Season candidate must use the current immutable Season Catalog.",
+                nameof(result));
+        }
+
+        if (!result.Settings.PriorityIds.SequenceEqual(_seasonPriorityIds, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Season priority changed after this candidate was generated. " +
+                "Generate a fresh Season preview before accepting it.");
+        }
+
+        if (result.CandidateMap.Revision != result.CandidateSeasonRevision)
+        {
+            throw new InvalidOperationException(
+                "The generated Season candidate changed after preview completed. " +
+                "Generate a fresh Season preview before accepting it.");
+        }
+
+        if (!result.IsCurrent(terrainQuery, currentSeasons))
+        {
+            throw new InvalidOperationException(
+                "The Season preview is no longer current. Generate a fresh preview before accepting it.");
+        }
+
+        result.Scope.EnsureValid(world.Definition);
+        result.Settings.EnsureValid(currentSeasons.Catalog, world.Definition);
+        var sourceFingerprint = CampaignSeasonGenerationFingerprint.GetSourceTerrainFingerprint(
+            result.SupportFields.Terrain);
+        var inputFingerprint = CampaignSeasonGenerationFingerprint.GetInputFingerprint(
+            currentSeasons.Catalog,
+            result.Settings);
+        var saved = new CampaignSeasonSavedGeneration(
+            result.Settings,
+            sourceFingerprint,
+            inputFingerprint);
+        ValidateSeasonDocument(
+            world,
+            result.CandidateMap,
+            result.Settings.PriorityIds,
+            saved);
+
+        SeasonMap = result.CandidateMap;
+        _seasonPriorityIds = Array.AsReadOnly(result.Settings.PriorityIds.ToArray());
+        OnPropertyChanged(nameof(SeasonPriorityIds));
+        SeasonSavedGeneration = saved;
+        _seasonDiagnosticProjection = new SeasonDiagnosticProjection(
+            result.SupportFields,
+            sourceFingerprint,
+            inputFingerprint);
+        _history.Clear();
+        RefreshSeasonOptions();
+        IsDirty = true;
+        StatusMessage =
+            $"Accepted reviewed Season candidate · {result.ChangedTileCount:N0} changed tile(s) · " +
+            $"seed {result.Settings.SeasonSeed:N0}. Terrain, resources, and project identity were kept; undo history was cleared.";
+        NotifyInspectorChanged();
+        NotifySeasonStatusChanged();
+    }
+
+    public async Task<bool> RebuildSeasonDiagnosticsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (SeasonSavedGeneration is not { } saved ||
+            SeasonMap is not { } seasons ||
+            _seasonTerrainQuery is not { } terrainQuery)
+        {
+            _seasonDiagnosticProjection = null;
+            NotifySeasonInspectorChanged();
+            return false;
+        }
+
+        var source = CampaignSeasonGenerationSource.Capture(
+            terrainQuery,
+            seasons,
+            cancellationToken);
+        var projection = await Task.Run(
+            () =>
+            {
+                var support = CampaignSeasonSupportFields.Build(
+                    source.Terrain,
+                    saved.Settings,
+                    cancellationToken);
+                return new SeasonDiagnosticProjection(
+                    support,
+                    CampaignSeasonGenerationFingerprint.GetSourceTerrainFingerprint(source.Terrain),
+                    CampaignSeasonGenerationFingerprint.GetInputFingerprint(
+                        source.Catalog,
+                        saved.Settings));
+            },
+            cancellationToken);
+
+        if (!ReferenceEquals(SeasonSavedGeneration, saved) ||
+            !ReferenceEquals(SeasonMap, seasons) ||
+            !ReferenceEquals(_seasonTerrainQuery, terrainQuery) ||
+            terrainQuery.Revision != source.TerrainRevision ||
+            seasons.Revision != source.SeasonRevision)
+        {
+            return false;
+        }
+
+        _seasonDiagnosticProjection = projection;
+        NotifySeasonInspectorChanged();
+        return true;
+    }
+
     public CampaignMapGenerationOptions? LastGenerationOptions
     {
         get => _lastGenerationOptions;
@@ -614,9 +979,11 @@ public sealed class EditorViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(CanEditCampaignTiles));
                 OnPropertyChanged(nameof(CanEditResources));
+                OnPropertyChanged(nameof(CanEditSeasons));
                 OnPropertyChanged(nameof(CanAdjustCampaignView));
                 OnPropertyChanged(nameof(CanRegenerateWorld));
                 OnPropertyChanged(nameof(CanRegenerateResources));
+                OnPropertyChanged(nameof(CanGenerateSeasons));
                 NotifyElevationHelperChanged();
                 NotifyRiverSplitChanged();
                 NotifyPinnedResourceActionChanged();
@@ -758,6 +1125,21 @@ public sealed class EditorViewModel : ViewModelBase
         }
     }
 
+    public string HoverSeasonText
+    {
+        get
+        {
+            if (SeasonMap is not { } seasons || _hover is not { } hover)
+            {
+                return "—";
+            }
+
+            var tile = seasons.GetTile(hover.Coordinate.X, hover.Coordinate.Y);
+            var definition = seasons.Catalog.Get(tile.SeasonId);
+            return $"{definition.Name} · {(tile.Locked ? "locked" : "unlocked")}";
+        }
+    }
+
     public CampaignTileCoordinate? PinnedCoordinate => _selectedCoordinate;
 
     public CampaignResourceOccurrenceRow? SelectedPinnedResourceOccurrence
@@ -801,13 +1183,186 @@ public sealed class EditorViewModel : ViewModelBase
 
     public string SelectionText => GetSelectionText();
 
-    public void SwitchToTerrainWorkspace() => SetResourcesWorkspace(resources: false);
+    public bool HasPinnedSeason =>
+        SeasonMap is { } seasons && _selectedCoordinate is { } coordinate &&
+        seasons.IsValidCoordinate(coordinate.X, coordinate.Y);
 
-    public void SwitchToResourcesWorkspace() => SetResourcesWorkspace(resources: true);
+    public string PinnedSeasonIdentityText
+    {
+        get
+        {
+            if (!TryGetPinnedSeason(out _, out var tile, out var definition))
+            {
+                return "Right-click a tile to inspect its authoritative season.";
+            }
+
+            var source = SeasonMap!.Catalog.IsBuiltIn(definition.Id) ? "Built-in" : "Custom";
+            return $"{definition.Name} · ID {definition.Id} · {source} · " +
+                   $"fallback {definition.Fallback} · {(tile.Locked ? "locked" : "unlocked")}";
+        }
+    }
+
+    public string PinnedSeasonTerrainText
+    {
+        get
+        {
+            if (World is not { } world ||
+                _selectedCoordinate is not { } coordinate ||
+                _seasonTerrainQuery is not { } terrainQuery)
+            {
+                return "Terrain support: —";
+            }
+
+            var terrain = terrainQuery.GetSample(coordinate.X, coordinate.Y);
+            var customName = terrain.CustomTerrainId is { } customId &&
+                             world.Tiles.TryGetCustomTerrainDefinition(customId, out var custom)
+                ? $" ({custom.Name})"
+                : string.Empty;
+            return $"Terrain {terrain.TerrainType}{customName} · {terrain.ElevationMeters:N0} m · " +
+                   $"water {terrain.WaterFeatures}";
+        }
+    }
+
+    public string PinnedSeasonRuleText
+    {
+        get
+        {
+            if (!TryGetPinnedSeason(out _, out _, out var definition))
+            {
+                return "Rule: —";
+            }
+
+            var priorityIndex = _seasonPriorityIds
+                .Select((id, index) => (id, index))
+                .FirstOrDefault(pair => string.Equals(pair.id, definition.Id, StringComparison.Ordinal));
+            var priority = _seasonPriorityIds.Contains(definition.Id, StringComparer.Ordinal)
+                ? $"priority {priorityIndex.index + 1:N0} of {_seasonPriorityIds.Count:N0}"
+                : "manual-only";
+            return $"{priority} · {GetSeasonRuleSummary(definition.Rule)}";
+        }
+    }
+
+    public string PinnedSeasonGenerationText
+    {
+        get
+        {
+            if (SeasonSavedGeneration is not { } saved)
+            {
+                return "No accepted generation recipe. Climate support, winning rule, overlaps, and staleness are unavailable for this manual/compatibility layer.";
+            }
+
+            if (!TryGetPinnedSeason(out var coordinate, out var authoritativeTile, out var authoritativeDefinition))
+            {
+                return "Right-click a tile to inspect its generated climate support and rule result.";
+            }
+
+            if (_seasonDiagnosticProjection is not { } projection ||
+                SeasonMap is not { } seasons ||
+                _seasonTerrainQuery is not { } terrainQuery)
+            {
+                return "An accepted generation recipe is saved, but its derived diagnostic cache is not ready. Reopen Generate seasons or reload the project to rebuild it; tile authority remains exact.";
+            }
+
+            CampaignSeasonGenerationDiagnostic diagnostic;
+            try
+            {
+                diagnostic = CampaignSeasonGenerationDiagnostics.Evaluate(
+                    projection.SupportFields,
+                    seasons.Catalog,
+                    saved.Settings,
+                    coordinate.X,
+                    coordinate.Y);
+            }
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+            {
+                return $"Generation diagnostics are unavailable: {exception.Message}";
+            }
+
+            var winner = seasons.Catalog.Get(diagnostic.WinningSeasonId);
+            var shadowed = diagnostic.ShadowedSeasonIds.Count == 0
+                ? "none"
+                : string.Join(
+                    ", ",
+                    diagnostic.ShadowedSeasonIds.Select(id => seasons.Catalog.Get(id).Name));
+            var authoritativePriorityIndex = saved.Settings.PriorityIds
+                .Select((id, index) => (id, index))
+                .FirstOrDefault(pair => string.Equals(
+                    pair.id,
+                    authoritativeTile.SeasonId,
+                    StringComparison.Ordinal));
+            var authoritativeEnabled = saved.Settings.PriorityIds.Contains(
+                authoritativeTile.SeasonId,
+                StringComparer.Ordinal);
+            var higherPriorityOverlaps = authoritativeEnabled
+                ? diagnostic.MatchingSeasonIds
+                    .Where(id => GetSeasonPriorityIndex(saved.Settings.PriorityIds, id) < authoritativePriorityIndex.index)
+                    .Select(id => seasons.Catalog.Get(id).Name)
+                    .ToArray()
+                : diagnostic.MatchingSeasonIds
+                    .Select(id => seasons.Catalog.Get(id).Name)
+                    .ToArray();
+            var overlapText = higherPriorityOverlaps.Length == 0
+                ? "none"
+                : string.Join(", ", higherPriorityOverlaps);
+            var inputFingerprint = CampaignSeasonGenerationFingerprint.GetInputFingerprint(
+                seasons.Catalog,
+                saved.Settings);
+            var sourceCurrent =
+                terrainQuery.Revision == projection.SupportFields.Terrain.Revision &&
+                string.Equals(
+                    projection.CurrentSourceTerrainFingerprint,
+                    saved.SourceTerrainFingerprint,
+                    StringComparison.Ordinal);
+            var inputsCurrent = string.Equals(
+                inputFingerprint,
+                saved.InputFingerprint,
+                StringComparison.Ordinal);
+            var authorityDifference = string.Equals(
+                authoritativeTile.SeasonId,
+                diagnostic.WinningSeasonId,
+                StringComparison.Ordinal)
+                ? "authority matches winner"
+                : $"authority is {authoritativeDefinition.Name} ({(authoritativeTile.Locked ? "locked" : "manual/unlocked")})";
+            var support = diagnostic.Support;
+            return
+                $"Climate · latitude {support.LatitudeDegrees:0.##}° · temperature {support.TemperatureCelsius:0.##} °C · " +
+                $"moisture {support.Moisture:0.###} · intensity {support.SeasonalIntensity:+0.###;-0.###;0} · " +
+                $"tendency {support.SeasonalTendency:+0.###;-0.###;0} · rain shadow {support.RainShadow:0.###}. " +
+                $"Water distance · Sea {FormatSeasonDistance(support.SeaDistanceKilometers)} · " +
+                $"Lake {FormatSeasonDistance(support.LakeDistanceKilometers)} · " +
+                $"River {FormatSeasonDistance(support.RiverDistanceKilometers)}. " +
+                $"Generator winner {winner.Name}; shadowed matches {shadowed}; higher-priority overlaps for current authority {overlapText}; {authorityDifference}. " +
+                $"Accepted recipe source {(sourceCurrent ? "current" : "stale")} · inputs {(inputsCurrent ? "current" : "stale")}.";
+        }
+    }
+
+    public bool CanLockPinnedSeason =>
+        !IsBusy && TryGetPinnedSeason(out _, out var tile, out _) && !tile.Locked;
+
+    public bool CanUnlockPinnedSeason =>
+        !IsBusy && TryGetPinnedSeason(out _, out var tile, out _) && tile.Locked;
+
+    public void SwitchToTerrainWorkspace() => SetWorkspace(EditorWorkspace.Terrain);
+
+    public void SwitchToResourcesWorkspace() => SetWorkspace(EditorWorkspace.Resources);
+
+    public void SwitchToSeasonsWorkspace() => SetWorkspace(EditorWorkspace.Seasons);
 
     public void SelectResourceAddUpdateTool() => SetResourceEraseTool(erase: false);
 
     public void SelectResourceEraseTool() => SetResourceEraseTool(erase: true);
+
+    public void SelectSeasonPaintTool() => SetSeasonPaintTool(CampaignSeasonPaintTool.Paint);
+
+    public void SelectSeasonResetTool() => SetSeasonPaintTool(CampaignSeasonPaintTool.ResetToDefault);
+
+    public void SelectSeasonLockTool() => SetSeasonPaintTool(CampaignSeasonPaintTool.Lock);
+
+    public void SelectSeasonUnlockTool() => SetSeasonPaintTool(CampaignSeasonPaintTool.Unlock);
+
+    public bool LockPinnedSeason() => SetPinnedSeasonLock(locked: true);
+
+    public bool UnlockPinnedSeason() => SetPinnedSeasonLock(locked: false);
 
     public bool AdoptSelectedPinnedResource()
     {
@@ -873,10 +1428,50 @@ public sealed class EditorViewModel : ViewModelBase
         CampaignMapGenerationResult? generationResult)
     {
         ArgumentNullException.ThrowIfNull(world);
+        var seasons = new CampaignSeasonMap(world.Definition);
+        CreateWorld(
+            world,
+            generationResult,
+            seasons,
+            CampaignSeasonGenerationSettings.DefaultPriority,
+            seasonSavedGeneration: null,
+            seasonSupportFields: null);
+    }
+
+    public void CreateWorld(
+        CampaignWorld world,
+        CampaignMapGenerationResult? generationResult,
+        CampaignSeasonMap seasons,
+        IReadOnlyList<string> seasonPriorityIds,
+        CampaignSeasonSavedGeneration? seasonSavedGeneration,
+        CampaignSeasonSupportFields? seasonSupportFields)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(seasons);
+        ArgumentNullException.ThrowIfNull(seasonPriorityIds);
+        ValidateSeasonDocument(world, seasons, seasonPriorityIds, seasonSavedGeneration);
+        if (seasonSupportFields is not null &&
+            seasonSupportFields.Terrain.Definition != world.Definition)
+        {
+            throw new ArgumentException(
+                "Season support diagnostics must use the new world's value-equal definition.",
+                nameof(seasonSupportFields));
+        }
+
         var resources = new CampaignResourceMap(world.Definition);
         World = world;
         ResourceMap = resources;
         ResourceGenerationSettings = null;
+        InstallSeasonDocument(
+            seasons,
+            seasonPriorityIds,
+            seasonSavedGeneration);
+        _seasonDiagnosticProjection = seasonSavedGeneration is not null && seasonSupportFields is not null
+            ? new SeasonDiagnosticProjection(
+                seasonSupportFields,
+                seasonSavedGeneration.SourceTerrainFingerprint,
+                seasonSavedGeneration.InputFingerprint)
+            : null;
         _untitledName = "Untitled World";
         ProjectDirectory = null;
         _importSourceDirectory = null;
@@ -888,6 +1483,7 @@ public sealed class EditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(PinnedCoordinate));
         RefreshCustomTerrainTypes();
         RefreshResourceOptions();
+        RefreshSeasonOptions();
         RefreshPinnedResourceOccurrences();
         StampHeight = world.Definition.DefaultTileHeightMeters;
         IsDirty = true;
@@ -898,16 +1494,19 @@ public sealed class EditorViewModel : ViewModelBase
               $"{generated.LandTileCount:N0} land, {generated.SeaTileCount:N0} Sea, " +
               $"{generated.LakeTileCount:N0} Lake, {GetGeneratedRiverStatus(generated)}. " +
               "Every tile is editable."
-            : $"Created blank {WorldSummary}. Stamp a type and centre height into complete campaign tiles.";
+            : $"Created blank {WorldSummary}. Stamp a type and centre height into complete campaign tiles. " +
+              $"Every tile starts as {seasons.Catalog.Get(seasons.DefaultSeasonId).Name}.";
         NotifyDocumentIdentityChanged();
         NotifyInspectorChanged();
         NotifyResourceStatusChanged();
+        NotifySeasonStatusChanged();
     }
 
     public void RegenerateWorld(
         CampaignWorld world,
         CampaignMapGenerationResult generationResult,
-        CampaignResourceWorldRegenerationResult? resourceRegenerationResult = null)
+        CampaignResourceWorldRegenerationResult? resourceRegenerationResult = null,
+        CampaignSeasonWorldRegenerationResult? seasonRegenerationResult = null)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(generationResult);
@@ -922,8 +1521,21 @@ public sealed class EditorViewModel : ViewModelBase
         }
 
         var currentResources = ResourceMap ?? new CampaignResourceMap(World.Definition);
+        var currentSeasons = SeasonMap ?? new CampaignSeasonMap(World.Definition);
         ValidateResourceDocument(World, currentResources, ResourceGenerationSettings);
+        ValidateSeasonDocument(World, currentSeasons, _seasonPriorityIds, SeasonSavedGeneration);
         var sameLattice = HasSameCampaignLattice(World.Definition, world.Definition);
+        var seasonsCanResetWithoutDataLoss =
+            currentSeasons.LockedTileCount == 0 &&
+            currentSeasons.GetUsageCount(currentSeasons.DefaultSeasonId) == currentSeasons.TileCount &&
+            SeasonSavedGeneration is null;
+        if (!sameLattice && !seasonsCanResetWithoutDataLoss && seasonRegenerationResult is null)
+        {
+            throw new InvalidOperationException(
+                "Changing the campaign grid would discard authoritative season assignments, locks, or a saved generation recipe. " +
+                "Generate a reviewed season remap in the terrain-and-Season preview before accepting the new grid.");
+        }
+
         if (!sameLattice &&
             (currentResources.OccurrenceCount > 0 || ResourceGenerationSettings is not null) &&
             resourceRegenerationResult is null)
@@ -991,11 +1603,95 @@ public sealed class EditorViewModel : ViewModelBase
 
         nextResourceSettings?.EnsureValid(reboundResources.Catalog);
         ValidateResourceDocument(world, reboundResources, nextResourceSettings);
+        CampaignSeasonMap reboundSeasons;
+        CampaignSeasonSavedGeneration? nextSeasonSavedGeneration;
+        CampaignSeasonSupportFields? nextSeasonSupportFields;
+        if (seasonRegenerationResult is null)
+        {
+            reboundSeasons = sameLattice
+                ? RebindSeasonMap(world.Definition, currentSeasons)
+                : new CampaignSeasonMap(
+                    world.Definition,
+                    currentSeasons.Catalog,
+                    currentSeasons.DefaultSeasonId);
+            nextSeasonSavedGeneration = SeasonSavedGeneration;
+            nextSeasonSupportFields = null;
+        }
+        else
+        {
+            if (!seasonRegenerationResult.IsCurrent(World, currentSeasons, world))
+            {
+                throw new InvalidOperationException(
+                    "The terrain or Season Layer changed after this world preview was generated. " +
+                    "Generate a fresh preview before accepting it.");
+            }
+
+            if (seasonRegenerationResult.Report.SameLattice != sameLattice)
+            {
+                throw new ArgumentException(
+                    "The Season impact report does not match the candidate campaign lattice.",
+                    nameof(seasonRegenerationResult));
+            }
+
+            if (!seasonRegenerationResult.Report.CanAccept)
+            {
+                throw new InvalidOperationException(
+                    "The reviewed Season candidate still has unresolved equal-overlap locks or unpermitted locked drops.");
+            }
+
+            if (seasonRegenerationResult.CandidateMap.Definition != world.Definition)
+            {
+                throw new ArgumentException(
+                    "The reviewed Season candidate must use the replacement world's value-equal definition.",
+                    nameof(seasonRegenerationResult));
+            }
+
+            if (!ReferenceEquals(seasonRegenerationResult.CandidateMap.Catalog, currentSeasons.Catalog) ||
+                !string.Equals(
+                    seasonRegenerationResult.CandidateMap.DefaultSeasonId,
+                    currentSeasons.DefaultSeasonId,
+                    StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "The reviewed Season candidate must retain the current immutable catalog and default identity.",
+                    nameof(seasonRegenerationResult));
+            }
+
+            if (!seasonRegenerationResult.SourcePriorityIds.SequenceEqual(
+                    _seasonPriorityIds,
+                    StringComparer.Ordinal) ||
+                !ReferenceEquals(
+                    seasonRegenerationResult.SourceSavedGeneration,
+                    SeasonSavedGeneration))
+            {
+                throw new InvalidOperationException(
+                    "Season priority or saved generation settings changed after this world preview was generated. " +
+                    "Generate a fresh preview before accepting it.");
+            }
+
+            reboundSeasons = seasonRegenerationResult.CandidateMap;
+            nextSeasonSavedGeneration = seasonRegenerationResult.SavedGeneration;
+            nextSeasonSupportFields = seasonRegenerationResult.SupportFields;
+        }
+
+        ValidateSeasonDocument(
+            world,
+            reboundSeasons,
+            _seasonPriorityIds,
+            nextSeasonSavedGeneration);
         var nextGenerationOptions = CreateGenerationOptions(generationResult);
 
         World = world;
         ResourceMap = reboundResources;
         ResourceGenerationSettings = nextResourceSettings;
+        InstallSeasonDocument(reboundSeasons, _seasonPriorityIds, nextSeasonSavedGeneration);
+        _seasonDiagnosticProjection = nextSeasonSavedGeneration is not null &&
+            nextSeasonSupportFields is not null
+            ? new SeasonDiagnosticProjection(
+                nextSeasonSupportFields,
+                nextSeasonSavedGeneration.SourceTerrainFingerprint,
+                nextSeasonSavedGeneration.InputFingerprint)
+            : null;
         LastGenerationOptions = nextGenerationOptions;
         _history.Clear();
         _hover = null;
@@ -1003,6 +1699,7 @@ public sealed class EditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(PinnedCoordinate));
         RefreshCustomTerrainTypes();
         RefreshResourceOptions();
+        RefreshSeasonOptions();
         RefreshPinnedResourceOccurrences();
         StampHeight = Math.Clamp(
             StampHeight,
@@ -1014,14 +1711,21 @@ public sealed class EditorViewModel : ViewModelBase
                 ? $"{reboundResources.OccurrenceCount:N0} resource occurrence(s) were preserved"
                 : "the empty resource layer was rebound to the new grid"
             : GetWorldRegenerationResourceStatus(resourceRegenerationResult.Report);
+        var seasonStatus = seasonRegenerationResult is null
+            ? sameLattice
+                ? $"{reboundSeasons.TileCount:N0} season tile(s) were preserved exactly"
+                : $"the uniform unlocked {GetDefaultSeasonName()} layer was rebound to the new grid"
+            : GetWorldRegenerationSeasonStatus(seasonRegenerationResult.Report);
         StatusMessage =
             $"Regenerated {GetGenerationPresetName(generationResult.Preset)} from the reviewed preview · " +
             $"seed {generationResult.Seed:N0}. World definition and tiles were replaced; " +
             $"{resourceStatus}; " +
+            $"{seasonStatus}; " +
             "current project identity was kept and undo history was cleared.";
         NotifyDocumentIdentityChanged();
         NotifyInspectorChanged();
         NotifyResourceStatusChanged();
+        NotifySeasonStatusChanged();
     }
 
     public void OpenWorld(
@@ -1052,12 +1756,42 @@ public sealed class EditorViewModel : ViewModelBase
         int normalizedLegacyCoastalTileCount = 0)
     {
         ArgumentNullException.ThrowIfNull(world);
+        OpenWorld(
+            world,
+            resourceMap,
+            resourceGenerationSettings,
+            new CampaignSeasonMap(world.Definition),
+            CampaignSeasonGenerationSettings.DefaultPriority,
+            seasonSavedGeneration: null,
+            projectDirectory,
+            wasConvertedFromLegacy,
+            sourceProjectDirectory,
+            normalizedLegacyCoastalTileCount,
+            seasonsWereImplicitCompatibility: false);
+    }
+
+    public void OpenWorld(
+        CampaignWorld world,
+        CampaignResourceMap resourceMap,
+        CampaignResourceGenerationSettings? resourceGenerationSettings,
+        CampaignSeasonMap seasonMap,
+        IEnumerable<string> seasonPriorityIds,
+        CampaignSeasonSavedGeneration? seasonSavedGeneration,
+        string? projectDirectory,
+        bool wasConvertedFromLegacy,
+        string sourceProjectDirectory,
+        int normalizedLegacyCoastalTileCount = 0,
+        bool seasonsWereImplicitCompatibility = false)
+    {
+        ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(resourceMap);
         ValidateResourceDocument(world, resourceMap, resourceGenerationSettings);
+        ValidateSeasonDocument(world, seasonMap, seasonPriorityIds, seasonSavedGeneration);
 
         World = world;
         ResourceMap = resourceMap;
         ResourceGenerationSettings = resourceGenerationSettings;
+        InstallSeasonDocument(seasonMap, seasonPriorityIds, seasonSavedGeneration);
         _isLegacyImport = wasConvertedFromLegacy;
         _importSourceDirectory = wasConvertedFromLegacy ? sourceProjectDirectory : null;
         _untitledName = wasConvertedFromLegacy
@@ -1071,6 +1805,7 @@ public sealed class EditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(PinnedCoordinate));
         RefreshCustomTerrainTypes();
         RefreshResourceOptions();
+        RefreshSeasonOptions();
         RefreshPinnedResourceOccurrences();
         StampHeight = world.Definition.DefaultTileHeightMeters;
         IsDirty = wasConvertedFromLegacy || normalizedLegacyCoastalTileCount > 0;
@@ -1079,11 +1814,16 @@ public sealed class EditorViewModel : ViewModelBase
             : normalizedLegacyCoastalTileCount > 0
                 ? $"Opened {WorldName}; converted {normalizedLegacyCoastalTileCount:N0} legacy Coastal tile(s) to Plains. " +
                   "Automatic 10% water edges now preserve the underlying land. Save to update the project."
+            : seasonsWereImplicitCompatibility
+                ? $"Opened {WorldName} with an implicit unlocked Spring season layer. " +
+                  "The first save will add season project files without changing terrain or resources."
             : $"Opened {WorldName} with {world.Tiles.MaterializedTileCount:N0} stored tile overrides and " +
-              $"{resourceMap.OccurrenceCount:N0} resource occurrence(s).";
+              $"{resourceMap.OccurrenceCount:N0} resource occurrence(s), plus " +
+              $"{seasonMap.LockedTileCount:N0} locked season tile(s).";
         NotifyDocumentIdentityChanged();
         NotifyInspectorChanged();
         NotifyResourceStatusChanged();
+        NotifySeasonStatusChanged();
     }
 
     public void MarkSaved(string projectDirectory)
@@ -1194,6 +1934,114 @@ public sealed class EditorViewModel : ViewModelBase
         return true;
     }
 
+    public bool UpdateSeasons(
+        IReadOnlyList<CampaignSeasonDefinition> builtInDefinitions,
+        IReadOnlyList<CampaignSeasonDefinition> customDefinitions,
+        IReadOnlyList<string> priorityIds,
+        IReadOnlyDictionary<string, string> deletedSeasonReplacements,
+        string? selectedSeasonId = null)
+    {
+        ArgumentNullException.ThrowIfNull(builtInDefinitions);
+        ArgumentNullException.ThrowIfNull(customDefinitions);
+        ArgumentNullException.ThrowIfNull(priorityIds);
+        ArgumentNullException.ThrowIfNull(deletedSeasonReplacements);
+        if (World is not { } world || SeasonMap is not { } currentSeasons || IsBusy)
+        {
+            return false;
+        }
+
+        var replacementCatalog = new CampaignSeasonCatalog(customDefinitions, builtInDefinitions);
+        new CampaignSeasonGenerationSettings(0, priorityIds: priorityIds)
+            .EnsureValid(replacementCatalog, world.Definition);
+        if (selectedSeasonId is not null && !replacementCatalog.Contains(selectedSeasonId))
+        {
+            throw new ArgumentException(
+                $"Selected season '{selectedSeasonId}' is not present in the replacement catalog.",
+                nameof(selectedSeasonId));
+        }
+
+        foreach (var (removedId, replacementId) in deletedSeasonReplacements)
+        {
+            if (replacementCatalog.Contains(removedId))
+            {
+                throw new ArgumentException(
+                    $"Replacement mapping references season '{removedId}', which was not removed.",
+                    nameof(deletedSeasonReplacements));
+            }
+
+            if (!currentSeasons.Catalog.Contains(removedId) || !replacementCatalog.Contains(replacementId))
+            {
+                throw new ArgumentException(
+                    $"Season replacement '{removedId}' → '{replacementId}' is not valid for the current and replacement catalogs.",
+                    nameof(deletedSeasonReplacements));
+            }
+        }
+
+        var usageCounts = currentSeasons.GetUsageCounts(
+            currentSeasons.Catalog.Definitions.Select(static definition => definition.Id));
+        foreach (var currentDefinition in currentSeasons.Catalog.Definitions)
+        {
+            if (replacementCatalog.Contains(currentDefinition.Id) || usageCounts[currentDefinition.Id] == 0)
+            {
+                continue;
+            }
+
+            if (!deletedSeasonReplacements.ContainsKey(currentDefinition.Id))
+            {
+                throw new InvalidOperationException(
+                    $"Season '{currentDefinition.Name}' ({currentDefinition.Id}) is used by " +
+                    $"{usageCounts[currentDefinition.Id]:N0} tile(s). Choose a replacement before deleting or changing its stable ID.");
+            }
+        }
+
+        var priority = priorityIds.ToArray();
+        var equivalentDefinitions = HaveEquivalentSeasonDefinitions(
+            currentSeasons.Catalog,
+            replacementCatalog);
+        var equivalentPriority = _seasonPriorityIds.SequenceEqual(priority, StringComparer.Ordinal);
+        if (equivalentDefinitions && equivalentPriority && deletedSeasonReplacements.Count == 0)
+        {
+            SelectSeasonOption(selectedSeasonId);
+            StatusMessage = "Season definitions and priority are unchanged.";
+            return false;
+        }
+
+        var nextDefaultSeasonId = replacementCatalog.Contains(currentSeasons.DefaultSeasonId)
+            ? currentSeasons.DefaultSeasonId
+            : deletedSeasonReplacements.TryGetValue(currentSeasons.DefaultSeasonId, out var defaultReplacement)
+                ? defaultReplacement
+                : throw new InvalidOperationException(
+                    $"The project default season '{currentSeasons.DefaultSeasonId}' was removed without a replacement.");
+        var replacementMap = new CampaignSeasonMap(
+            world.Definition,
+            replacementCatalog,
+            nextDefaultSeasonId);
+        replacementMap.Apply(currentSeasons.GetAllTiles().Select(entry =>
+        {
+            var seasonId = replacementCatalog.Contains(entry.Tile.SeasonId)
+                ? entry.Tile.SeasonId
+                : deletedSeasonReplacements[entry.Tile.SeasonId];
+            return new CampaignSeasonMutation(
+                entry.X,
+                entry.Y,
+                new CampaignSeasonTile(seasonId, entry.Tile.Locked));
+        }));
+
+        var nextSavedGeneration = equivalentPriority ? SeasonSavedGeneration : null;
+        ValidateSeasonDocument(world, replacementMap, priority, nextSavedGeneration);
+        InstallSeasonDocument(replacementMap, priority, nextSavedGeneration);
+        _history.Clear();
+        RefreshSeasonOptions();
+        SelectSeasonOption(selectedSeasonId);
+        IsDirty = true;
+        StatusMessage =
+            $"Updated {replacementCatalog.Definitions.Count:N0} season definition(s); " +
+            $"preserved {replacementMap.TileCount:N0} tile assignments and cleared undo history.";
+        NotifyInspectorChanged();
+        NotifySeasonStatusChanged();
+        return true;
+    }
+
     public void RecordTileStroke(CampaignTileStampCommand command, int blockedRiverTiles = 0)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -1241,6 +2089,29 @@ public sealed class EditorViewModel : ViewModelBase
         NotifyResourceStatusChanged();
     }
 
+    public void RecordSeasonStroke(CampaignSeasonEditCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (SeasonMap is null)
+        {
+            throw new InvalidOperationException("A season layer must be open before recording a season stroke.");
+        }
+
+        if (command.IsEmpty)
+        {
+            StatusMessage = "Season stroke made no authoritative changes.";
+            NotifySeasonInspectorChanged();
+            NotifySeasonStatusChanged();
+            return;
+        }
+
+        _history.RecordExecuted(command);
+        IsDirty = true;
+        StatusMessage = $"{command.Description}: {command.Changes.Count:N0} season tile(s) changed.";
+        NotifyInspectorChanged();
+        NotifySeasonStatusChanged();
+    }
+
     public bool Undo()
     {
         if (IsBusy)
@@ -1259,6 +2130,7 @@ public sealed class EditorViewModel : ViewModelBase
         RefreshPinnedResourceOccurrences();
         NotifyInspectorChanged();
         NotifyResourceStatusChanged();
+        NotifySeasonStatusChanged();
         return true;
     }
 
@@ -1280,6 +2152,7 @@ public sealed class EditorViewModel : ViewModelBase
         RefreshPinnedResourceOccurrences();
         NotifyInspectorChanged();
         NotifyResourceStatusChanged();
+        NotifySeasonStatusChanged();
         return true;
     }
 
@@ -1302,6 +2175,7 @@ public sealed class EditorViewModel : ViewModelBase
         RefreshPinnedResourceOccurrences();
         NotifyElevationHelperChanged();
         NotifyRiverSplitChanged();
+        NotifySeasonInspectorChanged();
     }
 
     public bool CreatePinnedRiverSplit()
@@ -1439,19 +2313,57 @@ public sealed class EditorViewModel : ViewModelBase
                $"{tile.HeightMeters:N0} m at centre";
     }
 
-    private void SetResourcesWorkspace(bool resources)
+    private void SetWorkspace(EditorWorkspace workspace)
     {
-        if (!SetProperty(ref _isResourcesWorkspace, resources, nameof(IsResourcesWorkspace)))
+        var resources = workspace == EditorWorkspace.Resources;
+        var seasons = workspace == EditorWorkspace.Seasons;
+        if (_isResourcesWorkspace == resources && _isSeasonsWorkspace == seasons)
         {
             return;
         }
 
+        _isResourcesWorkspace = resources;
+        _isSeasonsWorkspace = seasons;
+        OnPropertyChanged(nameof(IsResourcesWorkspace));
+        OnPropertyChanged(nameof(IsSeasonsWorkspace));
         OnPropertyChanged(nameof(IsTerrainWorkspace));
         OnPropertyChanged(nameof(CanEditResources));
+        OnPropertyChanged(nameof(CanEditSeasons));
         NotifyWorkspacePresentationChanged();
-        StatusMessage = resources
-            ? "Resources workspace active. Paint or inspect the selected resource without changing terrain."
-            : "Terrain workspace active. Stamp complete terrain tiles and centre heights.";
+        StatusMessage = workspace switch
+        {
+            EditorWorkspace.Resources =>
+                "Resources workspace active. Paint or inspect the selected resource without changing terrain.",
+            EditorWorkspace.Seasons =>
+                "Seasons workspace active. Paint, reset, lock, or unlock whole season tiles without changing terrain or resources.",
+            _ => "Terrain workspace active. Stamp complete terrain tiles and centre heights.",
+        };
+    }
+
+    private void SetSeasonPaintTool(CampaignSeasonPaintTool tool)
+    {
+        if (!Enum.IsDefined(tool) || _seasonPaintTool == tool)
+        {
+            return;
+        }
+
+        _seasonPaintTool = tool;
+        OnPropertyChanged(nameof(SeasonPaintTool));
+        OnPropertyChanged(nameof(IsSeasonPaintTool));
+        OnPropertyChanged(nameof(IsSeasonResetTool));
+        OnPropertyChanged(nameof(IsSeasonLockTool));
+        OnPropertyChanged(nameof(IsSeasonUnlockTool));
+        OnPropertyChanged(nameof(CanEditSeasons));
+        NotifySeasonStampChanged();
+        StatusMessage = tool switch
+        {
+            CampaignSeasonPaintTool.Paint => "Paint selected season tool active.",
+            CampaignSeasonPaintTool.ResetToDefault =>
+                $"Reset to {GetDefaultSeasonName()} tool active; reset tiles become unlocked.",
+            CampaignSeasonPaintTool.Lock => "Lock existing season tool active.",
+            CampaignSeasonPaintTool.Unlock => "Unlock existing season tool active.",
+            _ => "Season tool changed.",
+        };
     }
 
     private void SetResourceEraseTool(bool erase)
@@ -1493,6 +2405,44 @@ public sealed class EditorViewModel : ViewModelBase
                 string.Equals(option.Id, previousId, StringComparison.Ordinal));
         SelectedResourceOption = replacement ?? ResourceOptions.FirstOrDefault();
         NotifyResourceStampChanged();
+    }
+
+    private void RefreshSeasonOptions()
+    {
+        var previousId = SelectedSeasonId;
+        SeasonOptions.Clear();
+        if (SeasonMap is { } seasons)
+        {
+            var search = SeasonSearchText.Trim();
+            foreach (var definition in seasons.Catalog.Definitions)
+            {
+                if (search.Length > 0 &&
+                    !definition.Name.Contains(search, StringComparison.OrdinalIgnoreCase) &&
+                    !definition.Id.Contains(search, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                SeasonOptions.Add(new CampaignSeasonOption(
+                    definition.Id,
+                    definition.Name,
+                    definition.Fallback,
+                    new SolidColorBrush(Color.Parse(definition.ColorHex)),
+                    IsCustom: !seasons.Catalog.IsBuiltIn(definition.Id),
+                    IsGenerationEnabled: _seasonPriorityIds.Contains(
+                        definition.Id,
+                        StringComparer.Ordinal)));
+            }
+        }
+
+        var replacement = previousId is null
+            ? null
+            : SeasonOptions.FirstOrDefault(option =>
+                string.Equals(option.Id, previousId, StringComparison.Ordinal));
+        SelectedSeasonOption = replacement ?? SeasonOptions.FirstOrDefault();
+        OnPropertyChanged(nameof(HasSeasonOptions));
+        OnPropertyChanged(nameof(HasNoSeasonOptions));
+        NotifySeasonStampChanged();
     }
 
     private bool IsResourceVisible(CampaignResourceDefinition definition) =>
@@ -1621,6 +2571,52 @@ public sealed class EditorViewModel : ViewModelBase
         NotifyResourceStatusChanged();
     }
 
+    private bool SetPinnedSeasonLock(bool locked)
+    {
+        if (!TryGetPinnedSeason(out var coordinate, out var tile, out var definition) ||
+            tile.Locked == locked)
+        {
+            return false;
+        }
+
+        var command = new CampaignSeasonEditCommand(
+            SeasonMap!,
+            locked ? $"Lock {definition.Name} season" : $"Unlock {definition.Name} season",
+            [new CampaignSeasonChange(
+                coordinate.X,
+                coordinate.Y,
+                tile,
+                tile with { Locked = locked })]);
+        _history.Execute(command);
+        IsDirty = true;
+        StatusMessage = $"{(locked ? "Locked" : "Unlocked")} {definition.Name} at pinned tile " +
+                        $"{coordinate.X:N0}, {coordinate.Y:N0}.";
+        NotifyInspectorChanged();
+        NotifySeasonStatusChanged();
+        return true;
+    }
+
+    private bool TryGetPinnedSeason(
+        out CampaignTileCoordinate coordinate,
+        out CampaignSeasonTile tile,
+        out CampaignSeasonDefinition definition)
+    {
+        if (SeasonMap is { } seasons &&
+            _selectedCoordinate is { } selected &&
+            seasons.IsValidCoordinate(selected.X, selected.Y))
+        {
+            coordinate = selected;
+            tile = seasons.GetTile(selected.X, selected.Y);
+            definition = seasons.Catalog.Get(tile.SeasonId);
+            return true;
+        }
+
+        coordinate = default;
+        tile = default;
+        definition = null!;
+        return false;
+    }
+
     private static string GetUnevaluatedFactorName(CampaignResourceUnevaluatedFactor factor) =>
         factor switch
         {
@@ -1650,6 +2646,61 @@ public sealed class EditorViewModel : ViewModelBase
 
         resources.EnsureValid();
         settings?.EnsureValid(resources.Catalog);
+    }
+
+    private static void ValidateSeasonDocument(
+        CampaignWorld world,
+        CampaignSeasonMap seasons,
+        IEnumerable<string> priorityIds,
+        CampaignSeasonSavedGeneration? savedGeneration)
+    {
+        ArgumentNullException.ThrowIfNull(seasons);
+        ArgumentNullException.ThrowIfNull(priorityIds);
+        if (seasons.Definition != world.Definition)
+        {
+            throw new ArgumentException(
+                "The season map definition must be value-equal to the terrain world definition.",
+                nameof(seasons));
+        }
+
+        seasons.EnsureValid();
+        var priority = priorityIds.ToArray();
+        new CampaignSeasonGenerationSettings(0, priorityIds: priority)
+            .EnsureValid(seasons.Catalog, seasons.Definition);
+        if (savedGeneration is not null)
+        {
+            savedGeneration.Settings.EnsureValid(seasons.Catalog, seasons.Definition);
+            if (!priority.SequenceEqual(
+                    savedGeneration.Settings.PriorityIds,
+                    StringComparer.Ordinal))
+            {
+                throw new ArgumentException(
+                    "Saved season generation settings must use the active season priority.",
+                    nameof(savedGeneration));
+            }
+        }
+    }
+
+    private void InstallSeasonDocument(
+        CampaignSeasonMap seasonMap,
+        IEnumerable<string> priorityIds,
+        CampaignSeasonSavedGeneration? savedGeneration)
+    {
+        ArgumentNullException.ThrowIfNull(seasonMap);
+        ArgumentNullException.ThrowIfNull(priorityIds);
+        var priority = Array.AsReadOnly(priorityIds.ToArray());
+        new CampaignSeasonGenerationSettings(0, priorityIds: priority)
+            .EnsureValid(seasonMap.Catalog, seasonMap.Definition);
+        SeasonMap = seasonMap;
+        _seasonPriorityIds = priority;
+        OnPropertyChanged(nameof(SeasonPriorityIds));
+        if (savedGeneration is null ||
+            !ReferenceEquals(_seasonDiagnosticProjection?.SupportFields.Settings, savedGeneration.Settings))
+        {
+            _seasonDiagnosticProjection = null;
+        }
+
+        SeasonSavedGeneration = savedGeneration;
     }
 
     private static bool HaveSameResourceDefinitions(
@@ -1700,6 +2751,40 @@ public sealed class EditorViewModel : ViewModelBase
             StringComparer.Ordinal) &&
         HaveEquivalentWeights(left.Rules.FieldWeights, right.Rules.FieldWeights) &&
         HaveEquivalentWeights(left.Rules.AssociationWeights, right.Rules.AssociationWeights);
+
+    private static bool HaveEquivalentSeasonDefinitions(
+        CampaignSeasonCatalog left,
+        CampaignSeasonCatalog right) =>
+        left.Definitions.Count == right.Definitions.Count &&
+        left.Definitions.Zip(right.Definitions).All(static pair =>
+            HaveEquivalentSeasonDefinition(pair.First, pair.Second));
+
+    private static bool HaveEquivalentSeasonDefinition(
+        CampaignSeasonDefinition left,
+        CampaignSeasonDefinition right) =>
+        string.Equals(left.Id, right.Id, StringComparison.Ordinal) &&
+        string.Equals(left.Name, right.Name, StringComparison.Ordinal) &&
+        left.Fallback == right.Fallback &&
+        string.Equals(left.ColorHex, right.ColorHex, StringComparison.Ordinal) &&
+        left.TintStrengthPercent == right.TintStrengthPercent &&
+        left.EffectIntensityPercent == right.EffectIntensityPercent &&
+        left.Rule.LatitudeDegrees == right.Rule.LatitudeDegrees &&
+        left.Rule.ElevationMeters == right.Rule.ElevationMeters &&
+        left.Rule.TemperatureCelsius == right.Rule.TemperatureCelsius &&
+        left.Rule.Moisture == right.Rule.Moisture &&
+        left.Rule.SeasonalIntensity == right.Rule.SeasonalIntensity &&
+        left.Rule.SeasonalTendency == right.Rule.SeasonalTendency &&
+        left.Rule.SeaDistanceKilometers == right.Rule.SeaDistanceKilometers &&
+        left.Rule.LakeDistanceKilometers == right.Rule.LakeDistanceKilometers &&
+        left.Rule.RiverDistanceKilometers == right.Rule.RiverDistanceKilometers &&
+        left.Rule.TerrainIncludes.SequenceEqual(right.Rule.TerrainIncludes) &&
+        left.Rule.TerrainExcludes.SequenceEqual(right.Rule.TerrainExcludes) &&
+        left.Rule.CustomTerrainIncludes.SequenceEqual(
+            right.Rule.CustomTerrainIncludes,
+            StringComparer.Ordinal) &&
+        left.Rule.CustomTerrainExcludes.SequenceEqual(
+            right.Rule.CustomTerrainExcludes,
+            StringComparer.Ordinal);
 
     private static bool HaveEquivalentWeights(
         IReadOnlyDictionary<string, double> left,
@@ -1754,6 +2839,22 @@ public sealed class EditorViewModel : ViewModelBase
             string.Equals(option.Id, resourceId, StringComparison.Ordinal));
     }
 
+    private void SelectSeasonOption(string? seasonId)
+    {
+        if (seasonId is null || SeasonMap is not { } seasons || !seasons.Catalog.Contains(seasonId))
+        {
+            return;
+        }
+
+        if (!SeasonOptions.Any(option => string.Equals(option.Id, seasonId, StringComparison.Ordinal)))
+        {
+            SeasonSearchText = string.Empty;
+        }
+
+        SelectedSeasonOption = SeasonOptions.FirstOrDefault(option =>
+            string.Equals(option.Id, seasonId, StringComparison.Ordinal));
+    }
+
     private static CampaignResourceMap RebindResourceMap(
         CampaignWorldDefinition definition,
         CampaignResourceMap source,
@@ -1766,6 +2867,21 @@ public sealed class EditorViewModel : ViewModelBase
                 CampaignResourceMutation.Upsert(entry.X, entry.Y, entry.Occurrence)));
         }
 
+        rebound.EnsureValid();
+        return rebound;
+    }
+
+    private static CampaignSeasonMap RebindSeasonMap(
+        CampaignWorldDefinition definition,
+        CampaignSeasonMap source)
+    {
+        var rebound = new CampaignSeasonMap(
+            definition,
+            source.Catalog,
+            source.DefaultSeasonId);
+        var entries = source.GetAllTiles();
+        rebound.Apply(entries.Select(static entry =>
+            new CampaignSeasonMutation(entry.X, entry.Y, entry.Tile)));
         rebound.EnsureValid();
         return rebound;
     }
@@ -1790,6 +2906,18 @@ public sealed class EditorViewModel : ViewModelBase
                 $"{report.LockedRetainedOccurrenceCount:N0} locked resource target(s) were remapped and " +
                 $"{report.RegeneratedUnlockedOccurrenceCount:N0} unlocked occurrence(s) were regenerated " +
                 $"({report.MergedOccurrenceCount:N0} merged, {report.DroppedOccurrenceCount:N0} dropped)",
+            _ => throw new ArgumentOutOfRangeException(nameof(report)),
+        };
+
+    private static string GetWorldRegenerationSeasonStatus(
+        CampaignSeasonWorldRegenerationReport report) => report.Mode switch
+        {
+            CampaignSeasonLatticeRemapMode.PreserveSameLattice =>
+                $"{report.FinalLockedTileCount:N0} locked Season tile(s) and every unlocked assignment were preserved exactly",
+            CampaignSeasonLatticeRemapMode.RemapLocksAndRegenerateUnlocked =>
+                $"{report.FinalLockedTileCount:N0} locked Season target(s) were remapped and unlocked tiles were regenerated " +
+                $"({report.MovedLockedTileCount:N0} moved, {report.MergedLockedTileCount:N0} merged, " +
+                $"{report.DisplacedLockedTileCount:N0} displaced, {report.LockedDrops.Count:N0} reviewed drops)",
             _ => throw new ArgumentOutOfRangeException(nameof(report)),
         };
 
@@ -1925,6 +3053,68 @@ public sealed class EditorViewModel : ViewModelBase
             : $"{result.RiverTileCount:N0} River tiles ({string.Join(", ", details)})";
     }
 
+    private string GetDefaultSeasonName() =>
+        SeasonMap is { } seasons
+            ? seasons.Catalog.Get(seasons.DefaultSeasonId).Name
+            : "default season";
+
+    private static string GetSeasonRuleSummary(CampaignSeasonRule rule)
+    {
+        var parts = new List<string>();
+        AddSeasonRange(parts, "latitude", rule.LatitudeDegrees, "°");
+        AddSeasonRange(parts, "elevation", rule.ElevationMeters, " m");
+        AddSeasonRange(parts, "temperature", rule.TemperatureCelsius, " °C");
+        AddSeasonRange(parts, "moisture", rule.Moisture, string.Empty);
+        AddSeasonRange(parts, "intensity", rule.SeasonalIntensity, string.Empty);
+        AddSeasonRange(parts, "tendency", rule.SeasonalTendency, string.Empty);
+        AddSeasonRange(parts, "Sea distance", rule.SeaDistanceKilometers, " km");
+        AddSeasonRange(parts, "Lake distance", rule.LakeDistanceKilometers, " km");
+        AddSeasonRange(parts, "River distance", rule.RiverDistanceKilometers, " km");
+        if (rule.TerrainIncludes.Count > 0 || rule.CustomTerrainIncludes.Count > 0)
+        {
+            parts.Add("terrain include list");
+        }
+
+        if (rule.TerrainExcludes.Count > 0 || rule.CustomTerrainExcludes.Count > 0)
+        {
+            parts.Add("terrain exclude list");
+        }
+
+        return parts.Count == 0 ? "catch-all rule" : string.Join(" · ", parts);
+    }
+
+    private static int GetSeasonPriorityIndex(
+        IReadOnlyList<string> priorityIds,
+        string seasonId)
+    {
+        for (var index = 0; index < priorityIds.Count; index++)
+        {
+            if (string.Equals(priorityIds[index], seasonId, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return int.MaxValue;
+    }
+
+    private static string FormatSeasonDistance(double distanceKilometers) =>
+        double.IsPositiveInfinity(distanceKilometers)
+            ? "∞"
+            : $"{distanceKilometers:0.##} km";
+
+    private static void AddSeasonRange(
+        ICollection<string> parts,
+        string name,
+        CampaignSeasonRange? range,
+        string suffix)
+    {
+        if (range is { } value)
+        {
+            parts.Add($"{name} {value.Minimum:0.##}–{value.Maximum:0.##}{suffix}");
+        }
+    }
+
     private static CampaignMapGenerationOptions? CreateGenerationOptions(
         CampaignMapGenerationResult? result) =>
         result is null or { Preset: CampaignMapGenerationPreset.Blank }
@@ -2009,6 +3199,7 @@ public sealed class EditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(HoverWorldPositionText));
         OnPropertyChanged(nameof(SelectionText));
         NotifyResourceHoverChanged();
+        NotifySeasonInspectorChanged();
         NotifyElevationHelperChanged();
         NotifyRiverSplitChanged();
     }
@@ -2030,6 +3221,31 @@ public sealed class EditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(ResourceOccurrenceCount));
         OnPropertyChanged(nameof(ResourceStatusText));
         NotifyResourceHoverChanged();
+    }
+
+    private void NotifySeasonStampChanged()
+    {
+        OnPropertyChanged(nameof(SeasonPaintAreaText));
+        OnPropertyChanged(nameof(SeasonStampSummary));
+    }
+
+    private void NotifySeasonStatusChanged()
+    {
+        OnPropertyChanged(nameof(SeasonLockedTileCount));
+        OnPropertyChanged(nameof(SeasonStatusText));
+        NotifySeasonInspectorChanged();
+    }
+
+    private void NotifySeasonInspectorChanged()
+    {
+        OnPropertyChanged(nameof(HoverSeasonText));
+        OnPropertyChanged(nameof(HasPinnedSeason));
+        OnPropertyChanged(nameof(PinnedSeasonIdentityText));
+        OnPropertyChanged(nameof(PinnedSeasonTerrainText));
+        OnPropertyChanged(nameof(PinnedSeasonRuleText));
+        OnPropertyChanged(nameof(PinnedSeasonGenerationText));
+        OnPropertyChanged(nameof(CanLockPinnedSeason));
+        OnPropertyChanged(nameof(CanUnlockPinnedSeason));
     }
 
     private void NotifyPinnedResourceActionChanged()

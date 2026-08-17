@@ -2,7 +2,7 @@
 
 ## Current automated coverage
 
-The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 433 tests across the active version-2 contract, deterministic editable world generation through ADR-0025, runtime-package export, the retained version-1 implementation, the isolated version-3 Phase 1 domain, and the campaign-resource ADR-0016 through ADR-0029 manual, preview-first generation, changed-lattice remap, custom-definition, terrain-rule, calibrated spawn-opportunity, and explicit Include/Exclude slices. The version-2 and legacy tests cover:
+The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 588 tests across the active version-2 terrain contract, deterministic editable world generation through ADR-0025, runtime-package export, the retained version-1 implementation, the isolated terrain-taxonomy version-3 Phase 1 domain, campaign-resource ADR-0016 through ADR-0029, and implemented campaign-season ADR-0030 Slices 1-7. The version-2 and legacy tests cover:
 
 - exact `700 / 5 = 140` axis counts and `19,600` total campaign tiles;
 - rejection of partial campaign cells and invalid height definitions;
@@ -47,6 +47,74 @@ The campaign-resource core tests cover:
 - project-level staged terrain/resource round trips, legacy isolation, stale sidecar removal, revision/cancellation guards, rollback, and editor-integrated runtime version-2 export.
 - custom-resource addition/selection, built-in duplication including soft and hard terrain rules, advanced-rule round trips, supported-factor/surface enforcement, exact occurrence preservation, used identity/category/deletion protection, stale override cleanup, equivalent-catalog no-op behavior, and one-pass sparse usage counts.
 
+The campaign-season Slice 1 tests cover:
+
+- stable Spring/Summer/Autumn/Winter identities, fallbacks, appearance defaults, starter rules, built-in name/fallback protection, custom-definition validation, deterministic catalog order/indexes, and immutable views;
+- inclusive environmental ranges, canonical terrain filters, empty-whitelist behavior, Exclude precedence, exact custom-terrain overrides, safe-base inheritance, defensive copying, and contradiction rejection;
+- default Winter/Spring/Autumn/Summer priority, custom catch-all, manual-only customs, unknown/duplicate/empty priority rejection, exactly `256` enabled definitions, and larger manual-only catalogs;
+- Whole-globe and Regional settings, exact Earth-scale latitude span, pole-cross rejection, axial-tilt and Advanced climate bounds, and complete rectangular scopes;
+- dense complete Spring authority, custom defaults, lock bits/counts, no-op revision stability, atomic batch rejection, deterministic row-major/area enumeration, dense usage counts, and the `500 × 500 = 250,000` tile boundary;
+- live season strokes, cancellation, lock/reset state, exact Undo/Redo, empty-command Redo preservation, terrain/season shared-history ordering, and command prevalidation;
+- locked deterministic terrain-seed/definition-seed/phase outputs and canonical catalog-ID SHA-256 fingerprints.
+
+The campaign-season Slice 2 tests cover:
+
+- version-2 legacy-water/custom-terrain/River normalization and version-3 surface/River-overlay normalization;
+- owner-thread immutable capture, terrain/season revision-drift rejection, snapshot independence, catalog identity, cancellation, and stale source/candidate guards;
+- stable terrain-content fallback seeds that ignore current Season assignments but change with authoritative terrain;
+- exact tile-centre Whole-globe longitude/latitude, opposite-hemisphere orbital forcing, Regional longitude omission, and exact configured elevation lapse;
+- zero-tilt removal of orbital intensity/tendency, warming/cooling signs, and default four-season versus zero-tilt cold/warm bands;
+- exact physical Sea/Lake/River distances, positive infinity for absent sources, River moisture without maritime inertia, maritime and moisture decay, deterministic latitude-cell wind, and physical-fetch rain shadow;
+- continuous periodic Whole-globe longitude noise and physically consistent climate at equivalent positions on `5 km` and `20 km` grids;
+- ordered first match, custom final catch-all, lower-priority shadow reports, manual-only reports, truthful geographic zero, lock preservation, rectangular-scope preservation, and source non-mutation;
+- exact deterministic replay and complete one-value-per-tile generation on the representative `700 x 700 km`, `5 km` tile, `140 x 140 = 19,600` grid.
+
+The campaign-season Slice 3 tests cover:
+
+- exact catalog, built-in override, custom rule, default, priority, Advanced climate, fingerprint, dense identity, and lock round trips with deterministic bytes;
+- clean missing-sidecar Spring compatibility, optional recipe absence/removal, partial-authority rejection, and legacy-import isolation;
+- strict unknown/duplicate/null/property/enum/version/canonical-order validation plus invalid cross-file priority protection;
+- exact `KWSEASON` magic/version/stride/dimensions/count/fingerprint/length/index/reserved-bit validation and corruption rejection;
+- season-aware nine-file staged save/open, all-three-revision gates, cancellation cleanup, rollback, and deliberate preservation of season files by the older six-file coordinator overload;
+- runtime package version 3 entry order/timestamps, dense little-endian season indexes, canonical catalog identity/fallback/appearance, exact SHA/layout metadata, authoring-state omission, deterministic lock-insensitive bytes, definition mismatch/cancellation preservation, and byte-identical version-2 terrain/resource streams.
+
+The campaign-season Slice 4 tests cover:
+
+- new/open editor Season document invariants, implicit Spring/default priority state, searchable stable-ID selection, workspace/tool state, exact accepted recipe retention, and normal dirty/project identity behavior;
+- terrain/resource/season commands interleaving through one LIFO history, empty/no-op catalog apply preserving existing history, complete replacement clearing obsolete history, pinned lock Undo/Redo, and terrain/resource non-mutation;
+- custom-definition editor round trips for every appearance/range/terrain-filter field, invariant `min..max` parsing, immutable existing IDs, project-default/usage/priority replacement detection, referenced deletion, exact lock-preserving tile replacement, and final priority Catch-all semantics;
+- canvas Paint/Reset/Lock/Unlock routing through clipped complete-cell areas, default lock/reset behavior, invalid-ID/radius atomic rejection, and independent Season viewport/raster properties;
+- changed-lattice terrain replacement blocking whenever assignments, locks, or an accepted Season recipe would be discarded, while the existing uniform unlocked default compatibility case remains allowed;
+- Main Window integration with season-aware open/save/runtime-v3 export and the exact nine-file managed lifecycle.
+
+The campaign-season Slice 5 tests cover:
+
+- canonical source and generation-input fingerprints, including terrain/input changes and presentation-only catalog changes that do not stale generation;
+- exact first winning definition and shadowed-match diagnostics by evaluating current rules against immutable support fields;
+- inclusive read-only rectangular selection normalized in every drag direction and clipped to the world;
+- saved-recipe, session terrain-seed, and stable terrain-content seed resolution without inventing persisted settings;
+- exact Candidate and settings acceptance, shared-history clearing, dirty transition, and terrain/resource/project/import identity preservation;
+- stale terrain, stale Season authority, mutated Candidate, world-definition, catalog, and priority mismatch rejection without mutation;
+- accepted and reopened diagnostic projection rebuild, exact support/winner/current-state reporting, terrain staleness, and busy-state gating.
+
+The campaign-season Slice 6 tests cover:
+
+- generated-new-world composition that returns one complete terrain-and-Season Candidate, derives the initial Season seed from terrain generation, retains the exact accepted recipe/support tuple, and initializes Blank worlds from the selected default Season without inventing a recipe;
+- same-lattice regeneration preserving every Season ID and lock exactly;
+- changed-lattice locked-cell remapping by greatest physical-area overlap, deterministic centre/Y/X tie-breaking, same-ID merges, strictly greater different-ID winners, explicit equal-area different-ID conflicts, and explicit no-overlap drops;
+- separate conflict-winner and drop-permission decisions, with acceptance blocked until every conflict and drop is reviewed;
+- generation of only unlocked target cells after the reviewed lock composition, deterministic cancellation, and source/Candidate freshness guards;
+- exact ViewModel installation of reviewed new-world and changed-lattice Season tuples, shared-history clearing, dirty transition, project/import identity preservation, and atomic rejection of unresolved or stale results.
+
+The campaign-season Slice 7 tests cover:
+
+- real Avalonia dialog construction/rendering in-process at normal and narrow sizes, with all asserted controls inside their native window bounds;
+- New World Terrain/Seasons preview switching, retained stale Candidate behavior, and Generate/Use default-action changes;
+- Season Current/Candidate narrow switching, accessibility naming, Enter activation, Tab traversal, and exact Use enablement;
+- changed-lattice lock-resolution validation with no silent preselected winner and a readable narrow recovery path;
+- cross-test rendering safety through immutable shared `WorldCanvas` brushes/pens;
+- the exact `500 x 500 = 250,000` tile grid with all `256` first-match definitions enabled, one valid output per tile, and bounded work without a retained tile-by-definition matrix.
+
 The campaign-generation tests cover:
 
 - blank creation, complete generated grids, height bounds, and immediate repainting through the canonical tile map;
@@ -64,6 +132,74 @@ Run:
 ```powershell
 dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 ```
+
+## Static campaign-season Slice 1 verification on 2026-08-17
+
+- Added the isolated `Kingdom.World.Core.Campaign.Seasons` domain and shared-history season commands without referencing Avalonia, serializers, generation adapters, or runtime export.
+- Focused `CampaignSeason*` verification passed `31/31`; full Release verification passed `464/464`.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors.
+- `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+- At that Slice 1 boundary there was no editor UI, authoring sidecar, runtime package version 3, or published executable claim.
+
+## Static campaign-season Slice 2 verification on 2026-08-17
+
+- Added isolated version-2/version-3 terrain queries, immutable revision-checked capture, Earth-like geographic/orbital/climate support fields, exact cancellable water distances, ordered first-match generation, lock/scope preservation, reports, cancellation, and stale-result guards without wiring Avalonia or project files.
+- Focused `CampaignSeason*` verification passed `56/56`; full Release verification passed `489/489`.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors.
+- `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+- At that Slice 2 boundary there was no editor UI, authoring sidecar, changed-lattice acceptance, runtime package version 3, or published executable claim.
+
+## Static campaign-season Slice 3 verification on 2026-08-17
+
+- Added strict season definitions/optional recipe/dense binary lock sidecars, clean missing-sidecar Spring compatibility, season-aware staged editor load/save/export APIs, and deterministic runtime package version 3 without switching the then-pre-Seasons Main Window to those APIs.
+- Focused `CampaignSeason*` verification passed `107/107`; full Release verification passed `540/540`.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors.
+- `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+- Runtime v3 preserves all version-2 binary streams exactly and exports no locks, rules, recipes, support fields, diagnostics, or preview reports. The old editor coordinator overload preserves season files it does not own.
+- At that Slice 3 boundary there was no Seasons workspace, custom-season manager, preview acceptance, changed-lattice season remap, or published executable claim.
+
+## Manual campaign-season Slice 4 verification on 2026-08-17
+
+- Added the third **Seasons** workspace on the shared canvas, complete-cell Paint/Reset/Lock/Unlock tools, `1 x 1` through `25 x 25` Paint Area, stable-ID search/selection, exact labels, presentation-only boundary blending, pinned authority/lock actions, and one shared terrain/resource/season history.
+- Added detached built-in/custom definition and priority management. Existing stable IDs are immutable; new drafts start manual-only; referenced deletion requires an explicit replacement; built-in identity remains protected; and the final enabled priority row is labelled Catch-all without erasing its retained rule.
+- Switched the running Main Window to season-aware open/save/export. Older projects project a clean unlocked Spring layer, ordinary save writes the complete three-sidecar set, and runtime export now emits version 3.
+- Added changed-lattice protection: exact same-grid Season authority is preserved; a grid change is accepted only for an unlocked uniform default layer with no recipe until the reviewed overlap remapper ships.
+- Focused Season editor/manager/canvas tests passed `16/16`; full Release verification passed `556/556`.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors.
+- `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+- Native startup reached the three-workspace shell, but the interactive journey was stopped before a world was created. No claim is made for native paint/manager/save acceptance; that remains the Slice 7 gate. Preview-first Season generation and generation-backed pinned climate/rule diagnostics were deferred to Slice 5 at this boundary.
+
+## Preview-first campaign-season Slice 5 verification on 2026-08-17
+
+- Added the Windows 98 **Generate seasons...** property workshop with owner-thread immutable capture, cancellable background generation, All/Rectangle scope, complete seed/coverage/tilt/Advanced settings, exact priority summary, synchronized Current/Candidate canvases, narrow reuse of the same canvases, and per-definition reports.
+- In-dialog input/scope changes retain but stale the previous Candidate and disable acceptance. Report selection, grid, labels, blending, pan, zoom, and Current/Candidate display switching remain presentation-only and do not stale it; source/catalog/priority mismatches are guarded before acceptance.
+- Acceptance validates both source revisions, value-equal world definition, exact catalog/priority, Candidate revision, settings, and scope; installs the exact Candidate/recipe; clears shared history; marks dirty; and preserves terrain, resources, and project/import identity. Cancel, close, failure, and every stale path are non-mutating.
+- Added canonical source/input fingerprints and a revision/reference-guarded diagnostic cache. Pinned tiles now report exact support fields, water distances, first winner, shadowed/higher-priority matches, authority agreement, and source/input staleness, including rebuild after reopen.
+- Focused Slice 5 tests passed `17/17`; full Release verification passed `573/573`.
+- `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors.
+- `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` and `git diff --check` completed cleanly.
+- The Impeccable mechanical detector returned `[]` for the changed Season generation and Main Window XAML targets.
+- No native visual or keyboard claim is made. Normal/narrow Windows acceptance, maximum-grid diagnostics, publish, and startup smoke remain the Slice 7 gate.
+
+## Atomic terrain-and-season campaign-season Slice 6 verification on 2026-08-17
+
+- `NewWorldDialog` now composes procedurally generated terrain with a complete generated Season Layer as one private Candidate. Terrain and Seasons have separate preview views, and the Season report shows observed distribution rather than a quota. Blank creation uses the explicitly selected default Season and stores no generation recipe.
+- `CampaignSeasonWorldRegenerator` preserves exact authority on the same lattice. On a changed lattice it intersects locked source/target rectangles in physical metres, retains greatest-overlap claims, merges equal same-ID claims, reports unresolved equal different-ID maxima, and reports locked cells with no target overlap as drops.
+- The Win98 lock-resolution workshop requires an explicit winner for every conflict and separate affirmative permission for drops. Unresolved cells use a non-authoritative project-default placeholder in the dense core map, render magenta, and are omitted from observed Season percentages, so no claimant is visually or statistically presented as the winner. Unlocked target cells are generated only after the reviewed lock composition; a stale preview remains non-authoritative.
+- Final ViewModel acceptance revalidates source and Candidate revisions, world definition, exact catalog/default/priority identity, saved recipe, and report readiness before one atomic terrain/resource/Season replacement. Cancellation, generation failure, unresolved review, and every stale path leave the current document unchanged.
+- Focused remap/new-world and ViewModel atomicity verification passes `25/25`; full Release verification passes `586/586`. The solution builds with zero warnings and zero errors, and format verification is clean.
+- No native visual or keyboard claim is made. Normal/narrow dialog layout, focus traversal, lock-resolution interaction, maximum-grid diagnostics, publication, and startup smoke remain the Slice 7 gate.
+
+## Product campaign-season Slice 7 verification on 2026-08-17
+
+- Added an in-process Avalonia Headless native gate over the real **New Campaign World**, **Season Generation Preview**, and **Locked Season Remap** windows. It verifies `1120 x 800` / `900 x 680`, `1480 x 880` / `980 x 700`, and `560 x 440` layouts respectively; required controls stay inside the client area, and the narrow Season preview reuses one Current/Candidate pair rather than duplicating state.
+- Keyboard and state assertions cover accessibility names, Enter generation, Tab traversal, validation recovery, retained stale previews, and dynamic default actions: **Generate** is default while no current Candidate can be accepted, then **Use** becomes default only for the exact finished Candidate.
+- Headless render evidence is under `.impeccable/review/season-slice7/`. It shows blank/generated New World states, normal/narrow Current/Candidate states before and after generation, and the narrow unresolved-lock recovery message. No desktop-control session was used.
+- The full suite exposed static mutable `WorldCanvas` brushes crossing Avalonia UI-thread ownership. Replacing those shared brushes/pens with immutable render resources fixes the production race; the focused headless test and the complete suite both pass in fresh processes.
+- `CampaignSeasonMaximumGridDiagnosticTests` runs the supported `10,000 x 10,000 km`, `20 km` grid (`500 x 500 = 250,000` tiles) with all `256` generation definitions enabled. The Release diagnostic captured and generated the complete layer in `0.814 s` with `39.9 MiB` current-thread allocation, beneath broad `60 s` / `768 MiB` regression ceilings and without retaining a `250,000 x 256` result matrix.
+- Full Release verification passes `588/588`. `dotnet build WorldEditorPixel.sln -c Release --no-restore` completes with zero warnings and zero errors; `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` and `git diff --check` complete cleanly.
+- Published the self-contained `win-x64` single executable to `artifacts/publish/seasons/World.Editor.exe`; size `103,028,109` bytes, SHA-256 `3AD6572E208497C23533F711E2B317FDE0A12271A8497AEC785D7DC5F846397A`. A bounded hidden smoke reached the native main window (`Untitled World — Kingdom World Editor`) before only PID `2396`, launched by that check, was stopped. `Launch Tile Editor.cmd` now targets this build.
+- Runtime package version 3 importer-facing tests verify exact dense `uint16` index-to-stable-ID/fallback mapping, lengths and SHA-256, lock omission, and byte-compatible version-2 terrain/resource streams. ADR-0030 is now Implemented.
 
 ## Explicit resource Include/Exclude verification on 2026-08-16
 
@@ -495,9 +631,14 @@ The initial tile-only verification could not establish a Windows desktop-control
 36. Generate East Coast seed `17,029` with Balanced terrain and Mountain systems. Confirm gray Mountain tiles read as narrow connected crest chains rather than solid blobs, exposed suitable neighbors transition through muted grass-toned Hills, and slope-facing light/dark relief continues across type boundaries in both the preview and main canvas.
 37. Generate the same physical `700 × 700 km` world at two valid campaign tile sizes and compare the major relief scale. Confirm continental undulation and range spacing retain campaign-scale proportions rather than doubling with tile count; within each result, confirm primary crest chains tend to follow convergent/shear belts as long arcs while smaller Hills and erosion supply the local variation.
 38. With a modified saved world open, add or adjust a safe custom land type, then choose **Regenerate**, **Terrain → Regenerate world…**, or press `Ctrl+R`. Confirm all seven definition fields start from the current world but remain editable, Blank is absent, the current custom catalog is present, and cancelling leaves the definition, tiles, and undo history unchanged. Change the dimensions or campaign tile size to another exactly divisible generated grid, generate a non-Blank preview, then change another input to confirm acceptance becomes stale. Regenerate and choose **Use this world**. Confirm the exact reviewed definition and tiles replace the map, the existing project path/name and import boundary remain intact, the document is marked modified, and obsolete undo/redo history is empty.
-39. Open **Resources**, choose one stable resource ID, set potential and independent Paint Area, then add/update across complete tiles. Confirm terrain/height stay unchanged, the fixed heatmap shows exact numbers at readable zoom, and erase removes only that ID. Right-click a populated tile and verify every occurrence, lock text, warning, and unevaluated factors; exercise Use selected, Lock/Unlock, shared Undo/Redo, save/reopen, and version-2 export. Accept a same-lattice terrain preview and confirm every resource stays at its exact coordinate/potential/lock.
+39. Open **Resources**, choose one stable resource ID, set potential and independent Paint Area, then add/update across complete tiles. Confirm terrain/height stay unchanged, the fixed heatmap shows exact numbers at readable zoom, and erase removes only that ID. Right-click a populated tile and verify every occurrence, lock text, warning, and unevaluated factors; exercise Use selected, Lock/Unlock, shared Undo/Redo, save/reopen, and the byte-compatible Resource streams inside runtime package version 3. Accept a same-lattice terrain preview and confirm every resource stays at its exact coordinate/potential/lock.
 40. Keep at least one locked and one unlocked resource occurrence, then open **Regenerate world...** and change campaign tile size to another exactly divisible grid. Generate the preview and confirm the scrollable **Resource impact** well reports moved, merged, dropped, locked-retained, replaced-unlocked, regenerated-unlocked, and final counts as applicable. Shrink one axis past a locked source and confirm its stable ID and old coordinate are named before acceptance. Change another terrain input and confirm the old impact remains visible but stale while **Use this world** is disabled. Regenerate, accept, and confirm the exact reviewed terrain/resource result replaces the document together, the project path remains, and shared Undo/Redo is empty. Repeat with no saved resource-generation settings and confirm all in-bounds occurrences remap without inventing generated deposits.
 41. Open **New**, enter `10,000 × 10,000 km` and `20 km` campaign tiles, choose **East Coast**, **Natural mixed coast**, seed `17,029`, **None** hydrology, and generate. Confirm the preview reports `500 × 500 · 250,000 tiles`, the east edge remains Sea, the coast contains broad shelf advance/retreat plus irregular smaller bays/headlands and separated offshore pieces, and no repeated paired-round-bay/hooked-cape stamp dominates the map. Compare Rugged for stronger detail and Flowing for the intentionally smoother authored cape. Remember that every visible shoreline step is a complete `20 km` tile.
+42. Open **New**, keep **Blank**, choose a non-Spring **Default tile season**, and create the world. Confirm every tile receives that exact Season, terrain remains Blank, and the document has no accepted Season-generation recipe.
+43. Open **New**, choose a generated terrain preset, generate a preview, and switch between **Terrain** and **Seasons**. Confirm both views belong to one unapplied Candidate, the Season distribution totals the complete grid, changing a generation input keeps the old result visible but stale, and **Use this world** remains disabled until regeneration completes. Cancel once to prove the current document is unchanged; regenerate and accept once to prove terrain and Seasons change together.
+44. Regenerate an existing world without changing its dimensions or campaign tile size. Confirm every current Season ID and lock is preserved exactly even though terrain is replaced, and confirm shared Undo/Redo clears only after acceptance.
+45. Lock several differently named Seasons, then regenerate onto a changed campaign lattice. Confirm the **Layer impact** report distinguishes retained, moved, merged, displaced, conflicted, and dropped locks. Exercise one unique greatest-overlap winner, one equal same-ID merge, one unequal different-ID winner, one equal different-ID conflict, and one no-overlap drop. Confirm **Use this world** stays disabled until every conflict has an explicit winner and drops receive separate permission; cancelling the resolver or dialog leaves all authorities unchanged.
+46. While a changed-lattice preview is ready, alter any terrain or Season-generation input. Confirm the previous terrain/Season result and lock report remain visible but stale and cannot be accepted. Regenerate, resolve blockers, accept, and confirm the exact reviewed terrain/resource/Season tuple installs atomically while project/import identity remains unchanged.
 
 The executable domain tests are authoritative for exact values; this path checks that the same operations are reachable and legible in the desktop UI.
 

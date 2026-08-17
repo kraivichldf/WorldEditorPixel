@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Kingdom.World.Core.Campaign;
+using Kingdom.World.Core.Campaign.Seasons;
 
 namespace Kingdom.World.Editor.Controls;
 
@@ -42,6 +43,50 @@ internal static class CampaignWorldPreviewRenderer
                 var color = GetTerrainColor(world, tile);
                 color = ShadeForRelief(world, tile, tileSpaceX, tileSpaceY, color);
 
+                var offset = pixelX * 4;
+                row[offset] = color.Blue;
+                row[offset + 1] = color.Green;
+                row[offset + 2] = color.Red;
+                row[offset + 3] = byte.MaxValue;
+            }
+        }
+
+        return bitmap;
+    }
+
+    public static unsafe WriteableBitmap RenderSeasons(
+        CampaignSeasonMap seasons,
+        IEnumerable<CampaignTileCoordinate>? unresolvedConflicts = null)
+    {
+        ArgumentNullException.ThrowIfNull(seasons);
+        seasons.EnsureValid();
+        var conflictTiles = unresolvedConflicts?.ToHashSet() ?? [];
+        var tilesX = seasons.Definition.TilesX;
+        var tilesY = seasons.Definition.TilesY;
+        var scale = Math.Min(
+            (double)MaximumRasterEdge / tilesX,
+            (double)MaximumRasterEdge / tilesY);
+        var rasterWidth = Math.Max(1, (int)Math.Round(tilesX * scale));
+        var rasterHeight = Math.Max(1, (int)Math.Round(tilesY * scale));
+        var bitmap = new WriteableBitmap(
+            new PixelSize(rasterWidth, rasterHeight),
+            new Vector(96, 96),
+            PixelFormat.Bgra8888,
+            AlphaFormat.Opaque);
+
+        using var framebuffer = bitmap.Lock();
+        var destination = (byte*)framebuffer.Address;
+        for (var pixelY = 0; pixelY < rasterHeight; pixelY++)
+        {
+            var tileY = Math.Min(tilesY - 1, (int)((long)pixelY * tilesY / rasterHeight));
+            var row = destination + pixelY * framebuffer.RowBytes;
+            for (var pixelX = 0; pixelX < rasterWidth; pixelX++)
+            {
+                var tileX = Math.Min(tilesX - 1, (int)((long)pixelX * tilesX / rasterWidth));
+                var tile = seasons.GetTile(tileX, tileY);
+                var color = conflictTiles.Contains(new CampaignTileCoordinate(tileX, tileY))
+                    ? new RgbColor(255, 0, 255)
+                    : ParseColor(seasons.Catalog.Get(tile.SeasonId).ColorHex);
                 var offset = pixelX * 4;
                 row[offset] = color.Blue;
                 row[offset + 1] = color.Green;

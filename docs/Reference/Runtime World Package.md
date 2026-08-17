@@ -4,18 +4,18 @@
 
 Use the editor's project folder for authoring and a `.kworld` package for game integration. Do not use a headerless `.raw` file as the primary interchange format: without a header it cannot identify grid dimensions, tile size, coordinate orientation, terrain values, custom terrain mappings, or schema version. Full JSON is easy to inspect but needlessly repeats coordinates and field names for every tile.
 
-`.kworld` is a ZIP container with a self-describing JSON manifest and one or more dense binary streams. Version 1 carries only terrain; the accepted version 2 runtime contract adds compact resource streams without changing the terrain record stride.
+`.kworld` is a ZIP container with a self-describing JSON manifest and one or more dense binary streams. Version 1 carries only terrain; version 2 adds compact resource streams without changing the terrain record stride; the implemented season-aware version 3 keeps those three streams byte-compatible and adds one dense season index per tile.
 
 | Purpose | Format | Behavior |
 |---|---|---|
-| Continue editing | Project folder: `world.json`, `campaign-tiles.json`, optional `custom-terrain.json` | Sparse, human-readable, atomic save/load contract. |
+| Continue editing | Project folder: terrain JSON plus optional resource sidecars and season definitions/generation/dense layer | Versioned authoring authority through the staged project coordinator. |
 | Import into a game | One `*.kworld` file | Dense, deterministic runtime interchange data. |
 
 Export never marks the editor world saved, changes its project folder, or alters tile data. The game package is a derived artifact, not authoring authority.
 
 ## Container contract
 
-The default editor export is version 1 and contains exactly:
+The retained terrain-only compatibility overload exports version 1 and contains exactly:
 
 ```text
 tiles.bin
@@ -111,7 +111,7 @@ Version 1 does not contain textures, meshes, roads, resources, settlements, game
 
 ## Version-2 resource extension
 
-The running editor uses the version 2 runtime package overload with its definition-compatible `CampaignResourceMap`. It keeps `tiles.bin` byte-compatible and contains exactly, in stable ZIP-entry order:
+The retained resource-aware version 2 overload uses a definition-compatible `CampaignResourceMap`. It keeps `tiles.bin` byte-compatible and contains exactly, in stable ZIP-entry order:
 
 ```text
 tiles.bin
@@ -145,3 +145,38 @@ The version-2 manifest adds a `resources` section containing:
 Locks, symbols, colors, rules, diagnostics, and generation settings do not enter the runtime package. An empty resource map still produces the dense `tileCount × 8` index and a zero-byte occurrence stream. The exporter hashes all three uncompressed binary streams, fixes ZIP timestamps and entry order, and replaces the destination only if cancellation has not been requested and both terrain and resource revisions remain unchanged. Editor export always produces this explicit version 2 contract; the version-1 overload remains available only for compatibility/tests and terrain-only callers outside the current product workflow.
 
 A version-2 importer must require all four entries, validate manifest version `2`, validate every declared length/record count, verify all three SHA-256 values, require every reserved field to be zero, require potentials in `1..100`, reject catalog indexes outside the manifest catalog, and verify that row-major index spans are monotonic, in bounds, and end at the occurrence-record count. A version-1 importer must reject version 2 rather than guessing.
+
+## Version-3 season extension
+
+The season-aware exporter keeps the version-2 `tiles.bin`, `resource-index.bin`, and `resource-records.bin` bytes unchanged and writes exactly, in stable ZIP-entry order:
+
+```text
+tiles.bin
+resource-index.bin
+resource-records.bin
+season-tiles.bin
+manifest.json
+```
+
+`season-tiles.bin` is dense row-major data with one little-endian `uint16` season catalog index per campaign tile:
+
+```text
+recordIndex = y * tilesX + x
+byteOffset  = recordIndex * 2
+```
+
+The version-3 manifest adds a `seasons` section. `seasons.tileRecord` declares file name, two-byte record size, tile-count record count, exact uncompressed byte length, little-endian storage, SHA-256, and one `seasonCatalogIndex` field mapped to `seasons.catalog`. The catalog uses the same canonical index order as authoring: Spring, Summer, Autumn, Winter, then custom stable IDs in ordinal order. Each entry contains:
+
+- unsigned 16-bit index;
+- stable ID and name;
+- built-in/custom flag;
+- built-in fallback (`spring`, `summer`, `autumn`, or `winter`);
+- portable `#RRGGBB` color, tint strength, and effect intensity.
+
+Authoring locks, defaults, priority, rules, generation settings, source/input fingerprints, climate support fields, diagnostics, and preview reports are intentionally absent. Two maps with identical season IDs but different lock bits therefore export identical runtime packages.
+
+A version-3 importer must require all five entries and manifest version `3`; verify every v2 stream using the version-2 rules; require `season-tiles.bin` length `tileCount * 2`; verify its SHA-256; require contiguous catalog indexes beginning at zero; and reject every tile index outside that catalog. Importers must reject unsupported versions instead of treating v3 as v2.
+
+The exporter captures terrain, resource, and season revisions, writes bounded buffers with fixed ZIP timestamps and entry order, and performs a final cancellation/revision gate before atomic destination replacement. Equal authoritative inputs produce byte-identical packages. `CampaignEditorProjectSerializer.ExportWithSeasonsAsync` exposes this boundary, and the running Main Window now calls it for every export. Version 1 and version 2 overloads remain compatibility/test seams for callers that intentionally own fewer authorities.
+
+ADR-0030 Slice 7 verifies the importer-facing mapping in the Release suite: every dense `uint16` index resolves through the canonical manifest catalog to the expected stable Season ID and built-in fallback, stream lengths and SHA-256 values agree, authoring locks remain absent, and the version-2 terrain/resource streams remain byte-identical inside version 3.

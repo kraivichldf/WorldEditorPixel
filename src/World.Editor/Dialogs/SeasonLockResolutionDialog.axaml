@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Kingdom.World.Editor.Dialogs.SeasonLockResolutionDialog"
+        Title="Review Locked Season Remap"
+        Width="680"
+        Height="600"
+        MinWidth="560"
+        MinHeight="440"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Background="{StaticResource EditorPanelBrush}">
+    <Border Grid.Row="0" Padding="12,10"
+            BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="4">
+        <TextBlock Text="LOCKED SEASON REMAP" Classes="section-title" />
+        <TextBlock Text="Resolve only authoritative locks. Unlocked tiles are regenerated from the reviewed candidate terrain."
+                   Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" Margin="12" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="12">
+        <StackPanel Spacing="4">
+          <TextBlock Text="Equal-overlap conflicts" FontWeight="SemiBold" />
+          <TextBlock x:Name="ConflictHelpText" FontSize="12"
+                     Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel x:Name="ConflictRows" Spacing="8" />
+
+        <Border x:Name="DropPanel" Classes="win98-sunken" Padding="9" IsVisible="False">
+          <StackPanel Spacing="6">
+            <TextBlock Text="LOCKS OUTSIDE THE NEW WORLD" Classes="section-title" />
+            <TextBlock x:Name="DropSummaryText" FontSize="12" TextWrapping="Wrap" />
+            <CheckBox x:Name="PermitDropsInput"
+                      Content="Permit these locked source tiles to be dropped"
+                      AutomationProperties.Name="Permit locked Season tiles outside the replacement world to be dropped" />
+          </StackPanel>
+        </Border>
+
+        <Border x:Name="ValidationPanel" Padding="8" IsVisible="False"
+                Background="{StaticResource Win98WindowBrush}"
+                BorderBrush="{StaticResource Win98ErrorBrush}" BorderThickness="2">
+          <TextBlock x:Name="ValidationText" Foreground="{StaticResource Win98ErrorBrush}"
+                     TextWrapping="Wrap" />
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="2" Padding="10,8"
+            BorderBrush="{StaticResource Win98HighlightBrush}" BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+        <Button Content="Cancel" MinWidth="92" Click="Cancel_OnClick" IsCancel="True" />
+        <Button Content="Use decisions" Classes="primary" MinWidth="118"
+                Click="UseDecisions_OnClick" IsDefault="True" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

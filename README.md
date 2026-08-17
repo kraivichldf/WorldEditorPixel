@@ -1,135 +1,249 @@
-# Kingdom World Editor
+# WorldEditorPixel
 
-A standalone desktop editor for authoring a strategy/FPS world as exact campaign tiles. Every tile owns one portable base terrain type, an optional safe custom-land identity, and one whole-metre height at its centre; the rendered and exported surface automatically interpolates neighbouring centre heights into continuous slopes.
+WorldEditorPixel contains **Kingdom World Editor**, a standalone Windows app for building large campaign worlds from exact square tiles.
 
-## What works
+Each tile can store:
 
-- Create worlds in kilometres with an exact, complete campaign grid. A `700 × 700 km` world with `5 × 5 km` tiles is `140 × 140 = 19,600` tiles.
-- Optionally generate a deterministic editable starting world from Continental World, Island, Archipelago, East/West/North/South Coast, Sea in Center, or Land Only profiles; Blank preserves fully manual creation. Continental World composes unequal major landmasses and broad connected oceans. Directional Natural/Rugged coasts scale from compact regional forms into continental shelf bends, irregular nearshore structure, heterogeneous landmark regions, and sparse island arcs instead of stretching one geometric bay/cape stamp.
-- Regenerate an open world through a reviewed preview while starting from—and optionally changing—its dimensions, campaign tile size, elevation contract, and current custom tile catalog. The old definition and tiles remain unchanged until **Use this world**; acceptance keeps the saved project identity, clears obsolete undo history, and marks the document modified.
-- Choose Gentle/Balanced/Rugged relief, one/few/several coherent Mountain systems, None/Light/Balanced/Abundant hydrology, optional None/Few/Balanced/Drowned-coast tidal inlets, and a reproducible signed seed. Geological noise uses physical-kilometre simplex wavelengths and stretches ridge detail along tectonic boundaries. Inlets follow low ground and stay Sea-connected; a 5 km Sea tile is a broad estuary/channel rather than a narrow canal. Optionally set one inland mix: the six default land ratios plus positive custom types total 100%; Mountain remains capped at 12%, unsuitable constrained share becomes Plains, and water/shore topology stays controlled by shape and drainage.
-- Define up to twelve named, colored custom land types on Plains, Steppe, Desert, Forest, Hills, or Mountain bases. Leave a type at `0%` for paint-only use or give it an independent deterministic portion of the inland mix; its base is a safe data/material fallback, not the owner of that share. Custom types never become water, shore, or River types.
-- Stamp complete tiles as Unassigned, Plains, Steppe, Desert, Forest, Hills, Mountain, Sea, Lake, River, Large River, Beach, or Cliff with one centre height; Paint Area expands non-river stamps from `1 × 1` through `25 × 25` complete tiles.
-- Read terrain as material, not flat color: grass, dry Steppe grass, dune-and-stone, canopy, ridge, rock, water-wave, and sand textures remain stable in world space and fade when zoomed out.
-- Derive coast automatically on every non-water tile beside Sea or Lake: matching water occupies the outer 10% of each facing edge and the tile's original built-in/custom material remains inside.
-- Drag four-connected River or Large River paths, then split a pinned endpoint into two, three, or four branches. The editor cascades three-exit Y junctions and blocks every four-way river crossing.
-- Fill every touched cell edge to edge during click or drag, including cells crossed between fast pointer events.
-- Derive a continuous height surface by bilinearly interpolating neighbouring tile centres.
-- Undo or redo one complete drag, restoring both tile type and height together.
-- Switch to a dedicated Resources workspace without leaving the shared map. Filter the built-in catalog, paint one selected resource at exact `1..100` potential over `1 × 1` through `25 × 25` complete tiles, erase only that resource, and protect deliberate placements with an authoring lock.
-- Create project-owned custom resources in the editor or duplicate a built-in as a starting point. Configure identity, display, independent generation defaults, bounded terrain/water ranges, soft preferred/avoided factors, hard normalized-surface exclusions, and custom-terrain rules; used IDs/categories stay protected while save, export, painting, and procedural generation use the same catalog.
-- Inspect all resource occurrences on a pinned tile in stable-ID order, including hard terrain warnings and factors that the current diagnostic layer cannot yet evaluate. Resource edits share the same stroke-level Undo/Redo history as terrain edits.
-- Generate or regenerate resources without changing terrain: move any built-in/custom definitions between explicit **Included — Regenerate** and **Excluded — Keep** lists, then set a world-derived or explicit seed, abundance, climate, geology, and per-resource overrides; compare synchronized Current/Candidate maps and accept only the reviewed candidate. Locked manual occurrences survive, excluded resources stay exact, and changed inputs disable acceptance until regeneration.
-- Pan, zoom, fit the world, show or hide the grid, switch to height-only shading, and inspect stored and derived values.
-- Save and reopen deterministic version-2 projects containing `world.json`, sparse `campaign-tiles.json`, and resource sidecars when resources exist. The project coordinator stages both terrain and resource authority before replacement.
-- Export deterministic runtime-package version 2 `.kworld` files containing dense terrain/resource indexes plus compact resource definitions and occurrences.
-- Import version-1 sample/chunk projects into averaged tile-centre heights without modifying the source folder.
+- one terrain type and one whole-metre centre height;
+- zero or more resource occurrences with potential and authoring locks;
+- exactly one static Tile Season with an authoring lock.
 
-## Requirements
+Neighbouring centre heights are blended into a continuous surface automatically. Generated terrain, resources, and seasons remain fully editable after you accept their previews.
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Windows, Linux, or macOS supported by Avalonia. This repository is verified on Windows.
+## Quick start
 
-## Build, test, and run
+Requirements:
+
+- Windows 10 or 11;
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 From the repository root:
 
 ```powershell
 dotnet restore WorldEditorPixel.sln
-dotnet build WorldEditorPixel.sln
-dotnet test WorldEditorPixel.sln --no-build
-dotnet run --project src/World.Editor/World.Editor.csproj
+dotnet run --project src/World.Editor/World.Editor.csproj -c Release
 ```
 
-Create a self-contained Windows executable:
+To build and test everything:
 
 ```powershell
-dotnet publish src/World.Editor/World.Editor.csproj `
-  -c Release -r win-x64 --self-contained true `
-  -p:PublishSingleFile=true `
-  -o artifacts/publish/large-world-coasts
+dotnet build WorldEditorPixel.sln -c Release --no-restore
+dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 ```
 
-## Editor controls
+## Typical workflow
 
-After running the self-contained publish command above, double-click `Launch Tile Editor.cmd` in the project root. The launcher targets `artifacts/publish/large-world-coasts/World.Editor.exe`, so the .NET SDK is not required to run that locally published Windows executable.
+1. Create a Blank world or choose a generated world shape.
+2. Review the temporary Terrain and Seasons preview.
+3. Adjust the seed or settings until the result is satisfactory.
+4. Choose **Use this world** to accept that exact candidate.
+5. Paint terrain, resources, and static seasons on the shared map.
+6. Save the editable project or export a deterministic `.kworld` game-data package.
+
+Nothing generated becomes authoritative until you explicitly accept its preview.
+
+## Exact campaign scale
+
+World dimensions and campaign tile size are entered in kilometres. Heights are stored in metres.
+
+For example:
+
+```text
+World: 700 × 700 km
+Tile:  5 × 5 km
+Grid:  140 × 140 = 19,600 complete tiles
+```
+
+The editor never creates partial edge tiles. The supported maximum generated grid is `500 × 500 = 250,000` tiles.
+
+## The three editable layers
+
+| Layer | Authoritative value | Main tools |
+|---|---|---|
+| Terrain | One complete-tile type, optional custom-land ID, and centre height | Paint, Paint Area, rivers, automatic coasts, elevation helpers |
+| Resources | Zero or more stable resource IDs, each with potential `1..100` and a lock | Add/update, erase, custom definitions, preview-first regeneration |
+| Seasons | Exactly one built-in/custom Tile Season ID and a lock | Paint, Reset, Lock/Unlock, custom definitions, preview-first generation |
+
+All three workspaces share the same pan, zoom, grid, hover position, pinned tile, and Undo/Redo history.
+
+## Terrain and world generation
+
+Create a Blank world or generate an editable starting point from:
+
+- Continental World;
+- Island;
+- Archipelago;
+- East, West, North, or South Coast;
+- Sea in Center;
+- Land Only.
+
+Generation is deterministic for the same settings and seed. Controls include terrain ruggedness, mountain density, hydrology, tidal inlets, coastline character, and optional inland terrain ratios.
+
+The generator builds connected, large-scale geography: continents, coastlines, island groups, mountain ranges, lakes, and river networks. It does not scatter each tile independently.
+
+Terrain editing includes:
+
+- Unassigned, Plains, Steppe, Desert, Forest, Hills, Mountain, Sea, Lake, River, Large River, Beach, and Cliff;
+- up to twelve custom land types based on safe land materials;
+- complete-tile Paint Areas from `1 × 1` through `25 × 25`;
+- whole-metre centre heights with automatic slopes between neighbouring centres;
+- deterministic grass, dry grass, forest, rock, sand, and water textures;
+- automatic 10%-deep Sea/Lake edges on cardinally adjacent non-water tiles;
+- connected River paths and a collision-safe split tool for two, three, or four branches.
+
+Regenerating an open world uses the same preview-first rule. If its grid changes, the preview reports resource and Season remaps, merges, lock conflicts, and out-of-bounds drops before acceptance.
+
+## Campaign resources
+
+Resources are independent from terrain. Several different resource IDs may coexist on one tile.
+
+You can:
+
+- paint exact potential values from `1` through `100`;
+- lock deliberate manual placements;
+- create custom Renewable or Finite resources;
+- duplicate a built-in resource as a starting point;
+- configure coverage, richness, concentration, terrain/water ranges, preferred factors, avoided factors, and hard surface exclusions;
+- inspect every occurrence and warning on a pinned tile;
+- regenerate an explicit Included subset while Excluded resources remain unchanged;
+- compare synchronized Current and Candidate maps before acceptance.
+
+Coverage is independent for each resource. It is not a combined 100% terrain ratio, and unsuitable geography may legitimately produce fewer occurrences than requested.
+
+## Static Tile Seasons
+
+Every tile—including water and Unassigned tiles—has exactly one Tile Season.
+
+Built-ins are Spring, Summer, Autumn, and Winter. Projects may add custom definitions such as Monsoon, Wet Season, or Dry Season with a portable built-in fallback.
+
+Tile Seasons are static classifications. There are no months, calendar, automatic progression, or weather simulation.
+
+Season generation uses:
+
+- one reproducible Season Seed;
+- Whole-globe or Regional latitude coverage;
+- axial tilt and a coherent global seasonal phase;
+- elevation cooling;
+- Sea/Lake moderation;
+- moisture, water distance, wind, and rain-shadow support;
+- an explicit top-to-bottom first-match priority with a final Catch-all.
+
+The generation dialog compares **Current — unchanged** with **Candidate — not applied**. Locked tiles and tiles outside a selected rectangle remain exact. Changing generation inputs keeps the previous image visible but disables **Use seasons** until a fresh candidate is generated.
+
+## Essential controls
 
 | Action | Control |
 |---|---|
-| Create a blank or generated world | **New**, choose starting shape, terrain, Mountain systems, hydrology, tidal inlets, optional inland tile ratios/custom land types, and seed |
-| Regenerate the open world | **Regenerate**, **Terrain → Regenerate world…**, or `Ctrl+R`; adjust the complete world definition and generation settings, generate a preview, review terrain plus resource moves/merges/drops, then choose **Use this world** |
-| Manage custom land types | **Terrain → Custom tile types…** or the button below **Terrain type** |
-| Stamp complete campaign tiles | Choose type, centre height, and optional Paint Area, then left-click or left-drag |
-| Paint campaign resources | Choose **Resources**, filter and select a resource, set potential/area/action/lock, then left-click or left-drag |
-| Manage custom resources | Choose **Resources → Custom resources…** or the Resources-rail button; add a manual-only definition or duplicate a built-in, configure preferred/avoided factors, then choose **Apply resources** |
-| Generate or regenerate resources | Choose **Resources → Regenerate resources...** or press `Ctrl+Shift+R`; choose Included/Excluded resources, configure profiles/overrides, generate a candidate, compare it, then choose **Use resources** |
-| Inspect resources on a tile | Right-click, then use the pinned occurrence list to select, erase, lock, or unlock an exact resource ID |
-| Route a river | Choose River or Large River and drag; diagonal pointer motion becomes one N/E/S/W tile path |
-| Split a river | Right-click a River/Large River endpoint, choose 2–4 branches and Auto or a direction, then choose **Create split** |
-| Pin a tile for comparison | Right-click |
-| Reuse or blend nearby elevation | Right-click a tile, then choose **Copy centre** or **Blend around** in the pinned inspector |
+| New world | `Ctrl+N` |
+| Open / Save / Save As | `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` |
+| Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |
+| Regenerate world | `Ctrl+R` |
+| Regenerate resources | `Ctrl+Shift+R` |
+| Generate Tile Seasons | `Ctrl+Shift+G` |
+| Paint | Left-click or left-drag |
+| Pin and inspect a tile | Right-click |
 | Pan | Middle-drag |
 | Zoom around pointer | Mouse wheel |
 | Fit world | `F` |
-| New / Open / Save / Save As | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` |
-| Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |
-| Cancel the active drag | `Escape` |
+| Cancel the active stroke | `Escape` |
 
-One drag is one undo entry. The selected type and tile elevation are a single stamp; elevation arrows move in `10 m` steps. Paint Area is a bounded square selection of complete tiles, not a sample brush: `0` expands to `1 × 1`, `1` to `3 × 3`, through `12` for `25 × 25`, and the preview clips at world edges. Both paintable river sizes always use `1 × 1`; the dedicated split action adds its complete multi-tile Y footprint as one undo entry. There is no sample brush, sub-tile radius, strength, falloff, flatten target, sample spacing, or authoring chunk size.
+One drag creates one Undo entry. Pressing `Escape` during a stroke restores every tile touched by that unfinished drag.
 
-## Height and type semantics
+## Project files
 
-- `(0, 0)` is the north-west/top-left tile. X grows east/right and Y grows south/down.
-- World dimensions and tile size are entered in kilometres and stored in metres.
-- Tile heights are signed `Int16` whole metres stored at tile centres.
-- Type is discrete for the complete cell. An optional high-contrast number at the cell centre shows its stored whole-metre elevation when the view is zoomed in far enough. Height is continuous: at a tile centre the surface equals that tile's stored height; between centres it is bilinearly interpolated.
-- Sea and Lake are distinct water types. Beach and Cliff remain explicit full-tile classifications and receive the same automatic water edge when beside either water type.
-- Coastal is not a tile type in current authoring. On a typical one-water-edge land tile, 90% remains its original material and 10% becomes matching Sea/Lake water. Multiple water-facing edges each receive the same 10%-deep transition; diagonal water alone does nothing.
-- River connections are derived across orthogonally adjacent River, Large River, and River Junction tiles. River shows a narrow bank-and-water ribbon; Large River shows a broad major-river corridor. Both keep grass visible and use symbolic preview widths rather than literal kilometres. Normal/Large segments may have up to two exits; explicit junctions may have up to three; four exits are always rejected.
-- World edges extend the nearest centre height outward, avoiding an artificial drop beyond the outermost centres.
-- Height-only view changes rendering only; it never changes stored data.
+An editable project is a folder. Terrain uses version-2 project files, with optional resource files and complete Season sidecars:
+
+```text
+MyWorld/
+├── world.json
+├── campaign-tiles.json
+├── custom-terrain.json          optional
+├── resource-definitions.json    optional
+├── resource-generation.json     optional
+├── resource-tiles.json          optional
+├── season-definitions.json
+├── season-generation.json       optional accepted recipe
+└── season-layer.bin
+```
+
+Save stages terrain, resources, and seasons together before replacing the existing project files. A failed save does not silently install a partial project.
+
+Older projects without Season sidecars open as a clean, unlocked Spring layer. Version-1 sample/chunk projects can be imported without modifying their source folders.
+
+## Runtime export
+
+**Export Runtime Data** creates a deterministic `.kworld` version-3 ZIP package for a Unity importer, Unreal importer, or build pipeline.
+
+It contains:
+
+```text
+tiles.bin
+resource-index.bin
+resource-records.bin
+season-tiles.bin
+manifest.json
+```
+
+The manifest describes grid scale, coordinate orientation, binary layouts, stable terrain/resource/Season mappings, custom fallbacks, and SHA-256 values. Authoring locks, generation settings, diagnostics, and preview data are intentionally excluded.
+
+The package is a game-development interchange format, not another editable project. Convert it into native engine assets during import instead of decompressing it repeatedly during gameplay.
+
+## Self-contained Windows build
+
+Create a Windows executable that does not require a separately installed .NET runtime:
+
+```powershell
+dotnet restore src/World.Editor/World.Editor.csproj -r win-x64
+dotnet publish src/World.Editor/World.Editor.csproj `
+  -c Release `
+  -r win-x64 `
+  --self-contained true `
+  --no-restore `
+  -p:PublishSingleFile=true `
+  -o artifacts/publish/seasons
+```
+
+Then run:
+
+```text
+Launch Tile Editor.cmd
+```
+
+The launcher targets `artifacts/publish/seasons/World.Editor.exe`.
 
 ## Architecture
 
 ```text
-World.Editor (Avalonia shell, shared canvas/input/history, terrain/resource inspectors)
-    -> World.Core (campaign terrain + resource authority, diagnostics, commands, validation)
-        -> project folder (terrain files + optional deterministic resource sidecars)
-        -> runtime package v2 (.kworld)
+World.Editor
+  Avalonia Windows UI, shared canvas, dialogs, project lifecycle
+        │
+        ▼
+World.Core
+  engine-neutral terrain, resources, seasons, generation,
+  commands, validation, persistence, and runtime export
+        │
+        ├── editable project folder
+        └── deterministic .kworld package
 ```
 
-`World.Core` has no UI or game-engine dependency. `CampaignWorld` owns one validated definition and one sparse `CampaignTileMap`. An absent map entry means `Unassigned` at the world's default height. `CampaignMapGenerator` optionally materializes deterministic ordinary tiles from analytic land masks, kilometre-scaled shelf/landmark/island hierarchy, compact regional coast skeletons, simplex geology, transient tectonic boundary fields, bounded erosion, optional lowland tidal-inlet carving, priority-flood drainage, basin selection, flow accumulation, constrained custom land-ratio targets, semi-arid Steppe transition, and safe custom land identity targets. Flowing Capes keeps its protected-root curved peninsula; Smooth/Natural/Rugged fade that compact symbol out by `4,200 km` and use broad stochastic shelf plus distributed geographic features at continental scale. Only the named Sea edge is forced; a seeded broad shelf retreat allows any other boundary to contain natural land, connected Sea, or both. `CampaignTileMap` derives river exits, validates per-type river topology atomically, validates custom IDs against their safe bases, and resolves automatic 10% water-facing material bands for every non-water tile. `CampaignRiverSplitBuilder` constructs collision-free multi-Y footprints as one command. `CampaignTileStampBuilder` records the first before-value and final after-value for each tile touched during a drag. `WorldCanvas` rasterizes original built-in/custom materials, automatic coast water edges, and derived height shading, then draws connected river channels, the grid, optional culled elevation-number labels, cursor, border, and pinned selection.
+`World.Core` does not depend on Avalonia or a game engine. This keeps world authority, validation, generation, persistence, and export reusable by future tools and engine importers.
 
-## Persistence and legacy projects
-
-A version-2 project is portable when `world.json` and `campaign-tiles.json` are copied together; include `custom-terrain.json`, `resource-definitions.json`, `resource-generation.json`, and `resource-tiles.json` when those optional files exist. The project coordinator stages the complete terrain/resource file set before replacement and removes stale resource sidecars when the saved map becomes empty. Loading rejects unsupported versions, duplicate records, unknown types/custom IDs, invalid heights, and coordinates outside the exact grid.
-
-Opening a version-1 project converts it in memory. Each campaign tile receives its existing type and the rounded average of the legacy samples owned by that cell. Legacy `Water` becomes `Sea`. The editor marks the result unsaved and requires a different destination folder, so the original manifest, chunks, and campaign file remain unchanged.
-
-## Repository layout
+Repository layout:
 
 ```text
-src/World.Core/    engine-neutral campaign world and persistence; legacy v1 reader retained
+src/World.Core/    engine-neutral world model and serialization
 src/World.Editor/  Avalonia desktop application
-src/World.Tests/   xUnit behavior, interpolation, conversion, and roundtrip coverage
+src/World.Tests/   xUnit domain, integration, persistence, UI, and stress tests
 ```
 
-## Current limits
+## Current boundaries
 
-- Procedural resource generation, reviewed changed-lattice remapping, and custom-resource definition management are implemented. Overview symbols, climate/geology field views, and full New/Regenerate World resource property pages remain later milestones.
-- Map traversal, pinning, and stamping are mouse-led; keyboard-only canvas navigation/painting is not yet implemented. Standard menus, workspace controls, and inspector controls retain native keyboard behavior.
-- Custom types are deliberately safe land variants only. Creating new water, shore, River, topology, or gameplay semantics from the custom-type manager is not implemented.
-- River branching is explicit and geometric: the split tool stores a `RiverJunction` Y tile and cascades Y shapes for three or four outgoing branches. It does not store flow direction, distinguish upstream from downstream after creation, generate deltas automatically, or model discharge, bridges, continuous physical width, or navigability.
-- Version-2 generation can create validated three-exit River confluences, but it does not preserve flow direction, discharge, sediment, or confluence semantics. Its tectonic, erosion, and climate fields are bounded deterministic terrain synthesis, not scientific simulation or tactical/FPS mesh generation.
-- Tidal inlets are optional opportunity-based broad Sea-tile estuaries/drowned valleys; a requested profile may accept fewer or none when the coast lacks suitable low terrain. True narrow constructed canals, locks, width, tides, bridges, and flow direction need a future overlay/network.
-- Generator provenance/settings are creation-time inputs and are not stored as history; custom type definitions persist because they remain paintable, while base type/custom ID/height stay terrain authority.
-- Beach/Cliff placement is explicit; the editor does not yet require or generate valid shoreline adjacency.
-- Automatic coast derives its 10%-deep water edge from immediate cardinal water neighbours only; it does not insert sand, model tides/erosion, curve shorelines, or add sub-tile authoring.
-- Heights use whole metres and the signed `Int16` range.
-- The canvas is 2D; there is no 3D preview or game-engine importer yet.
-- Editing is local and single-user, without autosave, collaboration, cloud persistence, or a crash-recovery journal.
-- Mouse input is required for map stamping; keyboard shortcuts cover commands but not tile traversal or painting.
-
-The isolated version-3 prototype addresses the remaining mixed palette by adding Wetland, Tundra, and BarrenRock; deriving terrain form; moving River to an overlay; and moving Beach/Cliff to shore edges. Version 2 now has full-tile Desert and Steppe values. Desert maps one-to-one to the future base surface; Steppe maps to Grassland until a later biome/climate layer owns the finer ecological distinction. Its engine-neutral Phase 1 domain and validation are implemented under `src/World.Core/Campaign/V3`. The current executable, editor UI, and project files remain version 2.
-
-Future resources, roads, detailed biomes, geology, climate, settlements, advanced hydrology, and engine importers should consume the same tile coordinate and derived-surface contract without hiding extra meaning inside the height value.
+- The editor is a 2D campaign-authoring tool; it does not generate tactical/FPS meshes or provide a 3D preview.
+- Tile Seasons are static and do not drive time, weather, terrain, or resources.
+- Resource potential is authoring data, not inventory, production, or economy simulation.
+- River widths and junctions are campaign symbols; flow direction, discharge, bridges, deltas, and navigation are not yet modeled.
+- Automatic coasts use immediate cardinal water neighbours and do not create sub-tile shoreline geometry.
+- Map stamping and pinning remain mouse-led; standard menus and dialogs retain native keyboard behavior.
+- There is no autosave, collaboration, cloud storage, or crash-recovery journal.
+- Runtime package version 3 is documented and tested, but a Unity or Unreal importer is not included yet.
+- The experimental layered terrain model exists in `World.Core` only; the current editor and project terrain still use version 2.

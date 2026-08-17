@@ -6,10 +6,16 @@
 MyWorld/
 |-- world.json
 |-- campaign-tiles.json
-`-- custom-terrain.json (optional)
+|-- custom-terrain.json (optional)
+|-- resource-definitions.json (optional)
+|-- resource-generation.json (optional)
+|-- resource-tiles.json (optional)
+|-- season-definitions.json (season-aware save)
+|-- season-generation.json (optional accepted recipe)
+`-- season-layer.bin (season-aware save)
 ```
 
-Both files are UTF-8 JSON. Version 2 has no sample-spacing or chunk-storage authoring contract. A `chunks` folder copied from an older project is not part of version 2 and is ignored by the version-2 reader.
+The terrain files and JSON sidecars are UTF-8 JSON; `season-layer.bin` is the one dense binary authoring stream. Version 2 has no sample-spacing or chunk-storage authoring contract. A `chunks` folder copied from an older project is not part of version 2 and is ignored by the version-2 reader.
 
 ## Resource sidecar contract
 
@@ -114,6 +120,44 @@ Overrides sort by ordinal resource ID and must reference the built-in/custom cat
 Resource readers require exact camel-case properties and string enum values. They reject unknown or duplicate JSON properties, missing/null required values, unsupported versions, malformed or colliding definitions, duplicate/unknown overrides, duplicate tile coordinates or tile resource IDs, empty redundant tile records, out-of-grid coordinates, unknown resource IDs, and potential outside `1..100`. Terrain suitability mismatch remains valid authoring data with a diagnostic warning.
 
 The resource serializer validates all desired documents before touching disk, stages each desired file through a unique sibling temporary path, then atomically replaces each canonical file and removes stale optional files. Direct serializer replacement remains atomic per file. The editor does not save the terrain and resource serializers independently: its project coordinator writes both into one unique sibling staging directory, reloads the complete candidate, checks both captured revisions, and commits only the known terrain/resource files with backup rollback on ordinary I/O failure. This prevents a reported failed save from deliberately leaving a mixed visible project, but does not claim power-loss atomicity across several filesystem entries. Temporary/staging files are non-authoritative; cleanup failure after a successful commit does not make the saved document dirty again.
+
+## Season sidecar contract
+
+The implemented season-aware project API adds three orthogonal authoring sidecars:
+
+```text
+season-definitions.json
+season-generation.json       optional
+season-layer.bin
+```
+
+`season-definitions.json` version 1 always writes the complete canonical catalog, not only custom definitions. Its built-ins therefore retain the exact project appearance and rule meaning if future application defaults change. It stores `defaultSeasonId`, ordered enabled `priorityIds`, and each definition's stable ID, name, built-in/custom flag, built-in fallback, `#RRGGBB` color, tint/effect percentages, optional inclusive environmental ranges, and sorted built-in/custom terrain Include/Exclude lists. Catalog order is Spring, Summer, Autumn, Winter, then custom IDs in ordinal order.
+
+`season-generation.json` version 1 exists only after generation settings are accepted. It stores the season seed and terrain-link flag, Whole-globe/Regional coverage, nullable Regional centre latitude, axial tilt, every Advanced climate control, and 64-character SHA-256 source/input fingerprints. Priority remains in the definitions file and must agree with the reconstructed recipe. Missing generation data means **no saved recipe**; loading never invents one.
+
+`season-layer.bin` version 1 is little-endian and dense:
+
+```text
+8 bytes   ASCII magic "KWSEASON"
+2 bytes   uint16 version = 1
+2 bytes   uint16 recordStride = 3
+4 bytes   int32 tilesX
+4 bytes   int32 tilesY
+4 bytes   int32 tileCount
+32 bytes  SHA-256 of length-prefixed canonical ordered catalog IDs
+
+tileCount row-major records:
+  2 bytes uint16 season catalog index
+  1 byte  flags: bit 0 locked; bits 1..7 zero
+```
+
+The reader requires the exact header, version, stride, dimensions, tile count, file length, catalog fingerprint, in-range indexes, and zero reserved flag bits. JSON readers require the exact camel-case schema, string enums, every required property, no unknown/duplicate properties, canonical definition order, and valid cross-file references. A malformed or partial season set is rejected before visible document replacement.
+
+When all three files are absent, the season-aware loader returns the built-in catalog, `defaultSeasonId = spring`, default priority, one unlocked Spring value per tile, revision zero, and no generation recipe. This compatibility projection is clean. `season-generation.json` may be absent while the other two files exist; any other partial combination is invalid. A legacy version-1 terrain import never attaches sibling season files.
+
+`CampaignEditorProjectSerializer.SaveWithSeasonsAsync` stages terrain, resources, and seasons into one sibling folder, reload-validates them, checks all three captured revisions, and commits the nine known files with backup rollback. The running editor uses the season-aware load/save boundary. Its older overload intentionally keeps the earlier six-file ownership and neither rewrites nor deletes season files, preserving compatibility for terrain/resource-only callers that do not own Season authority.
+
+ADR-0030 Slice 7 verifies this implemented contract through the full `588/588` Release suite: exact definitions/settings/dense ID/lock round trips, clean missing-sidecar Spring compatibility, partial/corrupt sidecar rejection, nine-file rollback, and save/reopen after exact Candidate acceptance.
 
 ## Metadata version 2
 

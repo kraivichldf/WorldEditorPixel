@@ -55,6 +55,16 @@
         <MenuItem Header="Open Resources workspace" Click="ResourcesWorkspace_OnClick"
                   ToolTip.Tip="Inspect and paint campaign resource potential without changing terrain" />
       </MenuItem>
+      <MenuItem Header="_Seasons" IsEnabled="{Binding HasWorld}">
+        <MenuItem Header="_Generate seasons…" Click="GenerateSeasons_OnClick"
+                  InputGesture="Ctrl+Shift+G" IsEnabled="{Binding CanGenerateSeasons}"
+                  ToolTip.Tip="Preview Earth-like static seasons without changing terrain, resources, or the current Season Layer" />
+        <MenuItem Header="_Manage seasons…" Click="CustomSeasons_OnClick"
+                  ToolTip.Tip="Edit built-in presentation and rules, add custom seasons, and order first-match priority" />
+        <Separator />
+        <MenuItem Header="Open Seasons workspace" Click="SeasonsWorkspace_OnClick"
+                  ToolTip.Tip="Inspect and paint one authoritative season per campaign tile" />
+      </MenuItem>
       <MenuItem Header="_View">
         <MenuItem Header="Campaign grid" ToggleType="CheckBox" IsChecked="{Binding ShowCampaignGrid, Mode=TwoWay}"
                   IsEnabled="{Binding HasWorld}" />
@@ -64,6 +74,13 @@
                   ToolTip.Tip="Show each stored campaign-tile centre elevation when tiles are large enough" />
         <MenuItem Header="Live height-only shading" ToggleType="CheckBox" IsChecked="{Binding UseGrayscale, Mode=TwoWay}"
                   IsEnabled="{Binding IsTerrainWorkspace}" />
+        <MenuItem Header="Season labels" ToggleType="CheckBox"
+                  IsChecked="{Binding ShowSeasonLabels, Mode=TwoWay}"
+                  IsEnabled="{Binding IsSeasonsWorkspace}" />
+        <MenuItem Header="Blend season boundaries" ToggleType="CheckBox"
+                  IsChecked="{Binding BlendSeasonBoundaries, Mode=TwoWay}"
+                  IsEnabled="{Binding IsSeasonsWorkspace}"
+                  ToolTip.Tip="Display-only blending; tile season IDs never change" />
         <Separator />
         <MenuItem Header="Zoom to fit" Click="ZoomToFit_OnClick" InputGesture="F" IsEnabled="{Binding HasWorld}" />
       </MenuItem>
@@ -103,13 +120,18 @@
           <TextBlock Text="Potential labels: auto" IsVisible="{Binding IsResourcesWorkspace}"
                      VerticalAlignment="Center" Foreground="{StaticResource EditorMutedTextBrush}"
                      ToolTip.Tip="Selected-resource potential appears when tiles reach 28 pixels" />
+          <CheckBox Content="Season labels" IsChecked="{Binding ShowSeasonLabels, Mode=TwoWay}"
+                    IsVisible="{Binding IsSeasonsWorkspace}" />
+          <CheckBox Content="Blend boundaries" IsChecked="{Binding BlendSeasonBoundaries, Mode=TwoWay}"
+                    IsVisible="{Binding IsSeasonsWorkspace}"
+                    ToolTip.Tip="Presentation only; authoritative tile IDs stay discrete" />
         </StackPanel>
       </Grid>
     </Border>
 
     <Border Grid.Row="2" Background="{StaticResource EditorPanelBrush}"
             BorderBrush="{StaticResource Win98ShadowBrush}" BorderThickness="0,0,0,1" Padding="6,2">
-      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="5" VerticalAlignment="Center">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="5" VerticalAlignment="Center">
         <TextBlock Text="WORKSPACE" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0" />
         <Button Grid.Column="1" Content="Terrain" Classes="workspace"
                 Classes.primary="{Binding IsTerrainWorkspace}"
@@ -119,8 +141,14 @@
                 Classes.primary="{Binding IsResourcesWorkspace}"
                 Click="ResourcesWorkspace_OnClick" IsEnabled="{Binding HasWorld}"
                 AutomationProperties.Name="Resources workspace" />
-        <TextBlock Grid.Column="4" Text="{Binding ResourceStatusText}" Classes="measurement"
+        <Button Grid.Column="3" Content="Seasons" Classes="workspace"
+                Classes.primary="{Binding IsSeasonsWorkspace}"
+                Click="SeasonsWorkspace_OnClick" IsEnabled="{Binding HasWorld}"
+                AutomationProperties.Name="Seasons workspace" />
+        <TextBlock Grid.Column="5" Text="{Binding ResourceStatusText}" Classes="measurement"
                    IsVisible="{Binding IsResourcesWorkspace}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="5" Text="{Binding SeasonStatusText}" Classes="measurement"
+                   IsVisible="{Binding IsSeasonsWorkspace}" VerticalAlignment="Center" />
       </Grid>
     </Border>
 
@@ -396,6 +424,136 @@
             </Border>
           </StackPanel>
         </ScrollViewer>
+
+        <ScrollViewer Classes="season-tools" VerticalScrollBarVisibility="Auto"
+                      IsVisible="{Binding IsSeasonsWorkspace}" IsEnabled="{Binding HasSeasonMap}">
+          <StackPanel Margin="8" Spacing="8">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="section-title" Text="CAMPAIGN SEASON PAINT" />
+              <TextBlock Text="One season ID per tile; terrain and resources stay unchanged"
+                         FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,6,*">
+              <Button Grid.Column="0" Content="Generate seasons…" Classes="quiet"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                      Click="GenerateSeasons_OnClick" IsEnabled="{Binding CanGenerateSeasons}"
+                      AutomationProperties.Name="Generate a season candidate" />
+              <Button Grid.Column="2" Content="Manage seasons…" Classes="quiet"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                      Click="CustomSeasons_OnClick"
+                      AutomationProperties.Name="Manage season definitions and priority" />
+            </Grid>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="section-title" Text="SEASON DEFINITION" />
+                <TextBox Text="{Binding SeasonSearchText, Mode=TwoWay}"
+                         PlaceholderText="Search name or stable ID"
+                         AutomationProperties.Name="Search season definitions" />
+                <ComboBox Classes="tile-type-selector"
+                          ItemsSource="{Binding SeasonOptions}"
+                          SelectedItem="{Binding SelectedSeasonOption, Mode=TwoWay}"
+                          MaxDropDownHeight="420" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Campaign season selector">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CampaignSeasonOption">
+                      <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
+                        <Border Width="14" Height="14" VerticalAlignment="Center"
+                                Background="{Binding SwatchBrush}"
+                                BorderBrush="{StaticResource Win98DarkShadowBrush}"
+                                BorderThickness="1" />
+                        <StackPanel Grid.Column="1" Spacing="0">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding IdText}" Classes="measurement" FontSize="10"
+                                     Foreground="{StaticResource EditorMutedTextBrush}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="0" HorizontalAlignment="Right">
+                          <TextBlock Text="{Binding SourceText}" FontSize="10" HorizontalAlignment="Right" />
+                          <TextBlock Text="{Binding GenerationText}" FontSize="10"
+                                     Foreground="{StaticResource EditorMutedTextBrush}"
+                                     HorizontalAlignment="Right" />
+                        </StackPanel>
+                      </Grid>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="No season matches this search. Clear the search to restore the catalog."
+                           IsVisible="{Binding HasNoSeasonOptions}" FontSize="11"
+                           Foreground="{StaticResource Win98ErrorBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="7">
+                <TextBlock Classes="section-title" Text="TOOL" />
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="6">
+                  <Button Content="Paint selected" Classes="quiet"
+                          Classes.primary="{Binding IsSeasonPaintTool}"
+                          Click="SeasonPaintTool_OnClick" />
+                  <Button Grid.Column="1" Content="Reset default" Classes="quiet"
+                          Classes.primary="{Binding IsSeasonResetTool}"
+                          Click="SeasonResetTool_OnClick"
+                          ToolTip.Tip="Write the project default season and unlock the tile" />
+                  <Button Grid.Row="1" Content="Lock" Classes="quiet"
+                          Classes.primary="{Binding IsSeasonLockTool}"
+                          Click="SeasonLockTool_OnClick" />
+                  <Button Grid.Row="1" Grid.Column="1" Content="Unlock" Classes="quiet"
+                          Classes.primary="{Binding IsSeasonUnlockTool}"
+                          Click="SeasonUnlockTool_OnClick" />
+                </Grid>
+                <CheckBox Content="Lock manual edits"
+                          IsChecked="{Binding LockManualSeasonEdits, Mode=TwoWay}"
+                          IsVisible="{Binding IsSeasonPaintTool}"
+                          ToolTip.Tip="Locked season tiles survive later scoped generation" />
+                <TextBlock Text="Reset changes the season to the project default and unlocks it. Lock and Unlock preserve the existing season ID."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="7">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Classes="section-title" Text="PAINT AREA" />
+                  <TextBlock Grid.Column="1" Text="complete tiles" FontSize="12"
+                             Foreground="{StaticResource EditorMutedTextBrush}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <NumericUpDown Value="{Binding SeasonPaintAreaRadius, Mode=TwoWay}"
+                                 Minimum="0" Maximum="12" Increment="1" FormatString="N0"
+                                 AutomationProperties.Name="Season paint area expansion" />
+                  <TextBlock Grid.Column="1" Text="{Binding SeasonPaintAreaText}"
+                             Classes="measurement" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="0 paints 1 × 1; 12 paints 25 × 25. Dragging fills every crossed complete tile and clips at the world edge."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-sunken" Padding="8">
+              <StackPanel Spacing="4">
+                <TextBlock Text="Active season stamp" FontSize="12"
+                           Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding SeasonStampSummary}" FontWeight="SemiBold"
+                           Classes="measurement" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="win98-group">
+              <StackPanel Spacing="5">
+                <TextBlock Text="Display and authority" FontWeight="SemiBold" />
+                <CheckBox Content="Season labels" IsChecked="{Binding ShowSeasonLabels, Mode=TwoWay}" />
+                <CheckBox Content="Blend boundaries" IsChecked="{Binding BlendSeasonBoundaries, Mode=TwoWay}" />
+                <TextBlock Text="Blending only softens the preview edge. Export and game data still contain one exact season catalog index per tile."
+                           FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
         </Grid>
       </Border>
 
@@ -417,6 +575,14 @@
                               ResourcePaintAreaRadius="{Binding ResourcePaintAreaRadius}"
                               EraseSelectedResource="{Binding IsResourceEraseTool}"
                               LockManualResourceEdits="{Binding LockManualResourceEdits}"
+                              SeasonMap="{Binding SeasonMap}"
+                              IsSeasonWorkspace="{Binding IsSeasonsWorkspace}"
+                              SelectedSeasonId="{Binding SelectedSeasonId}"
+                              SeasonPaintTool="{Binding SeasonPaintTool}"
+                              LockManualSeasonEdits="{Binding LockManualSeasonEdits}"
+                              SeasonPaintAreaRadius="{Binding SeasonPaintAreaRadius}"
+                              ShowSeasonLabels="{Binding ShowSeasonLabels}"
+                              BlendSeasonBoundaries="{Binding BlendSeasonBoundaries}"
                               ShowCampaignGrid="{Binding ShowCampaignGrid}"
                               ShowElevationNumbers="{Binding ShowElevationNumbers}"
                               UseGrayscale="{Binding UseGrayscale}"
@@ -488,6 +654,10 @@
               <StackPanel Spacing="3" IsVisible="{Binding IsResourcesWorkspace}">
                 <TextBlock Text="Selected resource" Foreground="{StaticResource EditorMutedTextBrush}" />
                 <TextBlock Text="{Binding HoverSelectedResourceText}" Classes="measurement" TextWrapping="Wrap" />
+              </StackPanel>
+              <StackPanel Spacing="3" IsVisible="{Binding IsSeasonsWorkspace}">
+                <TextBlock Text="Season" Foreground="{StaticResource EditorMutedTextBrush}" />
+                <TextBlock Text="{Binding HoverSeasonText}" Classes="measurement" TextWrapping="Wrap" />
               </StackPanel>
             </StackPanel>
 
@@ -597,6 +767,35 @@
                 </Grid>
                 <TextBlock Text="Warnings report implemented terrain rules only. Climate, geology, associations, and final generator suitability remain unevaluated."
                            FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+
+              <StackPanel Spacing="7" IsVisible="{Binding IsSeasonsWorkspace}">
+                <Border Classes="win98-group">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Authoritative season" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding PinnedSeasonIdentityText}" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                      <Button Content="Lock" Classes="quiet" Click="LockPinnedSeason_OnClick"
+                              IsEnabled="{Binding CanLockPinnedSeason}" />
+                      <Button Grid.Column="1" Content="Unlock" Classes="quiet"
+                              Click="UnlockPinnedSeason_OnClick"
+                              IsEnabled="{Binding CanUnlockPinnedSeason}" />
+                    </Grid>
+                  </StackPanel>
+                </Border>
+                <Border Classes="win98-group">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Terrain support" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding PinnedSeasonTerrainText}" FontSize="11"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding PinnedSeasonRuleText}" FontSize="11"
+                               Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+                <Border Classes="win98-sunken" Padding="7">
+                  <TextBlock Text="{Binding PinnedSeasonGenerationText}" FontSize="11"
+                             Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
+                </Border>
               </StackPanel>
 
               <TextBlock Text="Right-click another tile to change the pinned target."
