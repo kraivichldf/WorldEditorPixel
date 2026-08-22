@@ -30,6 +30,12 @@ public sealed partial class MainWindow : Window
         MimeTypes = ["application/vnd.kingdom.world+zip"],
     };
 
+    private static readonly FilePickerFileType RuntimeWorldJsonFileType = new("World runtime JSON data")
+    {
+        Patterns = [$"*{CampaignWorldJsonExporter.SuggestedFileSuffix}", "*.json"],
+        MimeTypes = ["application/json"],
+    };
+
     private readonly EditorViewModel _viewModel = new();
     private readonly WorldCanvas _worldCanvas;
     private bool _closeApproved;
@@ -95,6 +101,10 @@ public sealed partial class MainWindow : Window
                     _ = SaveWorldAsync(forceChooseDirectory: false);
                     e.Handled = true;
                     return;
+                case Key.E when e.KeyModifiers.HasFlag(KeyModifiers.Shift):
+                    _ = ExportJsonDataAsync();
+                    e.Handled = true;
+                    return;
                 case Key.E:
                     _ = ExportRuntimeDataAsync();
                     e.Handled = true;
@@ -132,6 +142,8 @@ public sealed partial class MainWindow : Window
     private void SaveWorldAs_OnClick(object? sender, RoutedEventArgs e) => _ = SaveWorldAsync(forceChooseDirectory: true);
 
     private void ExportRuntimeData_OnClick(object? sender, RoutedEventArgs e) => _ = ExportRuntimeDataAsync();
+
+    private void ExportJsonData_OnClick(object? sender, RoutedEventArgs e) => _ = ExportJsonDataAsync();
 
     private void Undo_OnClick(object? sender, RoutedEventArgs e) => Undo();
 
@@ -765,7 +777,82 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private string GetSuggestedRuntimePackageName()
+    private async Task ExportJsonDataAsync()
+    {
+        if (_viewModel.IsBusy ||
+            CancelActiveStroke("Active map stroke cancelled. Choose Export JSON again when ready.") ||
+            _viewModel.World is not { } world)
+        {
+            return;
+        }
+
+        if (!StorageProvider.CanSave)
+        {
+            await ShowErrorAsync(
+                "JSON export is unavailable",
+                "This desktop platform did not provide a file picker for JSON runtime data.");
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export world as JSON data",
+            SuggestedFileName = GetSuggestedRuntimeJsonName(),
+            DefaultExtension = CampaignWorldJsonExporter.FileExtension.TrimStart('.'),
+            FileTypeChoices = [RuntimeWorldJsonFileType],
+            SuggestedFileType = RuntimeWorldJsonFileType,
+            ShowOverwritePrompt = true,
+        });
+        var jsonPath = file?.TryGetLocalPath();
+        if (file is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(jsonPath))
+        {
+            await ShowErrorAsync(
+                "Choose a local JSON export file",
+                "Runtime JSON export requires a normal local .json file path.");
+            return;
+        }
+
+        try
+        {
+            SetBusy(true, "Exporting one self-contained JSON world file…");
+            var resources = _viewModel.ResourceMap
+                ?? throw new InvalidOperationException("The resource layer is unavailable.");
+            var seasons = _viewModel.SeasonMap
+                ?? throw new InvalidOperationException("The season layer is unavailable.");
+            await CampaignEditorProjectSerializer.ExportJsonWithSeasonsAsync(
+                world,
+                resources,
+                seasons,
+                jsonPath);
+            _viewModel.StatusMessage =
+                $"Exported {Path.GetFileName(jsonPath)} · {world.Definition.TileCount:N0} complete tile record(s) + " +
+                $"{resources.OccurrenceCount:N0} resource occurrence(s) + " +
+                $"{seasons.OccurrenceCount:N0} season occurrence(s) in one JSON file.";
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or IOException or UnauthorizedAccessException or
+            InvalidOperationException or OverflowException)
+        {
+            await ShowErrorAsync("JSON data could not be exported", exception.Message);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private string GetSuggestedRuntimePackageName() =>
+        GetSuggestedExportName(CampaignWorldRuntimeExporter.PackageExtension);
+
+    private string GetSuggestedRuntimeJsonName() =>
+        GetSuggestedExportName(CampaignWorldJsonExporter.SuggestedFileSuffix);
+
+    private string GetSuggestedExportName(string suffix)
     {
         var invalidCharacters = Path.GetInvalidFileNameChars().ToHashSet();
         var safeName = new string(_viewModel.WorldName
@@ -778,10 +865,10 @@ public sealed partial class MainWindow : Window
         }
 
         return safeName.EndsWith(
-            CampaignWorldRuntimeExporter.PackageExtension,
+            suffix,
             StringComparison.OrdinalIgnoreCase)
             ? safeName
-            : safeName + CampaignWorldRuntimeExporter.PackageExtension;
+            : safeName + suffix;
     }
 
     private async Task<bool> ConfirmReplacementAsync()

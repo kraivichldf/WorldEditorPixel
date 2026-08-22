@@ -30,6 +30,9 @@
         <MenuItem Header="_Export Runtime Data…" Click="ExportRuntimeData_OnClick" InputGesture="Ctrl+E"
                   IsEnabled="{Binding HasWorld}"
                   ToolTip.Tip="Export one versioned .kworld package for a game importer" />
+        <MenuItem Header="Export _JSON Data…" Click="ExportJsonData_OnClick" InputGesture="Ctrl+Shift+E"
+                  IsEnabled="{Binding HasWorld}"
+                  ToolTip.Tip="Export all terrain, resources, and seasons as one readable JSON file" />
         <Separator />
         <MenuItem Header="E_xit" Click="Exit_OnClick" />
       </MenuItem>
@@ -99,6 +102,8 @@
                   ToolTip.Tip="Save the current world (Ctrl+S)" />
           <Button Content="Export" Classes="quiet" Click="ExportRuntimeData_OnClick" IsEnabled="{Binding HasWorld}"
                   ToolTip.Tip="Export a .kworld runtime package for game development (Ctrl+E)" />
+          <Button Content="JSON" Classes="quiet" Click="ExportJsonData_OnClick" IsEnabled="{Binding HasWorld}"
+                  ToolTip.Tip="Export one self-contained JSON data file (Ctrl+Shift+E)" />
         </StackPanel>
         <Border Grid.Column="1" Margin="7,1" Width="1" Background="{StaticResource Win98ShadowBrush}" />
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">

@@ -92,11 +92,14 @@ Regeneration does not create a saved generated mode or lock the result. Every ac
 
 ## Export for game development
 
-Keep using **Save World** for editable project folders. When a world is ready for a downstream importer, choose **File → Export Runtime Data…**, the toolbar **Export** action, or `Ctrl+E`, then save a `.kworld` file.
+Keep using **Save World** for editable project folders. When a world is ready for a downstream importer, choose either:
 
-The exported package is runtime format version 3. It contains a JSON manifest, a dense binary copy of every campaign tile, a dense per-tile resource index, compact resource occurrence records, and one dense two-byte Season catalog index per tile. It includes exact metre scale, grid size, coordinate direction, terrain/custom mappings, signed centre height, resource IDs/potentials, and the canonical Season ID/fallback/appearance catalog. Authoring locks, rules, support diagnostics, and generation settings are deliberately omitted. Export does not mark the project saved or change its folder because it is a derived handoff artifact.
+- **File → Export Runtime Data…**, toolbar **Export**, or `Ctrl+E` for a compact `.kworld` file; or
+- **File → Export JSON Data…**, toolbar **JSON**, or `Ctrl+Shift+E` for one readable `*.world.json` file.
 
-Use `.kworld` as an input to a Unity editor importer, Unreal import plugin, or build step. Convert it into native engine assets during import; do not repeatedly decompress the package during gameplay. The terrain, resource, Season record layouts and validation sequence are documented in [[../Reference/Runtime World Package|Runtime World Package]].
+The `.kworld` package is runtime format version 3. It contains a JSON manifest, dense tile records, dense per-tile Resource and Season span indexes, and compact occurrence records. The JSON file uses format `world-editor-pixel-runtime-json`, version `1`, and repeats every tile as an ordinary object. Both include exact metre scale, grid size/direction, terrain/custom mappings, signed centre height, Resource IDs/potentials, and every Season ID on each tile. Authoring locks, rules, support diagnostics, and generation settings are deliberately omitted. Export does not mark the project saved or change its folder because it is a derived handoff artifact.
+
+Use either artifact as input to a Unity editor importer, Unreal import plugin, or build step. For JSON, require the known format/version, allocate the declared grid, iterate `tiles` in `rowMajorYThenX` order, resolve stable IDs through the catalogs, then convert north-west/Y-south coordinates if required. Convert the result into native engine assets; do not repeatedly parse interchange data during gameplay. The exact schemas and validation sequences are documented in [[../Reference/Runtime World Package|Runtime World Package]].
 
 ## Build the active stamp
 

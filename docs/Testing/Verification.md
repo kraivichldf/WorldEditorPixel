@@ -2,7 +2,7 @@
 
 ## Current automated coverage
 
-The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 588 tests across the active version-2 terrain contract, deterministic editable world generation through ADR-0025, runtime-package export, the retained version-1 implementation, the isolated terrain-taxonomy version-3 Phase 1 domain, campaign-resource ADR-0016 through ADR-0029, and implemented campaign-season ADR-0030 Slices 1-7. The version-2 and legacy tests cover:
+The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 565 tests across the active version-2 terrain contract, deterministic editable world generation through ADR-0025, compact runtime-package and single-file JSON export, the retained version-1 implementation, the isolated terrain-taxonomy version-3 Phase 1 domain, campaign-resource ADR-0016 through ADR-0029, implemented campaign-season ADR-0030, and ADR-0031. The version-2 and legacy tests cover:
 
 - exact `700 / 5 = 140` axis counts and `19,600` total campaign tiles;
 - rejection of partial campaign cells and invalid height definitions;
@@ -20,6 +20,7 @@ The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 - legacy coordinate/chunk ownership, lazy allocation, height clamping, raise/lower/flatten/smooth behavior, falloff, and sample-stroke history;
 - legacy little-endian encoding, malformed chunks, exact sample round trips, and type-only campaign persistence.
 - deterministic `.kworld` export, manifest dimensions/orientation/layout/checksum, stable custom terrain indexes, dense row-major default records, exact little-endian bytes, Large River/River Junction/Steppe values and mappings, and ambiguous-extension rejection.
+- deterministic single-file `*.world.json` export, exact schema/order/orientation/catalogs, explicit row-major implicit defaults, terrain/custom identities, Resource potential, zero-to-many Season IDs, lock/insertion-order independence, definition mismatch rejection, and cancellation-safe atomic replacement.
 
 The version-3 Phase 1 tests cover:
 
@@ -132,6 +133,13 @@ Run:
 ```powershell
 dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 ```
+
+## Single-file JSON runtime export verification on 2026-08-22
+
+- Added **File → Export JSON Data…**, toolbar **JSON**, and `Ctrl+Shift+E` without changing the existing `.kworld` path or editable project identity.
+- `CampaignWorldJsonExporter` writes one indented UTF-8 `*.world.json` file with format/version metadata, metre/grid/orientation data, stable catalogs, and every row-major tile containing terrain, optional custom identity, centre height, Resource ID/potential pairs, and all Season IDs.
+- The exporter omits locks, rules, recipes, support/diagnostic/preview state; sorts catalogs and occurrences deterministically; flushes after bounded tile batches; checks all three revisions; and commits through a unique sibling temporary file.
+- Focused JSON verification passed `5/5`, including continuation beyond the bounded async-flush threshold. Full Release verification passed `565/565`; the Release solution build completed with zero warnings and zero errors. `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 
 ## Season Occurrence rework verification on 2026-08-20
 

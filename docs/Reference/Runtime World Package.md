@@ -2,16 +2,77 @@
 
 ## Recommendation
 
-Use the editor's project folder for authoring and a `.kworld` package for game integration. Do not use a headerless `.raw` file as the primary interchange format: without a header it cannot identify grid dimensions, tile size, coordinate orientation, terrain values, custom terrain mappings, or schema version. Full JSON is easy to inspect but needlessly repeats coordinates and field names for every tile.
+Use the editor's project folder for authoring. For game integration, choose compact `.kworld` or readable `*.world.json`. Do not use a headerless `.raw` file as the primary interchange format: without a header it cannot identify grid dimensions, tile size, coordinate orientation, terrain values, custom mappings, Resources, Seasons, or schema version.
 
 `.kworld` is a ZIP container with a self-describing JSON manifest and binary streams. Version 1 carries only terrain; version 2 adds compact resource streams without changing the terrain record stride; the implemented season-aware version 3 keeps those three streams byte-compatible and adds a dense Season span index plus sparse Season occurrence records.
 
 | Purpose | Format | Behavior |
 |---|---|---|
 | Continue editing | Project folder: terrain JSON plus optional resource sidecars and Season catalog/generation/occurrence layer | Versioned authoring authority through the staged project coordinator. |
-| Import into a game | One `*.kworld` file | Dense, deterministic runtime interchange data. |
+| Compact game import | One `*.kworld` file | Dense deterministic package; smallest and fastest option for large worlds. |
+| Readable game import | One `*.world.json` file | Self-describing ordinary JSON; simplest inspection and initial engine integration. |
 
 Export never marks the editor world saved, changes its project folder, or alters tile data. The game package is a derived artifact, not authoring authority.
+
+## Single-file JSON runtime export
+
+**File → Export JSON Data…** writes one indented UTF-8 `*.world.json` file. Its fixed top-level order is `format`, `version`, `world`, `grid`, `tileTypes`, `customTerrain`, `resources`, `seasons`, and `tiles`. Importers must require:
+
+```json
+{
+  "format": "world-editor-pixel-runtime-json",
+  "version": 1,
+  "world": {
+    "widthMeters": 700000,
+    "heightMeters": 700000,
+    "campaignTileSizeMeters": 5000,
+    "seaLevelMeters": 0,
+    "minimumHeightMeters": -1000,
+    "maximumHeightMeters": 6000,
+    "defaultTileHeightMeters": 0
+  },
+  "grid": {
+    "tilesX": 140,
+    "tilesY": 140,
+    "tileCount": 19600,
+    "origin": "northWest",
+    "xAxis": "east",
+    "yAxis": "south",
+    "order": "rowMajorYThenX"
+  }
+}
+```
+
+The actual document continues with stable catalogs and exactly `grid.tileCount` tile objects. A representative tile is:
+
+```json
+{
+  "x": 42,
+  "y": 18,
+  "terrainType": "forest",
+  "customTerrainId": null,
+  "heightMeters": 220,
+  "resources": [
+    { "id": "timber", "potential": 54 }
+  ],
+  "seasons": ["fall", "spring", "summer"]
+}
+```
+
+`tileTypes` maps stable string IDs to retained numeric values. `customTerrain` carries stable ID, name, safe base type, and color. `resources.catalog` carries stable ID, name, category, and built-in flag; its `occurrenceCount` must equal the sum of all tile Resource arrays. `seasons.catalog` carries stable ID, name, built-in flag, built-in fallback, color, tint, and effect intensity; its `occurrenceCount` must equal the sum of all tile Season arrays.
+
+Every tile is present, including implicit defaults. Tiles are ordered by `y`, then `x`; catalogs and per-tile occurrences use ordinal stable-ID order. Locks, rules, generation settings/recipes, support fields, diagnostics, selections, and preview state are authoring-only and absent. Equal runtime authority therefore exports identical JSON even when locks or insertion order differ.
+
+A JSON importer should:
+
+1. require the exact format identifier and supported version;
+2. validate positive dimensions, `tileCount = tilesX * tilesY`, and the array length;
+3. validate canonical coordinate order and reject duplicate/out-of-grid coordinates;
+4. resolve terrain, custom, Resource, and Season IDs through their catalogs and reject unknown IDs;
+5. validate heights against declared bounds, Resource potentials in `1..100`, and both occurrence totals;
+6. convert north-west/Y-south coordinates if needed, then build native engine assets.
+
+The exporter streams directly rather than constructing a second world-sized object, flushes after bounded tile batches, checks all three authority revisions, and replaces the destination only after successful completion. JSON remains larger and slower to parse than `.kworld`; use it when transparency and easy integration matter more than compactness. See [[../Decisions/ADR-0031 - Single-File JSON Runtime Export|ADR-0031]].
 
 ## Container contract
 
