@@ -6,7 +6,7 @@ namespace Kingdom.World.Core.Commands;
 public sealed class CampaignSeasonStrokeBuilder
 {
     private readonly CampaignSeasonMap _seasons;
-    private readonly Dictionary<CampaignTileCoordinate, MutableChange> _changes = [];
+    private readonly Dictionary<SeasonIdentity, MutableChange> _changes = [];
     private bool _closed;
 
     public CampaignSeasonStrokeBuilder(CampaignSeasonMap seasons)
@@ -14,34 +14,52 @@ public sealed class CampaignSeasonStrokeBuilder
         _seasons = seasons ?? throw new ArgumentNullException(nameof(seasons));
     }
 
-    public int TouchedTileCount => _changes.Count;
+    public int TouchedOccurrenceCount => _changes.Count;
+
+    public int TouchedTileCount => _changes.Keys
+        .Select(static identity => (identity.X, identity.Y))
+        .Distinct()
+        .Count();
 
     public bool IsClosed => _closed;
 
-    public void SetTile(CampaignTileCoordinate coordinate, CampaignSeasonTile tile) =>
-        SetTile(coordinate.X, coordinate.Y, tile);
-
-    public void SetTile(int x, int y, CampaignSeasonTile tile)
-    {
-        EnsureOpen();
-        var beforeCurrentEdit = _seasons.GetTile(x, y);
-        _seasons.SetTile(x, y, tile);
-        Capture(x, y, beforeCurrentEdit, tile);
-    }
-
-    public void Paint(
+    public void Upsert(
         CampaignTileCoordinate coordinate,
         string seasonId,
         bool locked = true) =>
-        SetTile(coordinate, new CampaignSeasonTile(seasonId, locked));
+        Upsert(coordinate.X, coordinate.Y, new CampaignSeasonOccurrence(seasonId, locked));
 
-    public void ResetToDefault(CampaignTileCoordinate coordinate, bool locked = false) =>
-        SetTile(coordinate, new CampaignSeasonTile(_seasons.DefaultSeasonId, locked));
-
-    public void SetLocked(CampaignTileCoordinate coordinate, bool locked)
+    public void Upsert(int x, int y, CampaignSeasonOccurrence occurrence)
     {
-        var current = _seasons.GetTile(coordinate.X, coordinate.Y);
-        SetTile(coordinate, current with { Locked = locked });
+        EnsureOpen();
+        var beforeCurrentEdit = GetOccurrenceOrNull(x, y, occurrence.SeasonId);
+        _seasons.Upsert(x, y, occurrence);
+        Capture(x, y, occurrence.SeasonId, beforeCurrentEdit, occurrence);
+    }
+
+    public void Remove(CampaignTileCoordinate coordinate, string seasonId) =>
+        Remove(coordinate.X, coordinate.Y, seasonId);
+
+    public void Remove(int x, int y, string seasonId)
+    {
+        EnsureOpen();
+        var beforeCurrentEdit = GetOccurrenceOrNull(x, y, seasonId);
+        _seasons.Remove(x, y, seasonId);
+        Capture(x, y, seasonId, beforeCurrentEdit, after: null);
+    }
+
+    public void SetLocked(CampaignTileCoordinate coordinate, string seasonId, bool locked)
+    {
+        EnsureOpen();
+        var beforeCurrentEdit = GetOccurrenceOrNull(coordinate.X, coordinate.Y, seasonId);
+        if (beforeCurrentEdit is not { } occurrence)
+        {
+            return;
+        }
+
+        var after = occurrence with { Locked = locked };
+        _seasons.Upsert(coordinate.X, coordinate.Y, after);
+        Capture(coordinate.X, coordinate.Y, seasonId, beforeCurrentEdit, after);
     }
 
     public CampaignSeasonEditCommand Complete(string description)
@@ -56,17 +74,28 @@ public sealed class CampaignSeasonStrokeBuilder
         EnsureOpen();
         _closed = true;
         _seasons.Apply(GetOrderedChanges().Select(static change =>
-            new CampaignSeasonMutation(change.X, change.Y, change.Before)));
+            change.Before is { } occurrence
+                ? CampaignSeasonMutation.Upsert(change.X, change.Y, occurrence)
+                : CampaignSeasonMutation.Remove(change.X, change.Y, change.SeasonId)));
     }
+
+    private CampaignSeasonOccurrence? GetOccurrenceOrNull(
+        int x,
+        int y,
+        string seasonId) =>
+        _seasons.TryGetOccurrence(x, y, seasonId, out var occurrence)
+            ? occurrence
+            : null;
 
     private void Capture(
         int x,
         int y,
-        CampaignSeasonTile beforeCurrentEdit,
-        CampaignSeasonTile after)
+        string seasonId,
+        CampaignSeasonOccurrence? beforeCurrentEdit,
+        CampaignSeasonOccurrence? after)
     {
-        var coordinate = new CampaignTileCoordinate(x, y);
-        if (_changes.TryGetValue(coordinate, out var existing))
+        var identity = new SeasonIdentity(x, y, seasonId);
+        if (_changes.TryGetValue(identity, out var existing))
         {
             existing.After = after;
             return;
@@ -77,7 +106,9 @@ public sealed class CampaignSeasonStrokeBuilder
             return;
         }
 
-        _changes.Add(coordinate, new MutableChange(x, y, beforeCurrentEdit, after));
+        _changes.Add(
+            identity,
+            new MutableChange(x, y, seasonId, beforeCurrentEdit, after));
     }
 
     private IEnumerable<CampaignSeasonChange> GetOrderedChanges() =>
@@ -85,25 +116,32 @@ public sealed class CampaignSeasonStrokeBuilder
             .Select(static change => new CampaignSeasonChange(
                 change.X,
                 change.Y,
+                change.SeasonId,
                 change.Before,
                 change.After))
             .OrderBy(static change => change.Y)
-            .ThenBy(static change => change.X);
+            .ThenBy(static change => change.X)
+            .ThenBy(static change => change.SeasonId, StringComparer.Ordinal);
 
     private void EnsureOpen() => ObjectDisposedException.ThrowIf(_closed, this);
+
+    private readonly record struct SeasonIdentity(int X, int Y, string SeasonId);
 
     private sealed class MutableChange(
         int x,
         int y,
-        CampaignSeasonTile before,
-        CampaignSeasonTile after)
+        string seasonId,
+        CampaignSeasonOccurrence? before,
+        CampaignSeasonOccurrence? after)
     {
         public int X { get; } = x;
 
         public int Y { get; } = y;
 
-        public CampaignSeasonTile Before { get; } = before;
+        public string SeasonId { get; } = seasonId;
 
-        public CampaignSeasonTile After { get; set; } = after;
+        public CampaignSeasonOccurrence? Before { get; } = before;
+
+        public CampaignSeasonOccurrence? After { get; set; } = after;
     }
 }

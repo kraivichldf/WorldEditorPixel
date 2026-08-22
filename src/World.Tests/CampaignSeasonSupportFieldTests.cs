@@ -7,7 +7,7 @@ namespace Kingdom.World.Tests;
 public sealed class CampaignSeasonSupportFieldTests
 {
     [Fact]
-    public void WholeGlobe_UsesTileCenterLongitudeLatitudeAndOppositeHemisphereForcing()
+    public void WholeGlobe_UsesTileCenterLongitudeLatitudeAndAnnualSeasonality()
     {
         var definition = CreateDefinition(4, 2, 100_000);
         var support = Build(
@@ -22,8 +22,10 @@ public sealed class CampaignSeasonSupportFieldTests
         Assert.Equal(45, northWest.LatitudeDegrees, precision: 6);
         Assert.Equal(135, southEast.LongitudeDegrees!.Value, precision: 6);
         Assert.Equal(-45, southEast.LatitudeDegrees, precision: 6);
-        Assert.True(CampaignSeasonSupportFields.GetSeasonalIntensity(45, 0.25, 23.44) > 0.9);
-        Assert.True(CampaignSeasonSupportFields.GetSeasonalIntensity(-45, 0.25, 23.44) < -0.9);
+        Assert.True(northWest.Seasonality > 0);
+        Assert.Equal(northWest.Seasonality, southEast.Seasonality, precision: 6);
+        Assert.True(northWest.WarmSeasonTemperatureCelsius > northWest.TemperatureCelsius);
+        Assert.True(northWest.ColdSeasonTemperatureCelsius < northWest.TemperatureCelsius);
     }
 
     [Fact]
@@ -131,18 +133,22 @@ public sealed class CampaignSeasonSupportFieldTests
     }
 
     [Fact]
-    public void ZeroTiltRemovesSeasonalForcingAndTendency()
+    public void ZeroTiltRemovesAnnualTemperatureSeasonality()
     {
-        Assert.Equal(
-            0,
-            CampaignSeasonSupportFields.GetSeasonalIntensity(70, 0.25, axialTiltDegrees: 0),
-            precision: 12);
-        Assert.Equal(
-            0,
-            CampaignSeasonSupportFields.GetSeasonalTendency(70, 0.25, axialTiltDegrees: 0),
-            precision: 12);
-        Assert.True(CampaignSeasonSupportFields.GetSeasonalTendency(45, 0, 23.44) > 0);
-        Assert.True(CampaignSeasonSupportFields.GetSeasonalTendency(-45, 0, 23.44) < 0);
+        var definition = CreateDefinition(2, 1, 100_000);
+        var settings = new CampaignSeasonGenerationSettings(
+            17,
+            coverageMode: CampaignSeasonCoverageMode.Regional,
+            regionalCenterLatitudeDegrees: 70,
+            axialTiltDegrees: 0,
+            climate: new CampaignSeasonClimateSettings(temperatureNoiseCelsius: 0));
+        var sample = Build(definition, UniformSamples(definition, Land()), settings)
+            .GetSample(0, 0);
+
+        Assert.Equal(0, sample.Seasonality, precision: 12);
+        Assert.Equal(0, sample.AnnualTemperatureRangeCelsius, precision: 12);
+        Assert.Equal(sample.TemperatureCelsius, sample.WarmSeasonTemperatureCelsius, precision: 12);
+        Assert.Equal(sample.TemperatureCelsius, sample.ColdSeasonTemperatureCelsius, precision: 12);
     }
 
     [Fact]

@@ -34,7 +34,6 @@ public sealed class CampaignSeasonNativeUiTests
         {
             await VerifyNewWorldDialog(timeout.Token);
             await VerifySeasonGenerationDialog(timeout.Token);
-            await VerifyLockResolutionDialog(timeout.Token);
             return true;
         }, timeout.Token);
     }
@@ -161,74 +160,6 @@ public sealed class CampaignSeasonNativeUiTests
         finally
         {
             dialog.Close();
-        }
-    }
-
-    private static async Task VerifyLockResolutionDialog(CancellationToken cancellationToken)
-    {
-        var sourceDefinition = CreateDefinition(2, 1, 1_000);
-        var sourceWorld = new CampaignWorld(sourceDefinition);
-        var sourceMap = new CampaignSeasonMap(
-            sourceDefinition,
-            defaultSeasonId: CampaignSeasonCatalog.AutumnId);
-        sourceMap.Paint(0, 0, CampaignSeasonCatalog.WinterId, locked: true);
-        sourceMap.Paint(1, 0, CampaignSeasonCatalog.SpringId, locked: true);
-        var settings = new CampaignSeasonGenerationSettings(31);
-        var source = CampaignSeasonWorldRegenerationSource.Capture(
-            sourceWorld,
-            sourceMap,
-            settings.PriorityIds);
-        var candidateWorld = new CampaignWorld(CreateDefinition(1, 1, 2_000));
-        var result = new CampaignSeasonWorldRegenerator().Generate(
-            source,
-            candidateWorld,
-            settings);
-        Assert.False(result.Report.CanAccept);
-
-        var owner = new Window();
-        owner.Show();
-        var dialog = new SeasonLockResolutionDialog(
-            result.Report,
-            sourceMap.Catalog,
-            currentResolutions: [],
-            permitLockedDrops: false);
-        var dialogResult = dialog.ShowDialog<SeasonLockResolutionDialogResult?>(owner);
-        try
-        {
-            ResizeAndLayout(dialog, 680, 600);
-            var winner = dialog.GetVisualDescendants().OfType<ComboBox>().Single();
-            Assert.Equal("Winner for target tile 0, 0", AutomationProperties.GetName(winner));
-            Assert.Equal(-1, winner.SelectedIndex);
-            var use = dialog.GetVisualDescendants()
-                .OfType<Button>()
-                .Single(button => Equals(button.Content, "Use decisions"));
-            Assert.True(use.IsDefault);
-            use.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Dispatcher.UIThread.RunJobs();
-            Assert.True(FindRequired<Border>(dialog, "ValidationPanel").IsVisible);
-
-            ResizeAndLayout(dialog, 560, 440);
-            AssertInside(dialog, winner);
-            AssertInside(dialog, use);
-            CaptureReviewFrame(dialog, "season-lock-resolution-narrow.png");
-
-            winner.SelectedIndex = 0;
-            use.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            var accepted = await dialogResult.WaitAsync(cancellationToken);
-            Assert.NotNull(accepted);
-            var resolution = Assert.Single(accepted.Resolutions);
-            Assert.Equal((0, 0), (resolution.TargetX, resolution.TargetY));
-            Assert.Equal(CampaignSeasonCatalog.SpringId, resolution.SeasonId);
-            Assert.False(accepted.PermitLockedDrops);
-        }
-        finally
-        {
-            if (dialog.IsVisible)
-            {
-                dialog.Close();
-            }
-
-            owner.Close();
         }
     }
 

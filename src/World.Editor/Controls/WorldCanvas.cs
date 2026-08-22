@@ -1098,11 +1098,10 @@ public sealed class WorldCanvas : Control
             throw new ArgumentOutOfRangeException(nameof(tool), tool, "Unknown season paint tool.");
         }
 
-        if (tool == CampaignSeasonPaintTool.Paint &&
-            !seasons.Catalog.Contains(selectedSeasonId))
+        if (!seasons.Catalog.Contains(selectedSeasonId))
         {
             throw new ArgumentException(
-                "Painting requires a season ID from the active season catalog.",
+                "Season editing requires a selected ID from the active Season Catalog.",
                 nameof(selectedSeasonId));
         }
 
@@ -1115,16 +1114,16 @@ public sealed class WorldCanvas : Control
             switch (tool)
             {
                 case CampaignSeasonPaintTool.Paint:
-                    stroke.Paint(coordinate, selectedSeasonId!, lockPaintedTiles);
+                    stroke.Upsert(coordinate, selectedSeasonId!, lockPaintedTiles);
                     break;
-                case CampaignSeasonPaintTool.ResetToDefault:
-                    stroke.ResetToDefault(coordinate, locked: false);
+                case CampaignSeasonPaintTool.Erase:
+                    stroke.Remove(coordinate, selectedSeasonId!);
                     break;
                 case CampaignSeasonPaintTool.Lock:
-                    stroke.SetLocked(coordinate, locked: true);
+                    stroke.SetLocked(coordinate, selectedSeasonId!, locked: true);
                     break;
                 case CampaignSeasonPaintTool.Unlock:
-                    stroke.SetLocked(coordinate, locked: false);
+                    stroke.SetLocked(coordinate, selectedSeasonId!, locked: false);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(tool), tool, "Unknown season paint tool.");
@@ -1237,7 +1236,7 @@ public sealed class WorldCanvas : Control
         {
             CampaignSeasonPaintTool.Paint =>
                 $"Paint {GetSelectedSeasonName()}{area}{(_strokeLocksSeason ? ", locked" : ", unlocked")}",
-            CampaignSeasonPaintTool.ResetToDefault => $"Reset seasons to default{area}",
+            CampaignSeasonPaintTool.Erase => $"Erase selected Season Occurrence{area}",
             CampaignSeasonPaintTool.Lock => $"Lock seasons{area}",
             CampaignSeasonPaintTool.Unlock => $"Unlock seasons{area}",
             _ => $"Edit seasons{area}",
@@ -1503,6 +1502,7 @@ public sealed class WorldCanvas : Control
         var rasterHeight = Math.Max(1, (int)Math.Ceiling(boundsHeight / scale));
         var key = new SeasonRasterKey(
             seasons.Revision,
+            SelectedSeasonId ?? string.Empty,
             rasterWidth,
             rasterHeight,
             Bounds.Width,
@@ -1532,6 +1532,7 @@ public sealed class WorldCanvas : Control
         _seasonRasterSnapshot?.Dispose();
         _seasonRasterSnapshot = SeasonRasterSnapshot.Create(
             seasons,
+            SelectedSeasonId,
             Bounds.Width,
             Bounds.Height,
             _originX,
@@ -2668,9 +2669,14 @@ public sealed class WorldCanvas : Control
         {
             for (var x = minimumX; x <= maximumX; x++)
             {
-                var tile = seasons.GetTile(x, y);
-                var definition = seasons.Catalog.Get(tile.SeasonId);
-                var label = GetSeasonLabel(definition, tile.Locked, fontSize);
+                if (SelectedSeasonId is not { } seasonId ||
+                    !seasons.TryGetOccurrence(x, y, seasonId, out var occurrence))
+                {
+                    continue;
+                }
+
+                var definition = seasons.Catalog.Get(seasonId);
+                var label = GetSeasonLabel(definition, occurrence.Locked, fontSize);
                 if (label.Foreground.Width > _zoom - 2 || label.Foreground.Height > _zoom - 2)
                 {
                     continue;
@@ -2908,11 +2914,9 @@ public sealed class WorldCanvas : Control
             var color = Color.Parse(selected.ColorHex);
             brush = new SolidColorBrush(Color.FromArgb(112, color.R, color.G, color.B));
         }
-        else if (SeasonPaintTool == CampaignSeasonPaintTool.ResetToDefault)
+        else if (SeasonPaintTool == CampaignSeasonPaintTool.Erase)
         {
-            var definition = seasons.Catalog.Get(seasons.DefaultSeasonId);
-            var color = Color.Parse(definition.ColorHex);
-            brush = new SolidColorBrush(Color.FromArgb(86, color.R, color.G, color.B));
+            brush = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255));
         }
         else
         {
@@ -3238,6 +3242,7 @@ public sealed class WorldCanvas : Control
     private sealed class SeasonRasterSnapshot : IDisposable
     {
         private const int SamplingPaddingTiles = 1;
+        private const ushort AbsentSeasonIndex = ushort.MaxValue;
 
         private readonly ushort[] _seasonIndexes;
         private readonly Rgb[] _colors;
@@ -3272,6 +3277,7 @@ public sealed class WorldCanvas : Control
 
         public static SeasonRasterSnapshot Create(
             CampaignSeasonMap seasons,
+            string? selectedSeasonId,
             double viewportWidth,
             double viewportHeight,
             double originX,
@@ -3293,6 +3299,7 @@ public sealed class WorldCanvas : Control
             var height = checked(maximumY - minimumY + 1);
             var length = checked(width * height);
             var indexes = ArrayPool<ushort>.Shared.Rent(length);
+            Array.Fill(indexes, AbsentSeasonIndex, 0, length);
             var colors = seasons.Catalog.Definitions
                 .Select(static definition => FromColor(Color.Parse(definition.ColorHex)))
                 .ToArray();
@@ -3306,12 +3313,15 @@ public sealed class WorldCanvas : Control
             try
             {
                 var area = new CampaignTileArea(minimumX, minimumY, maximumX, maximumY);
-                foreach (var entry in seasons.GetTiles(area))
+                if (selectedSeasonId is not null && seasons.Catalog.Contains(selectedSeasonId))
                 {
-                    var localX = entry.X - minimumX;
-                    var localY = entry.Y - minimumY;
-                    indexes[localY * width + localX] =
-                        seasons.Catalog.GetIndex(entry.Tile.SeasonId);
+                    var selectedIndex = seasons.Catalog.GetIndex(selectedSeasonId);
+                    foreach (var entry in seasons.GetOccurrences(area, selectedSeasonId))
+                    {
+                        var localX = entry.X - minimumX;
+                        var localY = entry.Y - minimumY;
+                        indexes[localY * width + localX] = selectedIndex;
+                    }
                 }
 
                 return new SeasonRasterSnapshot(
@@ -3339,15 +3349,19 @@ public sealed class WorldCanvas : Control
             var localY = y - _minimumY;
             if ((uint)localX >= (uint)_width || (uint)localY >= (uint)_height)
             {
-                return 0;
+                return AbsentSeasonIndex;
             }
 
             return _seasonIndexes[localY * _width + localX];
         }
 
-        public Rgb GetColor(ushort seasonIndex) => _colors[seasonIndex];
+        public Rgb GetColor(ushort seasonIndex) => seasonIndex == AbsentSeasonIndex
+            ? default
+            : _colors[seasonIndex];
 
-        public byte GetAlpha(ushort seasonIndex) => _alphas[seasonIndex];
+        public byte GetAlpha(ushort seasonIndex) => seasonIndex == AbsentSeasonIndex
+            ? (byte)0
+            : _alphas[seasonIndex];
 
         public void Dispose()
         {
@@ -3604,6 +3618,7 @@ public sealed class WorldCanvas : Control
 
     private readonly record struct SeasonRasterKey(
         long Revision,
+        string SeasonId,
         int Width,
         int Height,
         double ViewportWidth,

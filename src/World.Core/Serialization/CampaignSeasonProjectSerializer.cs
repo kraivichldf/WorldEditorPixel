@@ -21,9 +21,11 @@ public static class CampaignSeasonProjectSerializer
 
     public const int LayerVersion = 1;
 
-    public const int LayerRecordStride = 3;
+    public const int LayerHeaderSize = 64;
 
-    public const int LayerHeaderSize = 56;
+    public const int LayerIndexRecordStride = 8;
+
+    public const int LayerOccurrenceRecordStride = 3;
 
     private static readonly byte[] LayerMagic = Encoding.ASCII.GetBytes("KWSEASON");
 
@@ -45,23 +47,32 @@ public static class CampaignSeasonProjectSerializer
 
     public static async Task SaveAsync(
         CampaignSeasonMap seasonMap,
-        IEnumerable<string> priorityIds,
         CampaignSeasonSavedGeneration? savedGeneration,
         string projectDirectory,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(seasonMap);
-        ArgumentNullException.ThrowIfNull(priorityIds);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         seasonMap.EnsureValid();
-        var priority = priorityIds.ToArray();
-        ValidatePriority(seasonMap, priority, savedGeneration);
+        if (savedGeneration is not null)
+        {
+            savedGeneration.Settings.EnsureValid(seasonMap.Catalog, seasonMap.Definition);
+            var expectedInput = CampaignSeasonGenerationFingerprint.GetInputFingerprint(
+                seasonMap.Catalog,
+                savedGeneration.Settings);
+            if (!string.Equals(expectedInput, savedGeneration.InputFingerprint, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "Saved Season generation input fingerprint does not match its catalog and settings.",
+                    nameof(savedGeneration));
+            }
+        }
+
         var capturedRevision = seasonMap.Revision;
-        var desiredFiles = BuildDesiredFiles(seasonMap, priority, savedGeneration, cancellationToken);
+        var desiredFiles = BuildDesiredFiles(seasonMap, savedGeneration, cancellationToken);
         EnsureRevisionUnchanged(seasonMap, capturedRevision);
         var fullProjectPath = Path.GetFullPath(projectDirectory);
         Directory.CreateDirectory(fullProjectPath);
-
         var stagedFiles = new List<StagedFile>(desiredFiles.Count);
         try
         {
@@ -110,12 +121,7 @@ public static class CampaignSeasonProjectSerializer
         CampaignSeasonMap seasonMap,
         string projectDirectory,
         CancellationToken cancellationToken = default) =>
-        SaveAsync(
-            seasonMap,
-            CampaignSeasonGenerationSettings.DefaultPriority,
-            savedGeneration: null,
-            projectDirectory,
-            cancellationToken);
+        SaveAsync(seasonMap, savedGeneration: null, projectDirectory, cancellationToken);
 
     public static async Task<CampaignSeasonProjectLoadResult> LoadAsync(
         CampaignWorldDefinition definition,
@@ -147,24 +153,21 @@ public static class CampaignSeasonProjectSerializer
             definitionsPath,
             "Season definition file",
             cancellationToken).ConfigureAwait(false);
-        var (catalog, priorityIds, defaultSeasonId) = LoadCatalog(definitions, definition);
+        var catalog = LoadCatalog(definitions);
         var seasonMap = await LoadLayerAsync(
             definition,
             catalog,
-            defaultSeasonId,
             layerPath,
             cancellationToken).ConfigureAwait(false);
         var savedGeneration = hasGeneration
             ? await LoadGenerationAsync(
                 definition,
                 catalog,
-                priorityIds,
                 generationPath,
                 cancellationToken).ConfigureAwait(false)
             : null;
         return new CampaignSeasonProjectLoadResult(
             seasonMap,
-            priorityIds,
             savedGeneration,
             projectDirectory,
             wasImplicitCompatibility: false);
@@ -178,8 +181,7 @@ public static class CampaignSeasonProjectSerializer
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceProjectDirectory);
         var catalog = new CampaignSeasonCatalog();
         return new CampaignSeasonProjectLoadResult(
-            new CampaignSeasonMap(definition, catalog, CampaignSeasonCatalog.SpringId),
-            CampaignSeasonGenerationSettings.DefaultPriority,
+            new CampaignSeasonMap(definition, catalog),
             savedGeneration: null,
             Path.GetFullPath(sourceProjectDirectory),
             wasImplicitCompatibility: true);
@@ -187,15 +189,12 @@ public static class CampaignSeasonProjectSerializer
 
     private static IReadOnlyList<DesiredFile> BuildDesiredFiles(
         CampaignSeasonMap seasonMap,
-        IReadOnlyList<string> priorityIds,
         CampaignSeasonSavedGeneration? savedGeneration,
         CancellationToken cancellationToken)
     {
         var definitions = new SeasonDefinitionDocument
         {
             Version = DefinitionsVersion,
-            DefaultSeasonId = seasonMap.DefaultSeasonId,
-            PriorityIds = priorityIds.ToArray(),
             Definitions = seasonMap.Catalog.Definitions
                 .Select(definition => ToRecord(definition, seasonMap.Catalog.IsBuiltIn(definition.Id)))
                 .ToArray(),
@@ -234,9 +233,11 @@ public static class CampaignSeasonProjectSerializer
                 LatitudeDegrees = ToRecord(definition.Rule.LatitudeDegrees),
                 ElevationMeters = ToRecord(definition.Rule.ElevationMeters),
                 TemperatureCelsius = ToRecord(definition.Rule.TemperatureCelsius),
+                WarmSeasonTemperatureCelsius = ToRecord(definition.Rule.WarmSeasonTemperatureCelsius),
+                ColdSeasonTemperatureCelsius = ToRecord(definition.Rule.ColdSeasonTemperatureCelsius),
+                AnnualTemperatureRangeCelsius = ToRecord(definition.Rule.AnnualTemperatureRangeCelsius),
                 Moisture = ToRecord(definition.Rule.Moisture),
-                SeasonalIntensity = ToRecord(definition.Rule.SeasonalIntensity),
-                SeasonalTendency = ToRecord(definition.Rule.SeasonalTendency),
+                Seasonality = ToRecord(definition.Rule.Seasonality),
                 SeaDistanceKilometers = ToRecord(definition.Rule.SeaDistanceKilometers),
                 LakeDistanceKilometers = ToRecord(definition.Rule.LakeDistanceKilometers),
                 RiverDistanceKilometers = ToRecord(definition.Rule.RiverDistanceKilometers),
@@ -262,6 +263,7 @@ public static class CampaignSeasonProjectSerializer
             CoverageMode = saved.Settings.CoverageMode,
             RegionalCenterLatitudeDegrees = saved.Settings.RegionalCenterLatitudeDegrees,
             AxialTiltDegrees = saved.Settings.AxialTiltDegrees,
+            EnabledSeasonIds = saved.Settings.EnabledSeasonIds.ToArray(),
             SourceTerrainFingerprint = saved.SourceTerrainFingerprint,
             InputFingerprint = saved.InputFingerprint,
             Climate = ToRecord(saved.Settings.Climate),
@@ -275,7 +277,6 @@ public static class CampaignSeasonProjectSerializer
             SeaMaritimeRadiusKilometers = climate.SeaMaritimeRadiusKilometers,
             LakeMaritimeStrength = climate.LakeMaritimeStrength,
             LakeMaritimeRadiusKilometers = climate.LakeMaritimeRadiusKilometers,
-            MaximumPhaseLagOrbitFraction = climate.MaximumPhaseLagOrbitFraction,
             MaritimeAmplitudeReduction = climate.MaritimeAmplitudeReduction,
             TemperatureNoiseCelsius = climate.TemperatureNoiseCelsius,
             SeaMoistureStrength = climate.SeaMoistureStrength,
@@ -297,133 +298,141 @@ public static class CampaignSeasonProjectSerializer
         CampaignSeasonMap seasonMap,
         CancellationToken cancellationToken)
     {
-        var definition = seasonMap.Definition;
-        var length = checked(LayerHeaderSize + (seasonMap.TileCount * LayerRecordStride));
-        var bytes = new byte[length];
+        if (seasonMap.OccurrenceCount > CampaignSeasonGenerator.MaximumCandidateOccurrenceCount)
+        {
+            throw new InvalidOperationException(
+                $"Season persistence supports at most {CampaignSeasonGenerator.MaximumCandidateOccurrenceCount:N0} occurrences.");
+        }
+
+        var tileCount = checked((int)seasonMap.Definition.TileCount);
+        var entries = seasonMap.GetMaterializedOccurrences()
+            .OrderBy(entry => checked(entry.Y * seasonMap.Definition.TilesX + entry.X))
+            .ThenBy(entry => seasonMap.Catalog.GetIndex(entry.Occurrence.SeasonId))
+            .ToArray();
+        var indexByteLength = checked(tileCount * LayerIndexRecordStride);
+        var occurrenceByteLength = checked(entries.Length * LayerOccurrenceRecordStride);
+        var bytes = new byte[checked(LayerHeaderSize + indexByteLength + occurrenceByteLength)];
         LayerMagic.CopyTo(bytes, 0);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8, 2), LayerVersion);
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10, 2), LayerRecordStride);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12, 4), definition.TilesX);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16, 4), definition.TilesY);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), seasonMap.TileCount);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10, 2), LayerIndexRecordStride);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12, 2), LayerOccurrenceRecordStride);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14, 2), 0);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16, 4), seasonMap.Definition.TilesX);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), seasonMap.Definition.TilesY);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24, 4), tileCount);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28, 4), entries.Length);
         Convert.FromHexString(CampaignSeasonSeed.GetCatalogIdFingerprint(seasonMap.Catalog))
-            .CopyTo(bytes, 24);
-        var entries = seasonMap.GetAllTiles();
-        for (var index = 0; index < entries.Count; index++)
+            .CopyTo(bytes, 32);
+
+        var entryIndex = 0;
+        var occurrenceBase = LayerHeaderSize + indexByteLength;
+        for (var tileIndex = 0; tileIndex < tileCount; tileIndex++)
         {
-            if ((index & 16_383) == 0)
+            cancellationToken.ThrowIfCancellationRequested();
+            var first = entryIndex;
+            while (entryIndex < entries.Length &&
+                   checked(entries[entryIndex].Y * seasonMap.Definition.TilesX + entries[entryIndex].X) == tileIndex)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var entry = entries[entryIndex];
+                var occurrenceOffset = occurrenceBase + (entryIndex * LayerOccurrenceRecordStride);
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    bytes.AsSpan(occurrenceOffset, 2),
+                    seasonMap.Catalog.GetIndex(entry.Occurrence.SeasonId));
+                bytes[occurrenceOffset + 2] = entry.Occurrence.Locked ? (byte)1 : (byte)0;
+                entryIndex++;
             }
 
-            var offset = LayerHeaderSize + (index * LayerRecordStride);
-            BinaryPrimitives.WriteUInt16LittleEndian(
-                bytes.AsSpan(offset, 2),
-                seasonMap.Catalog.GetIndex(entries[index].Tile.SeasonId));
-            bytes[offset + 2] = entries[index].Tile.Locked ? (byte)1 : (byte)0;
+            var indexOffset = LayerHeaderSize + (tileIndex * LayerIndexRecordStride);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(indexOffset, 4), checked((uint)first));
+            BinaryPrimitives.WriteUInt32LittleEndian(
+                bytes.AsSpan(indexOffset + 4, 4),
+                checked((uint)(entryIndex - first)));
         }
 
         return bytes;
     }
 
-    private static (CampaignSeasonCatalog Catalog, string[] PriorityIds, string DefaultSeasonId)
-        LoadCatalog(SeasonDefinitionDocument document, CampaignWorldDefinition definition)
+    private static CampaignSeasonCatalog LoadCatalog(SeasonDefinitionDocument document)
     {
-        if (document.Version != DefinitionsVersion)
-        {
-            throw new WorldFormatException(
-                $"Season definition file version {document.Version} is unsupported; expected {DefinitionsVersion}.");
-        }
-
-        if (document.Definitions is null || document.PriorityIds is null)
-        {
-            throw new WorldFormatException(
-                "Season definition file requires non-null definitions and priorityIds lists.");
-        }
-
         try
         {
-            var definitions = document.Definitions.Select(ToDefinition).ToArray();
-            var builtIns = definitions
-                .Where(static item => item.BuiltIn)
-                .Select(static item => item.Definition)
-                .ToArray();
-            var custom = definitions
-                .Where(static item => !item.BuiltIn)
-                .Select(static item => item.Definition)
-                .ToArray();
-            var catalog = new CampaignSeasonCatalog(custom, builtIns);
-            var canonicalIds = catalog.Definitions.Select(static value => value.Id).ToArray();
-            var storedIds = definitions.Select(static value => value.Definition.Id).ToArray();
-            if (!storedIds.SequenceEqual(canonicalIds, StringComparer.Ordinal))
+            if (document.Version != DefinitionsVersion)
             {
-                throw new ArgumentException(
-                    "Season definitions are not stored in canonical built-in/custom catalog order.");
+                throw new WorldFormatException(
+                    $"Season definitions version {document.Version} is unsupported; expected {DefinitionsVersion}.");
             }
 
-            if (!catalog.Contains(document.DefaultSeasonId))
-            {
-                throw new ArgumentException(
-                    $"Default season '{document.DefaultSeasonId}' is not present in the catalog.");
-            }
-
-            var priorityIds = document.PriorityIds.ToArray();
-            new CampaignSeasonGenerationSettings(0, priorityIds: priorityIds)
-                .EnsureValid(catalog, definition);
-            return (catalog, priorityIds, document.DefaultSeasonId);
+            var records = RequireArray(document.Definitions, "definitions");
+            var definitions = records.Select(ToDefinition).ToArray();
+            var builtIns = definitions.Where(static value => value.BuiltIn)
+                .Select(static value => value.Definition)
+                .ToArray();
+            var custom = definitions.Where(static value => !value.BuiltIn)
+                .Select(static value => value.Definition)
+                .ToArray();
+            return new CampaignSeasonCatalog(custom, builtIns);
         }
-        catch (Exception exception) when (
-            exception is ArgumentException or InvalidOperationException or NullReferenceException)
+        catch (WorldFormatException)
         {
-            throw new WorldFormatException(
-                $"Season definition file is invalid: {exception.Message}",
-                exception);
+            throw;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            throw new WorldFormatException($"Season definitions are invalid: {exception.Message}", exception);
         }
     }
 
     private static (CampaignSeasonDefinition Definition, bool BuiltIn) ToDefinition(
         SeasonDefinitionRecord record)
     {
-        ArgumentNullException.ThrowIfNull(record);
         if (record.Rule is null)
         {
-            throw new ArgumentException($"Season definition '{record.Id}' has a null rule.");
+            throw new WorldFormatException($"Season definition '{record.Id}' is missing its rule.");
         }
 
-        var rule = new CampaignSeasonRule(
-            ToRange(record.Rule.LatitudeDegrees),
-            ToRange(record.Rule.ElevationMeters),
-            ToRange(record.Rule.TemperatureCelsius),
-            ToRange(record.Rule.Moisture),
-            ToRange(record.Rule.SeasonalIntensity),
-            ToRange(record.Rule.SeasonalTendency),
-            ToRange(record.Rule.SeaDistanceKilometers),
-            ToRange(record.Rule.LakeDistanceKilometers),
-            ToRange(record.Rule.RiverDistanceKilometers),
-            RequireArray(record.Rule.TerrainIncludes, "terrainIncludes"),
-            RequireArray(record.Rule.TerrainExcludes, "terrainExcludes"),
-            RequireArray(record.Rule.CustomTerrainIncludes, "customTerrainIncludes"),
-            RequireArray(record.Rule.CustomTerrainExcludes, "customTerrainExcludes"));
-        return (new CampaignSeasonDefinition(
+        var rule = record.Rule;
+        var definition = new CampaignSeasonDefinition(
             record.Id,
             record.Name,
             record.Fallback,
             record.Color,
             record.TintStrengthPercent,
             record.EffectIntensityPercent,
-            rule), record.BuiltIn);
+            new CampaignSeasonRule(
+                latitudeDegrees: ToRange(rule.LatitudeDegrees),
+                elevationMeters: ToRange(rule.ElevationMeters),
+                temperatureCelsius: ToRange(rule.TemperatureCelsius),
+                warmSeasonTemperatureCelsius: ToRange(rule.WarmSeasonTemperatureCelsius),
+                coldSeasonTemperatureCelsius: ToRange(rule.ColdSeasonTemperatureCelsius),
+                annualTemperatureRangeCelsius: ToRange(rule.AnnualTemperatureRangeCelsius),
+                moisture: ToRange(rule.Moisture),
+                seasonality: ToRange(rule.Seasonality),
+                seaDistanceKilometers: ToRange(rule.SeaDistanceKilometers),
+                lakeDistanceKilometers: ToRange(rule.LakeDistanceKilometers),
+                riverDistanceKilometers: ToRange(rule.RiverDistanceKilometers),
+                terrainIncludes: RequireArray(rule.TerrainIncludes, "terrainIncludes"),
+                terrainExcludes: RequireArray(rule.TerrainExcludes, "terrainExcludes"),
+                customTerrainIncludes: RequireArray(rule.CustomTerrainIncludes, "customTerrainIncludes"),
+                customTerrainExcludes: RequireArray(rule.CustomTerrainExcludes, "customTerrainExcludes")));
+        var defaultCatalog = new CampaignSeasonCatalog();
+        if (defaultCatalog.IsBuiltIn(definition.Id) != record.BuiltIn)
+        {
+            throw new WorldFormatException(
+                $"Season definition '{definition.Id}' has an incorrect built-in flag.");
+        }
+
+        return (definition, record.BuiltIn);
     }
 
     private static CampaignSeasonRange? ToRange(SeasonRangeRecord? range) =>
         range is null ? null : new CampaignSeasonRange(range.Minimum, range.Maximum);
 
     private static T[] RequireArray<T>(T[]? values, string name) =>
-        values ?? throw new ArgumentException($"Season rule {name} cannot be null.");
+        values ?? throw new WorldFormatException($"Season data is missing required array '{name}'.");
 
     private static async Task<CampaignSeasonMap> LoadLayerAsync(
         CampaignWorldDefinition definition,
         CampaignSeasonCatalog catalog,
-        string defaultSeasonId,
         string path,
         CancellationToken cancellationToken)
     {
@@ -432,9 +441,9 @@ public static class CampaignSeasonProjectSerializer
         {
             bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (IOException exception)
         {
-            throw new WorldFormatException($"Season layer file is invalid: {exception.Message}", exception);
+            throw new WorldFormatException($"Season layer file could not be read: {exception.Message}", exception);
         }
 
         if (bytes.Length < LayerHeaderSize || !bytes.AsSpan(0, 8).SequenceEqual(LayerMagic))
@@ -443,72 +452,107 @@ public static class CampaignSeasonProjectSerializer
         }
 
         var version = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(8, 2));
-        var stride = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(10, 2));
-        var width = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(12, 4));
-        var height = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16, 4));
-        var tileCount = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20, 4));
-        if (version != LayerVersion || stride != LayerRecordStride)
+        var indexStride = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(10, 2));
+        var occurrenceStride = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(12, 2));
+        var reserved = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(14, 2));
+        if (version != LayerVersion ||
+            indexStride != LayerIndexRecordStride ||
+            occurrenceStride != LayerOccurrenceRecordStride ||
+            reserved != 0)
         {
             throw new WorldFormatException(
-                $"Season layer version/stride {version}/{stride} is unsupported; expected {LayerVersion}/{LayerRecordStride}.");
+                $"Season layer version/stride {version}/{indexStride}/{occurrenceStride} is unsupported.");
         }
 
-        if (width != definition.TilesX || height != definition.TilesY || tileCount != definition.TileCount)
+        var tilesX = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16, 4));
+        var tilesY = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20, 4));
+        var tileCount = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(24, 4));
+        var occurrenceCount = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28, 4));
+        if (tilesX != definition.TilesX ||
+            tilesY != definition.TilesY ||
+            tileCount != definition.TileCount ||
+            occurrenceCount is < 0 or > CampaignSeasonGenerator.MaximumCandidateOccurrenceCount)
         {
-            throw new WorldFormatException(
-                "Season layer dimensions or tile count do not match the campaign world definition.");
+            throw new WorldFormatException("Season layer dimensions or occurrence count do not match the campaign world.");
         }
 
-        var expectedLength = checked(LayerHeaderSize + (tileCount * LayerRecordStride));
-        if (bytes.Length != expectedLength)
-        {
-            throw new WorldFormatException(
-                $"Season layer length is {bytes.Length:N0} bytes; expected exactly {expectedLength:N0}.");
-        }
-
-        var expectedFingerprint = Convert.FromHexString(
-            CampaignSeasonSeed.GetCatalogIdFingerprint(catalog));
-        if (!bytes.AsSpan(24, 32).SequenceEqual(expectedFingerprint))
+        var expectedFingerprint = Convert.FromHexString(CampaignSeasonSeed.GetCatalogIdFingerprint(catalog));
+        if (!bytes.AsSpan(32, 32).SequenceEqual(expectedFingerprint))
         {
             throw new WorldFormatException(
                 "Season layer catalog fingerprint does not match season-definitions.json.");
         }
 
-        var tiles = new CampaignSeasonTile[tileCount];
-        for (var index = 0; index < tileCount; index++)
+        var indexByteLength = checked(tileCount * LayerIndexRecordStride);
+        var occurrenceByteLength = checked(occurrenceCount * LayerOccurrenceRecordStride);
+        var expectedLength = checked(LayerHeaderSize + indexByteLength + occurrenceByteLength);
+        if (bytes.Length != expectedLength)
         {
-            if ((index & 16_383) == 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            var offset = LayerHeaderSize + (index * LayerRecordStride);
-            var catalogIndex = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset, 2));
-            var flags = bytes[offset + 2];
-            if (catalogIndex >= catalog.Definitions.Count)
-            {
-                throw new WorldFormatException(
-                    $"Season layer tile {index:N0} references catalog index {catalogIndex}, outside the catalog.");
-            }
-
-            if ((flags & 0xFE) != 0)
-            {
-                throw new WorldFormatException(
-                    $"Season layer tile {index:N0} has non-zero reserved flag bits 0x{flags:X2}.");
-            }
-
-            tiles[index] = new CampaignSeasonTile(
-                catalog.GetByIndex(catalogIndex).Id,
-                Locked: (flags & 1) != 0);
+            throw new WorldFormatException(
+                $"Season layer length {bytes.Length:N0} is invalid; expected {expectedLength:N0} bytes.");
         }
 
-        return CampaignSeasonMap.CreateSnapshot(definition, catalog, defaultSeasonId, tiles);
+        var entries = new List<CampaignSeasonEntry>(occurrenceCount);
+        var occurrenceBase = LayerHeaderSize + indexByteLength;
+        var expectedFirst = 0u;
+        for (var tileIndex = 0; tileIndex < tileCount; tileIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var indexOffset = LayerHeaderSize + (tileIndex * LayerIndexRecordStride);
+            var first = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(indexOffset, 4));
+            var count = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(indexOffset + 4, 4));
+            if (first != expectedFirst || first + count > occurrenceCount)
+            {
+                throw new WorldFormatException(
+                    $"Season layer tile index {tileIndex} has a non-contiguous or out-of-range occurrence span.");
+            }
+
+            ushort? previousCatalogIndex = null;
+            for (var local = 0u; local < count; local++)
+            {
+                var occurrenceIndex = checked((int)(first + local));
+                var occurrenceOffset = occurrenceBase + (occurrenceIndex * LayerOccurrenceRecordStride);
+                var catalogIndex = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(occurrenceOffset, 2));
+                var flags = bytes[occurrenceOffset + 2];
+                if (catalogIndex >= catalog.Definitions.Count || (flags & ~1) != 0)
+                {
+                    throw new WorldFormatException(
+                        $"Season occurrence {occurrenceIndex} has an invalid catalog index or flags value.");
+                }
+
+                if (previousCatalogIndex is not null && catalogIndex <= previousCatalogIndex.Value)
+                {
+                    throw new WorldFormatException(
+                        $"Season occurrences for tile index {tileIndex} are duplicated or not canonically ordered.");
+                }
+
+                previousCatalogIndex = catalogIndex;
+                var x = tileIndex % definition.TilesX;
+                var y = tileIndex / definition.TilesX;
+                entries.Add(new CampaignSeasonEntry(
+                    x,
+                    y,
+                    new CampaignSeasonOccurrence(
+                        catalog.GetByIndex(catalogIndex).Id,
+                        Locked: (flags & 1) != 0)));
+            }
+
+            expectedFirst = checked(first + count);
+        }
+
+        if (expectedFirst != occurrenceCount)
+        {
+            throw new WorldFormatException("Season layer index does not reference every occurrence record.");
+        }
+
+        var map = CampaignSeasonMap.CreateSnapshot(definition, catalog, entries);
+        map.EnsureValid();
+        return map;
     }
 
     private static async Task<CampaignSeasonSavedGeneration> LoadGenerationAsync(
         CampaignWorldDefinition definition,
         CampaignSeasonCatalog catalog,
-        IReadOnlyList<string> priorityIds,
         string path,
         CancellationToken cancellationToken)
     {
@@ -516,83 +560,64 @@ public static class CampaignSeasonProjectSerializer
             path,
             "Season generation file",
             cancellationToken).ConfigureAwait(false);
-        if (document.SchemaVersion != CampaignSeasonGenerationSettings.CurrentSchemaVersion)
-        {
-            throw new WorldFormatException(
-                $"Season generation schema version {document.SchemaVersion} is unsupported; expected " +
-                $"{CampaignSeasonGenerationSettings.CurrentSchemaVersion}.");
-        }
-
-        if (document.Climate is null)
-        {
-            throw new WorldFormatException("Season generation file has a null climate object.");
-        }
-
         try
         {
-            var climate = new CampaignSeasonClimateSettings(
-                document.Climate.LapseRateCelsiusPerKilometer,
-                document.Climate.SeaMaritimeStrength,
-                document.Climate.SeaMaritimeRadiusKilometers,
-                document.Climate.LakeMaritimeStrength,
-                document.Climate.LakeMaritimeRadiusKilometers,
-                document.Climate.MaximumPhaseLagOrbitFraction,
-                document.Climate.MaritimeAmplitudeReduction,
-                document.Climate.TemperatureNoiseCelsius,
-                document.Climate.SeaMoistureStrength,
-                document.Climate.SeaMoistureRadiusKilometers,
-                document.Climate.LakeMoistureStrength,
-                document.Climate.LakeMoistureRadiusKilometers,
-                document.Climate.RiverMoistureStrength,
-                document.Climate.RiverMoistureRadiusKilometers,
-                document.Climate.RainShadowStrength,
-                document.Climate.MoistureNoiseStrength,
-                document.Climate.TemperatureNoiseWavelengthKilometers,
-                document.Climate.MoistureNoiseWavelengthKilometers,
-                document.Climate.RainShadowFetchKilometers,
-                document.Climate.RainShadowReliefMeters,
-                document.Climate.WindPerturbationDegrees);
+            if (document.Climate is null)
+            {
+                throw new WorldFormatException("Season generation file is missing climate settings.");
+            }
+
+            var climate = document.Climate;
             var settings = new CampaignSeasonGenerationSettings(
                 document.SeasonSeed,
                 document.SeedDerivedFromTerrain,
                 document.CoverageMode,
                 document.RegionalCenterLatitudeDegrees,
                 document.AxialTiltDegrees,
-                climate,
-                priorityIds,
+                new CampaignSeasonClimateSettings(
+                    climate.LapseRateCelsiusPerKilometer,
+                    climate.SeaMaritimeStrength,
+                    climate.SeaMaritimeRadiusKilometers,
+                    climate.LakeMaritimeStrength,
+                    climate.LakeMaritimeRadiusKilometers,
+                    climate.MaritimeAmplitudeReduction,
+                    climate.TemperatureNoiseCelsius,
+                    climate.SeaMoistureStrength,
+                    climate.SeaMoistureRadiusKilometers,
+                    climate.LakeMoistureStrength,
+                    climate.LakeMoistureRadiusKilometers,
+                    climate.RiverMoistureStrength,
+                    climate.RiverMoistureRadiusKilometers,
+                    climate.RainShadowStrength,
+                    climate.MoistureNoiseStrength,
+                    climate.TemperatureNoiseWavelengthKilometers,
+                    climate.MoistureNoiseWavelengthKilometers,
+                    climate.RainShadowFetchKilometers,
+                    climate.RainShadowReliefMeters,
+                    climate.WindPerturbationDegrees),
+                RequireArray(document.EnabledSeasonIds, "enabledSeasonIds"),
                 document.SchemaVersion);
             settings.EnsureValid(catalog, definition);
-            return new CampaignSeasonSavedGeneration(
+            var saved = new CampaignSeasonSavedGeneration(
                 settings,
                 document.SourceTerrainFingerprint,
                 document.InputFingerprint);
-        }
-        catch (Exception exception) when (exception is ArgumentException or NullReferenceException)
-        {
-            throw new WorldFormatException(
-                $"Season generation file is invalid: {exception.Message}",
-                exception);
-        }
-    }
+            var expectedInput = CampaignSeasonGenerationFingerprint.GetInputFingerprint(catalog, settings);
+            if (!string.Equals(expectedInput, saved.InputFingerprint, StringComparison.Ordinal))
+            {
+                throw new WorldFormatException(
+                    "Season generation input fingerprint does not match the saved catalog and settings.");
+            }
 
-    private static void ValidatePriority(
-        CampaignSeasonMap seasonMap,
-        IReadOnlyList<string> priorityIds,
-        CampaignSeasonSavedGeneration? savedGeneration)
-    {
-        new CampaignSeasonGenerationSettings(0, priorityIds: priorityIds)
-            .EnsureValid(seasonMap.Catalog, seasonMap.Definition);
-        if (savedGeneration is null)
-        {
-            return;
+            return saved;
         }
-
-        savedGeneration.Settings.EnsureValid(seasonMap.Catalog, seasonMap.Definition);
-        if (!priorityIds.SequenceEqual(savedGeneration.Settings.PriorityIds, StringComparer.Ordinal))
+        catch (WorldFormatException)
         {
-            throw new ArgumentException(
-                "Saved season generation settings must use the same priority stored in season-definitions.json.",
-                nameof(savedGeneration));
+            throw;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            throw new WorldFormatException($"Season generation data is invalid: {exception.Message}", exception);
         }
     }
 
@@ -686,7 +711,7 @@ public static class CampaignSeasonProjectSerializer
         if (map.Revision != expectedRevision)
         {
             throw new InvalidOperationException(
-                "The season layer changed while the project sidecars were being saved.");
+                "Season data changed while the project files were being prepared.");
         }
     }
 
@@ -698,12 +723,6 @@ public static class CampaignSeasonProjectSerializer
     {
         [JsonRequired]
         public int Version { get; init; }
-
-        [JsonRequired]
-        public string DefaultSeasonId { get; init; } = string.Empty;
-
-        [JsonRequired]
-        public string[]? PriorityIds { get; init; }
 
         [JsonRequired]
         public SeasonDefinitionRecord[]? Definitions { get; init; }
@@ -738,31 +757,26 @@ public static class CampaignSeasonProjectSerializer
 
     private sealed record SeasonRuleRecord
     {
-        [JsonRequired]
         public SeasonRangeRecord? LatitudeDegrees { get; init; }
 
-        [JsonRequired]
         public SeasonRangeRecord? ElevationMeters { get; init; }
 
-        [JsonRequired]
         public SeasonRangeRecord? TemperatureCelsius { get; init; }
 
-        [JsonRequired]
+        public SeasonRangeRecord? WarmSeasonTemperatureCelsius { get; init; }
+
+        public SeasonRangeRecord? ColdSeasonTemperatureCelsius { get; init; }
+
+        public SeasonRangeRecord? AnnualTemperatureRangeCelsius { get; init; }
+
         public SeasonRangeRecord? Moisture { get; init; }
 
-        [JsonRequired]
-        public SeasonRangeRecord? SeasonalIntensity { get; init; }
+        public SeasonRangeRecord? Seasonality { get; init; }
 
-        [JsonRequired]
-        public SeasonRangeRecord? SeasonalTendency { get; init; }
-
-        [JsonRequired]
         public SeasonRangeRecord? SeaDistanceKilometers { get; init; }
 
-        [JsonRequired]
         public SeasonRangeRecord? LakeDistanceKilometers { get; init; }
 
-        [JsonRequired]
         public SeasonRangeRecord? RiverDistanceKilometers { get; init; }
 
         [JsonRequired]
@@ -801,11 +815,13 @@ public static class CampaignSeasonProjectSerializer
         [JsonRequired]
         public CampaignSeasonCoverageMode CoverageMode { get; init; }
 
-        [JsonRequired]
         public double? RegionalCenterLatitudeDegrees { get; init; }
 
         [JsonRequired]
         public double AxialTiltDegrees { get; init; }
+
+        [JsonRequired]
+        public string[]? EnabledSeasonIds { get; init; }
 
         [JsonRequired]
         public string SourceTerrainFingerprint { get; init; } = string.Empty;
@@ -819,26 +835,64 @@ public static class CampaignSeasonProjectSerializer
 
     private sealed record SeasonClimateRecord
     {
-        [JsonRequired] public double LapseRateCelsiusPerKilometer { get; init; }
-        [JsonRequired] public double SeaMaritimeStrength { get; init; }
-        [JsonRequired] public double SeaMaritimeRadiusKilometers { get; init; }
-        [JsonRequired] public double LakeMaritimeStrength { get; init; }
-        [JsonRequired] public double LakeMaritimeRadiusKilometers { get; init; }
-        [JsonRequired] public double MaximumPhaseLagOrbitFraction { get; init; }
-        [JsonRequired] public double MaritimeAmplitudeReduction { get; init; }
-        [JsonRequired] public double TemperatureNoiseCelsius { get; init; }
-        [JsonRequired] public double SeaMoistureStrength { get; init; }
-        [JsonRequired] public double SeaMoistureRadiusKilometers { get; init; }
-        [JsonRequired] public double LakeMoistureStrength { get; init; }
-        [JsonRequired] public double LakeMoistureRadiusKilometers { get; init; }
-        [JsonRequired] public double RiverMoistureStrength { get; init; }
-        [JsonRequired] public double RiverMoistureRadiusKilometers { get; init; }
-        [JsonRequired] public double RainShadowStrength { get; init; }
-        [JsonRequired] public double MoistureNoiseStrength { get; init; }
-        [JsonRequired] public double TemperatureNoiseWavelengthKilometers { get; init; }
-        [JsonRequired] public double MoistureNoiseWavelengthKilometers { get; init; }
-        [JsonRequired] public double RainShadowFetchKilometers { get; init; }
-        [JsonRequired] public double RainShadowReliefMeters { get; init; }
-        [JsonRequired] public double WindPerturbationDegrees { get; init; }
+        [JsonRequired]
+        public double LapseRateCelsiusPerKilometer { get; init; }
+
+        [JsonRequired]
+        public double SeaMaritimeStrength { get; init; }
+
+        [JsonRequired]
+        public double SeaMaritimeRadiusKilometers { get; init; }
+
+        [JsonRequired]
+        public double LakeMaritimeStrength { get; init; }
+
+        [JsonRequired]
+        public double LakeMaritimeRadiusKilometers { get; init; }
+
+        [JsonRequired]
+        public double MaritimeAmplitudeReduction { get; init; }
+
+        [JsonRequired]
+        public double TemperatureNoiseCelsius { get; init; }
+
+        [JsonRequired]
+        public double SeaMoistureStrength { get; init; }
+
+        [JsonRequired]
+        public double SeaMoistureRadiusKilometers { get; init; }
+
+        [JsonRequired]
+        public double LakeMoistureStrength { get; init; }
+
+        [JsonRequired]
+        public double LakeMoistureRadiusKilometers { get; init; }
+
+        [JsonRequired]
+        public double RiverMoistureStrength { get; init; }
+
+        [JsonRequired]
+        public double RiverMoistureRadiusKilometers { get; init; }
+
+        [JsonRequired]
+        public double RainShadowStrength { get; init; }
+
+        [JsonRequired]
+        public double MoistureNoiseStrength { get; init; }
+
+        [JsonRequired]
+        public double TemperatureNoiseWavelengthKilometers { get; init; }
+
+        [JsonRequired]
+        public double MoistureNoiseWavelengthKilometers { get; init; }
+
+        [JsonRequired]
+        public double RainShadowFetchKilometers { get; init; }
+
+        [JsonRequired]
+        public double RainShadowReliefMeters { get; init; }
+
+        [JsonRequired]
+        public double WindPerturbationDegrees { get; init; }
     }
 }

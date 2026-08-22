@@ -23,9 +23,11 @@ public static class CampaignSeasonRuleEvaluator
             Contains(rule.LatitudeDegrees, support.LatitudeDegrees) &&
             Contains(rule.ElevationMeters, terrain.ElevationMeters) &&
             Contains(rule.TemperatureCelsius, support.TemperatureCelsius) &&
+            Contains(rule.WarmSeasonTemperatureCelsius, support.WarmSeasonTemperatureCelsius) &&
+            Contains(rule.ColdSeasonTemperatureCelsius, support.ColdSeasonTemperatureCelsius) &&
+            Contains(rule.AnnualTemperatureRangeCelsius, support.AnnualTemperatureRangeCelsius) &&
             Contains(rule.Moisture, support.Moisture) &&
-            Contains(rule.SeasonalIntensity, support.SeasonalIntensity) &&
-            Contains(rule.SeasonalTendency, support.SeasonalTendency) &&
+            Contains(rule.Seasonality, support.Seasonality) &&
             Contains(rule.SeaDistanceKilometers, support.SeaDistanceKilometers) &&
             Contains(rule.LakeDistanceKilometers, support.LakeDistanceKilometers) &&
             Contains(rule.RiverDistanceKilometers, support.RiverDistanceKilometers);

@@ -16,7 +16,8 @@ public static class CampaignWorldRuntimeExporter
     public const string TileDataEntryName = "tiles.bin";
     public const string ResourceIndexEntryName = "resource-index.bin";
     public const string ResourceRecordsEntryName = "resource-records.bin";
-    public const string SeasonTilesEntryName = "season-tiles.bin";
+    public const string SeasonIndexEntryName = "season-index.bin";
+    public const string SeasonRecordsEntryName = "season-records.bin";
     public const string FormatIdentifier = "kingdom-world-runtime";
     public const int FormatVersion = 1;
     public const int ResourceFormatVersion = 2;
@@ -24,6 +25,7 @@ public static class CampaignWorldRuntimeExporter
     public const int TileRecordSizeBytes = 4;
     public const int ResourceIndexRecordSizeBytes = 8;
     public const int ResourceRecordSizeBytes = 4;
+    public const int SeasonIndexRecordSizeBytes = 8;
     public const int SeasonRecordSizeBytes = 2;
     public const byte NoCustomTerrainIndex = byte.MaxValue;
 
@@ -341,7 +343,11 @@ public static class CampaignWorldRuntimeExporter
             world.Definition.TileCount * ResourceIndexRecordSizeBytes);
         var resourceRecordsByteLength = checked(
             (long)resourceRecordCount * ResourceRecordSizeBytes);
-        var seasonByteLength = checked(world.Definition.TileCount * SeasonRecordSizeBytes);
+        var seasonRecordCount = seasons.OccurrenceCount;
+        var seasonIndexByteLength = checked(
+            world.Definition.TileCount * SeasonIndexRecordSizeBytes);
+        var seasonRecordsByteLength = checked(
+            (long)seasonRecordCount * SeasonRecordSizeBytes);
 
         var customDefinitions = world.Tiles.CustomTerrainDefinitions
             .OrderBy(static definition => definition.Id, StringComparer.Ordinal)
@@ -355,7 +361,12 @@ public static class CampaignWorldRuntimeExporter
         var resourceIndices = resourceDefinitions
             .Select(static (definition, index) => (definition.Id, Index: checked((ushort)index)))
             .ToDictionary(static item => item.Id, static item => item.Index, StringComparer.Ordinal);
-        var seasonDefinitions = seasons.Catalog.Definitions.ToArray();
+        var seasonDefinitions = seasons.Catalog.Definitions
+            .OrderBy(static definition => definition.Id, StringComparer.Ordinal)
+            .ToArray();
+        var seasonIndices = seasonDefinitions
+            .Select(static (definition, index) => (definition.Id, Index: checked((ushort)index)))
+            .ToDictionary(static item => item.Id, static item => item.Index, StringComparer.Ordinal);
 
         var fullPackagePath = Path.GetFullPath(packagePath);
         var packageDirectory = Path.GetDirectoryName(fullPackagePath)
@@ -436,22 +447,51 @@ public static class CampaignWorldRuntimeExporter
                             "The resource occurrence count changed while the runtime package was being exported.");
                     }
 
-                    var seasonEntry = archive.CreateEntry(
-                        SeasonTilesEntryName,
+                    var seasonIndexEntry = archive.CreateEntry(
+                        SeasonIndexEntryName,
                         CompressionLevel.Optimal);
-                    seasonEntry.LastWriteTime = StableArchiveTimestamp;
-                    string seasonSha256;
-                    await using (var seasonStream = seasonEntry.Open())
+                    seasonIndexEntry.LastWriteTime = StableArchiveTimestamp;
+                    RuntimeBinaryWriteResult seasonIndexResult;
+                    await using (var seasonIndexStream = seasonIndexEntry.Open())
                     {
-                        seasonSha256 = await WriteSeasonTileDataAsync(
+                        seasonIndexResult = await WriteSeasonIndexDataAsync(
                             seasons,
-                            seasonStream,
+                            seasonIndexStream,
                             cancellationToken).ConfigureAwait(false);
                     }
 
                     EnsureWorldRevisionUnchanged(world, worldRevision);
                     EnsureResourceRevisionUnchanged(resources, resourceRevision);
                     EnsureSeasonRevisionUnchanged(seasons, seasonRevision);
+                    if (seasonIndexResult.ReferencedRecordCount != seasonRecordCount)
+                    {
+                        throw new InvalidOperationException(
+                            "The Season Occurrence count changed while the runtime package was being exported.");
+                    }
+
+                    var seasonRecordsEntry = archive.CreateEntry(
+                        SeasonRecordsEntryName,
+                        CompressionLevel.Optimal);
+                    seasonRecordsEntry.LastWriteTime = StableArchiveTimestamp;
+                    RuntimeBinaryWriteResult seasonRecordsResult;
+                    await using (var seasonRecordsStream = seasonRecordsEntry.Open())
+                    {
+                        seasonRecordsResult = await WriteSeasonRecordsDataAsync(
+                            seasons,
+                            seasonIndices,
+                            seasonRecordsStream,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    EnsureWorldRevisionUnchanged(world, worldRevision);
+                    EnsureResourceRevisionUnchanged(resources, resourceRevision);
+                    EnsureSeasonRevisionUnchanged(seasons, seasonRevision);
+                    if (seasonRecordsResult.ReferencedRecordCount != seasonRecordCount)
+                    {
+                        throw new InvalidOperationException(
+                            "The Season Occurrence count changed while the runtime package was being exported.");
+                    }
+
                     var manifest = CreateManifestV3(
                         world,
                         customDefinitions,
@@ -464,8 +504,11 @@ public static class CampaignWorldRuntimeExporter
                         resourceRecordsResult.Sha256,
                         resourceRecordsByteLength,
                         resourceRecordCount,
-                        seasonSha256,
-                        seasonByteLength,
+                        seasonIndexResult.Sha256,
+                        seasonIndexByteLength,
+                        seasonRecordsResult.Sha256,
+                        seasonRecordsByteLength,
+                        seasonRecordCount,
                         resources.Catalog,
                         seasons.Catalog);
                     var manifestEntry = archive.CreateEntry(ManifestEntryName, CompressionLevel.Optimal);
@@ -672,20 +715,21 @@ public static class CampaignWorldRuntimeExporter
             recordCount);
     }
 
-    private static async Task<string> WriteSeasonTileDataAsync(
+    private static async Task<RuntimeBinaryWriteResult> WriteSeasonIndexDataAsync(
         CampaignSeasonMap seasons,
         Stream destination,
         CancellationToken cancellationToken)
     {
         var buffer = new byte[ExportBufferSize];
         var bufferedBytes = 0;
+        uint firstRecordIndex = 0;
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         for (var y = 0; y < seasons.Definition.TilesY; y++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             for (var x = 0; x < seasons.Definition.TilesX; x++)
             {
-                if (bufferedBytes + SeasonRecordSizeBytes > buffer.Length)
+                if (bufferedBytes + SeasonIndexRecordSizeBytes > buffer.Length)
                 {
                     await FlushBufferAsync(
                         destination,
@@ -696,11 +740,18 @@ public static class CampaignWorldRuntimeExporter
                     bufferedBytes = 0;
                 }
 
-                var season = seasons.GetTile(x, y);
+                var recordCount = checked((ushort)seasons.GetOccurrences(x, y).Count);
+                BinaryPrimitives.WriteUInt32LittleEndian(
+                    buffer.AsSpan(bufferedBytes, sizeof(uint)),
+                    firstRecordIndex);
                 BinaryPrimitives.WriteUInt16LittleEndian(
-                    buffer.AsSpan(bufferedBytes, sizeof(ushort)),
-                    seasons.Catalog.GetIndex(season.SeasonId));
-                bufferedBytes += SeasonRecordSizeBytes;
+                    buffer.AsSpan(bufferedBytes + sizeof(uint), sizeof(ushort)),
+                    recordCount);
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    buffer.AsSpan(bufferedBytes + sizeof(uint) + sizeof(ushort), sizeof(ushort)),
+                    0);
+                bufferedBytes += SeasonIndexRecordSizeBytes;
+                firstRecordIndex = checked(firstRecordIndex + recordCount);
             }
         }
 
@@ -714,7 +765,67 @@ public static class CampaignWorldRuntimeExporter
                 cancellationToken).ConfigureAwait(false);
         }
 
-        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        return new RuntimeBinaryWriteResult(
+            Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant(),
+            firstRecordIndex);
+    }
+
+    private static async Task<RuntimeBinaryWriteResult> WriteSeasonRecordsDataAsync(
+        CampaignSeasonMap seasons,
+        IReadOnlyDictionary<string, ushort> seasonIndices,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[ExportBufferSize];
+        var bufferedBytes = 0;
+        long recordCount = 0;
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        for (var y = 0; y < seasons.Definition.TilesY; y++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            for (var x = 0; x < seasons.Definition.TilesX; x++)
+            {
+                foreach (var occurrence in seasons.GetOccurrences(x, y))
+                {
+                    if (bufferedBytes + SeasonRecordSizeBytes > buffer.Length)
+                    {
+                        await FlushBufferAsync(
+                            destination,
+                            hash,
+                            buffer,
+                            bufferedBytes,
+                            cancellationToken).ConfigureAwait(false);
+                        bufferedBytes = 0;
+                    }
+
+                    if (!seasonIndices.TryGetValue(occurrence.SeasonId, out var catalogIndex))
+                    {
+                        throw new InvalidOperationException(
+                            $"Season occurrence references unknown catalog ID '{occurrence.SeasonId}'.");
+                    }
+
+                    BinaryPrimitives.WriteUInt16LittleEndian(
+                        buffer.AsSpan(bufferedBytes, sizeof(ushort)),
+                        catalogIndex);
+                    bufferedBytes += SeasonRecordSizeBytes;
+                    recordCount = checked(recordCount + 1);
+                }
+            }
+        }
+
+        if (bufferedBytes > 0)
+        {
+            await FlushBufferAsync(
+                destination,
+                hash,
+                buffer,
+                bufferedBytes,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return new RuntimeBinaryWriteResult(
+            Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant(),
+            recordCount);
     }
 
     private static RuntimeWorldManifest CreateManifest(
@@ -900,8 +1011,11 @@ public static class CampaignWorldRuntimeExporter
         string resourceRecordsSha256,
         long resourceRecordsByteLength,
         long resourceRecordCount,
-        string seasonSha256,
-        long seasonByteLength,
+        string seasonIndexSha256,
+        long seasonIndexByteLength,
+        string seasonRecordsSha256,
+        long seasonRecordsByteLength,
+        long seasonRecordCount,
         CampaignResourceCatalog resourceCatalog,
         CampaignSeasonCatalog seasonCatalog)
     {
@@ -1025,21 +1139,36 @@ public static class CampaignWorldRuntimeExporter
                         seasonDefinition.TintStrengthPercent,
                         seasonDefinition.EffectIntensityPercent))
                     .ToArray(),
-                TileRecord = new RuntimeBinaryRecordLayout
+                IndexRecord = new RuntimeBinaryRecordLayout
                 {
-                    File = SeasonTilesEntryName,
-                    RecordSizeBytes = SeasonRecordSizeBytes,
+                    File = SeasonIndexEntryName,
+                    RecordSizeBytes = SeasonIndexRecordSizeBytes,
                     RecordCount = definition.TileCount,
-                    ByteLength = seasonByteLength,
+                    ByteLength = seasonIndexByteLength,
                     ByteOrder = "littleEndian",
-                    Sha256 = seasonSha256,
+                    Sha256 = seasonIndexSha256,
                     Fields =
                     [
                         new RuntimeBinaryField(
-                            "seasonCatalogIndex",
+                            "firstRecordIndex",
                             0,
-                            "uint16",
-                            "seasons.catalog"),
+                            "uint32",
+                            "seasons.occurrenceRecord"),
+                        new RuntimeBinaryField("recordCount", 4, "uint16"),
+                        new RuntimeBinaryField("reserved", 6, "uint16", ConstantValue: 0),
+                    ],
+                },
+                OccurrenceRecord = new RuntimeBinaryRecordLayout
+                {
+                    File = SeasonRecordsEntryName,
+                    RecordSizeBytes = SeasonRecordSizeBytes,
+                    RecordCount = seasonRecordCount,
+                    ByteLength = seasonRecordsByteLength,
+                    ByteOrder = "littleEndian",
+                    Sha256 = seasonRecordsSha256,
+                    Fields =
+                    [
+                        new RuntimeBinaryField("seasonCatalogIndex", 0, "uint16", "seasons.catalog"),
                     ],
                 },
             },
@@ -1264,7 +1393,9 @@ public static class CampaignWorldRuntimeExporter
     {
         public required IReadOnlyList<RuntimeSeasonCatalogEntry> Catalog { get; init; }
 
-        public required RuntimeBinaryRecordLayout TileRecord { get; init; }
+        public required RuntimeBinaryRecordLayout IndexRecord { get; init; }
+
+        public required RuntimeBinaryRecordLayout OccurrenceRecord { get; init; }
     }
 
     private sealed record RuntimeBinaryField(

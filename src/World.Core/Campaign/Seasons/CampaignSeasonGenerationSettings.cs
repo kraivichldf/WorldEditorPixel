@@ -15,18 +15,15 @@ public sealed class CampaignSeasonGenerationSettings
     public static readonly double KilometersPerLatitudeDegree =
         Math.PI * EarthMeanRadiusKilometers / 180;
 
-    private static readonly string[] DefaultPriorityIds =
+    private static readonly string[] DefaultEnabledIds =
     [
-        CampaignSeasonCatalog.WinterId,
+        CampaignSeasonCatalog.FallId,
         CampaignSeasonCatalog.SpringId,
-        CampaignSeasonCatalog.AutumnId,
         CampaignSeasonCatalog.SummerId,
+        CampaignSeasonCatalog.WinterId,
     ];
 
-    public static IReadOnlyList<string> DefaultPriority { get; } =
-        Array.AsReadOnly(DefaultPriorityIds);
-
-    private readonly HashSet<string> _priorityIdSet;
+    private readonly HashSet<string> _enabledIdSet;
 
     public CampaignSeasonGenerationSettings(
         int seasonSeed,
@@ -35,7 +32,7 @@ public sealed class CampaignSeasonGenerationSettings
         double? regionalCenterLatitudeDegrees = null,
         double axialTiltDegrees = EarthAxialTiltDegrees,
         CampaignSeasonClimateSettings? climate = null,
-        IEnumerable<string>? priorityIds = null,
+        IEnumerable<string>? enabledSeasonIds = null,
         int schemaVersion = CurrentSchemaVersion)
     {
         SchemaVersion = schemaVersion;
@@ -45,9 +42,11 @@ public sealed class CampaignSeasonGenerationSettings
         RegionalCenterLatitudeDegrees = regionalCenterLatitudeDegrees;
         AxialTiltDegrees = axialTiltDegrees;
         Climate = climate ?? CampaignSeasonClimateSettings.EarthLike;
-        var priorityCopy = (priorityIds ?? DefaultPriorityIds).ToArray();
-        PriorityIds = Array.AsReadOnly(priorityCopy);
-        _priorityIdSet = priorityCopy.ToHashSet(StringComparer.Ordinal);
+        var enabledCopy = (enabledSeasonIds ?? DefaultEnabledIds)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        EnabledSeasonIds = Array.AsReadOnly(enabledCopy);
+        _enabledIdSet = enabledCopy.ToHashSet(StringComparer.Ordinal);
         EnsureBasicSettingsValid();
     }
 
@@ -65,21 +64,23 @@ public sealed class CampaignSeasonGenerationSettings
 
     public CampaignSeasonClimateSettings Climate { get; }
 
-    public IReadOnlyList<string> PriorityIds { get; }
+    public IReadOnlyList<string> EnabledSeasonIds { get; }
 
-    public string CatchAllSeasonId => PriorityIds[^1];
+    public static IReadOnlyList<string> DefaultEnabledSeasonIds => Array.AsReadOnly(DefaultEnabledIds);
 
     public bool IsGenerationEnabled(string seasonId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(seasonId);
-        return _priorityIdSet.Contains(seasonId);
+        return _enabledIdSet.Contains(seasonId);
     }
 
-    public IReadOnlyList<CampaignSeasonDefinition> GetPriorityDefinitions(
+    public IReadOnlyList<CampaignSeasonDefinition> GetEnabledDefinitions(
         CampaignSeasonCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(catalog);
-        return PriorityIds.Select(catalog.Get).ToArray();
+        return catalog.Definitions
+            .Where(definition => _enabledIdSet.Contains(definition.Id))
+            .ToArray();
     }
 
     public void EnsureValid(
@@ -88,12 +89,12 @@ public sealed class CampaignSeasonGenerationSettings
     {
         ArgumentNullException.ThrowIfNull(catalog);
         EnsureBasicSettingsValid();
-        foreach (var seasonId in PriorityIds)
+        foreach (var seasonId in EnabledSeasonIds)
         {
             if (!catalog.Contains(seasonId))
             {
                 throw new ArgumentException(
-                    $"Season priority references unknown season '{seasonId}'.",
+                    $"Enabled season selection references unknown season '{seasonId}'.",
                     nameof(catalog));
             }
         }
@@ -122,6 +123,9 @@ public sealed class CampaignSeasonGenerationSettings
         return (center - halfSpanDegrees, center + halfSpanDegrees);
     }
 
+    internal void EnsureCoverageValid(CampaignWorldDefinition definition) =>
+        EnsureCoverageFits(definition);
+
     private void EnsureBasicSettingsValid()
     {
         if (SchemaVersion != CurrentSchemaVersion)
@@ -134,10 +138,7 @@ public sealed class CampaignSeasonGenerationSettings
 
         if (!Enum.IsDefined(CoverageMode))
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(CoverageMode),
-                CoverageMode,
-                "Unknown season coverage mode.");
+            throw new ArgumentOutOfRangeException(nameof(CoverageMode), CoverageMode, "Unknown season coverage mode.");
         }
 
         if (!double.IsFinite(AxialTiltDegrees) || AxialTiltDegrees is < 0 or > 90)
@@ -156,48 +157,45 @@ public sealed class CampaignSeasonGenerationSettings
                 nameof(RegionalCenterLatitudeDegrees));
         }
 
-        if (CoverageMode == CampaignSeasonCoverageMode.Regional)
+        if (CoverageMode == CampaignSeasonCoverageMode.Regional &&
+            (RegionalCenterLatitudeDegrees is not { } center ||
+             !double.IsFinite(center) ||
+             center is < -90 or > 90))
         {
-            if (RegionalCenterLatitudeDegrees is not { } center ||
-                !double.IsFinite(center) ||
-                center is < -90 or > 90)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(RegionalCenterLatitudeDegrees),
-                    RegionalCenterLatitudeDegrees,
-                    "Regional season coverage requires a finite centre latitude from -90 through 90 degrees.");
-            }
+            throw new ArgumentOutOfRangeException(
+                nameof(RegionalCenterLatitudeDegrees),
+                RegionalCenterLatitudeDegrees,
+                "Regional season coverage requires a finite centre latitude from -90 through 90 degrees.");
         }
 
-        if (PriorityIds.Count == 0)
+        if (EnabledSeasonIds.Count == 0)
         {
             throw new ArgumentException(
-                "Season priority must enable at least one definition.",
-                nameof(PriorityIds));
+                "Season generation must include at least one definition.",
+                nameof(EnabledSeasonIds));
         }
 
-        if (PriorityIds.Count > MaximumEnabledDefinitionCount)
+        if (EnabledSeasonIds.Count > MaximumEnabledDefinitionCount)
         {
             throw new ArgumentException(
-                $"Season priority can enable at most {MaximumEnabledDefinitionCount} definitions.",
-                nameof(PriorityIds));
+                $"Season generation can include at most {MaximumEnabledDefinitionCount} definitions.",
+                nameof(EnabledSeasonIds));
         }
 
-        if (_priorityIdSet.Count != PriorityIds.Count)
+        if (_enabledIdSet.Count != EnabledSeasonIds.Count)
         {
             throw new ArgumentException(
-                "Season priority cannot contain the same definition more than once.",
-                nameof(PriorityIds));
+                "Enabled season selection cannot contain the same definition more than once.",
+                nameof(EnabledSeasonIds));
         }
 
-        for (var index = 0; index < PriorityIds.Count; index++)
+        for (var index = 0; index < EnabledSeasonIds.Count; index++)
         {
-            var priorityId = PriorityIds[index];
-            if (!CampaignSeasonDefinition.IsValidIdentifier(priorityId))
+            if (!CampaignSeasonDefinition.IsValidIdentifier(EnabledSeasonIds[index]))
             {
                 throw new ArgumentException(
-                    $"Season priority contains an invalid season ID at index {index}.",
-                    nameof(PriorityIds));
+                    $"Enabled season selection contains an invalid season ID at index {index}.",
+                    nameof(EnabledSeasonIds));
             }
         }
 
@@ -221,7 +219,4 @@ public sealed class CampaignSeasonGenerationSettings
                 nameof(definition));
         }
     }
-
-    internal void EnsureCoverageValid(CampaignWorldDefinition definition) =>
-        EnsureCoverageFits(definition);
 }

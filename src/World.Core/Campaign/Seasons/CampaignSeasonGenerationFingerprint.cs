@@ -43,8 +43,8 @@ public static class CampaignSeasonGenerationFingerprint
         AppendNullableDouble(hash, settings.RegionalCenterLatitudeDegrees);
         AppendDouble(hash, settings.AxialTiltDegrees);
         AppendClimate(hash, settings.Climate);
-        AppendInt32(hash, settings.PriorityIds.Count);
-        foreach (var seasonId in settings.PriorityIds)
+        AppendInt32(hash, settings.EnabledSeasonIds.Count);
+        foreach (var seasonId in settings.EnabledSeasonIds)
         {
             AppendString(hash, seasonId);
             AppendRule(hash, catalog.Get(seasonId).Rule);
@@ -76,7 +76,6 @@ public static class CampaignSeasonGenerationFingerprint
         AppendDouble(hash, climate.SeaMaritimeRadiusKilometers);
         AppendDouble(hash, climate.LakeMaritimeStrength);
         AppendDouble(hash, climate.LakeMaritimeRadiusKilometers);
-        AppendDouble(hash, climate.MaximumPhaseLagOrbitFraction);
         AppendDouble(hash, climate.MaritimeAmplitudeReduction);
         AppendDouble(hash, climate.TemperatureNoiseCelsius);
         AppendDouble(hash, climate.SeaMoistureStrength);
@@ -99,9 +98,11 @@ public static class CampaignSeasonGenerationFingerprint
         AppendRange(hash, rule.LatitudeDegrees);
         AppendRange(hash, rule.ElevationMeters);
         AppendRange(hash, rule.TemperatureCelsius);
+        AppendRange(hash, rule.WarmSeasonTemperatureCelsius);
+        AppendRange(hash, rule.ColdSeasonTemperatureCelsius);
+        AppendRange(hash, rule.AnnualTemperatureRangeCelsius);
         AppendRange(hash, rule.Moisture);
-        AppendRange(hash, rule.SeasonalIntensity);
-        AppendRange(hash, rule.SeasonalTendency);
+        AppendRange(hash, rule.Seasonality);
         AppendRange(hash, rule.SeaDistanceKilometers);
         AppendRange(hash, rule.LakeDistanceKilometers);
         AppendRange(hash, rule.RiverDistanceKilometers);

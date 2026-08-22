@@ -12,32 +12,7 @@ public enum CampaignSeasonLockedRemapOutcome
 {
     Preserved,
     Merged,
-    Displaced,
-    Conflict,
     Dropped,
-}
-
-public sealed record CampaignSeasonLockResolution(
-    int TargetX,
-    int TargetY,
-    string SeasonId);
-
-public sealed record CampaignSeasonLockClaim(
-    int SourceX,
-    int SourceY,
-    string SeasonId,
-    int TargetX,
-    int TargetY,
-    double OverlapPercent,
-    double OutOfBoundsPercent);
-
-public sealed record CampaignSeasonLockConflict(
-    int TargetX,
-    int TargetY,
-    IReadOnlyList<CampaignSeasonLockClaim> Claims,
-    string? ResolvedSeasonId)
-{
-    public bool IsResolved => ResolvedSeasonId is not null;
 }
 
 public sealed record CampaignSeasonLockedDrop(
@@ -60,39 +35,32 @@ public sealed class CampaignSeasonWorldRegenerationReport
 {
     internal CampaignSeasonWorldRegenerationReport(
         CampaignSeasonLatticeRemapMode mode,
-        int sourceLockedTileCount,
-        int finalLockedTileCount,
-        int movedLockedTileCount,
-        int mergedLockedTileCount,
-        int displacedLockedTileCount,
+        int sourceLockedOccurrenceCount,
+        int finalLockedOccurrenceCount,
+        int movedLockedOccurrenceCount,
+        int mergedLockedOccurrenceCount,
         bool dropsPermitted,
         IEnumerable<CampaignSeasonLockedDrop> lockedDrops,
-        IEnumerable<CampaignSeasonLockConflict> conflicts,
         IEnumerable<CampaignSeasonLockedRemapEntry> remapEntries,
         IEnumerable<CampaignSeasonGenerationReport> generationReports)
     {
         Mode = mode;
-        SourceLockedTileCount = sourceLockedTileCount;
-        FinalLockedTileCount = finalLockedTileCount;
-        MovedLockedTileCount = movedLockedTileCount;
-        MergedLockedTileCount = mergedLockedTileCount;
-        DisplacedLockedTileCount = displacedLockedTileCount;
+        SourceLockedOccurrenceCount = sourceLockedOccurrenceCount;
+        FinalLockedOccurrenceCount = finalLockedOccurrenceCount;
+        MovedLockedOccurrenceCount = movedLockedOccurrenceCount;
+        MergedLockedOccurrenceCount = mergedLockedOccurrenceCount;
         DropsPermitted = dropsPermitted;
-        LockedDrops = Array.AsReadOnly(lockedDrops
+        LockedDrops = Array.AsReadOnly((lockedDrops ?? throw new ArgumentNullException(nameof(lockedDrops)))
             .OrderBy(static value => value.SourceY)
             .ThenBy(static value => value.SourceX)
             .ThenBy(static value => value.SeasonId, StringComparer.Ordinal)
             .ToArray());
-        Conflicts = Array.AsReadOnly(conflicts
-            .OrderBy(static value => value.TargetY)
-            .ThenBy(static value => value.TargetX)
-            .ToArray());
-        RemapEntries = Array.AsReadOnly(remapEntries
+        RemapEntries = Array.AsReadOnly((remapEntries ?? throw new ArgumentNullException(nameof(remapEntries)))
             .OrderBy(static value => value.SourceY)
             .ThenBy(static value => value.SourceX)
             .ThenBy(static value => value.SeasonId, StringComparer.Ordinal)
             .ToArray());
-        GenerationReports = Array.AsReadOnly(generationReports
+        GenerationReports = Array.AsReadOnly((generationReports ?? throw new ArgumentNullException(nameof(generationReports)))
             .OrderBy(static value => value.SeasonId, StringComparer.Ordinal)
             .ToArray());
     }
@@ -101,31 +69,25 @@ public sealed class CampaignSeasonWorldRegenerationReport
 
     public bool SameLattice => Mode == CampaignSeasonLatticeRemapMode.PreserveSameLattice;
 
-    public int SourceLockedTileCount { get; }
+    public int SourceLockedOccurrenceCount { get; }
 
-    public int FinalLockedTileCount { get; }
+    public int FinalLockedOccurrenceCount { get; }
 
-    public int MovedLockedTileCount { get; }
+    public int MovedLockedOccurrenceCount { get; }
 
-    public int MergedLockedTileCount { get; }
-
-    public int DisplacedLockedTileCount { get; }
+    public int MergedLockedOccurrenceCount { get; }
 
     public bool DropsPermitted { get; }
 
     public IReadOnlyList<CampaignSeasonLockedDrop> LockedDrops { get; }
 
-    public IReadOnlyList<CampaignSeasonLockConflict> Conflicts { get; }
-
     public IReadOnlyList<CampaignSeasonLockedRemapEntry> RemapEntries { get; }
 
     public IReadOnlyList<CampaignSeasonGenerationReport> GenerationReports { get; }
 
-    public int UnresolvedConflictCount => Conflicts.Count(static value => !value.IsResolved);
-
     public bool HasUnpermittedDrops => LockedDrops.Count > 0 && !DropsPermitted;
 
-    public bool CanAccept => UnresolvedConflictCount == 0 && !HasUnpermittedDrops;
+    public bool CanAccept => !HasUnpermittedDrops;
 }
 
 public sealed class CampaignSeasonWorldRegenerationSource
@@ -134,18 +96,16 @@ public sealed class CampaignSeasonWorldRegenerationSource
         CampaignWorldDefinition definition,
         long terrainRevision,
         CampaignSeasonCatalog catalog,
-        string defaultSeasonId,
         long seasonRevision,
-        IReadOnlyList<string> priorityIds,
+        IReadOnlyList<string> enabledSeasonIds,
         CampaignSeasonSavedGeneration? savedGeneration,
         CampaignSeasonEntry[] entries)
     {
         Definition = definition;
         TerrainRevision = terrainRevision;
         Catalog = catalog;
-        DefaultSeasonId = defaultSeasonId;
         SeasonRevision = seasonRevision;
-        PriorityIds = Array.AsReadOnly(priorityIds.ToArray());
+        EnabledSeasonIds = Array.AsReadOnly(enabledSeasonIds.ToArray());
         SavedGeneration = savedGeneration;
         Entries = Array.AsReadOnly(entries);
     }
@@ -156,11 +116,9 @@ public sealed class CampaignSeasonWorldRegenerationSource
 
     public CampaignSeasonCatalog Catalog { get; }
 
-    public string DefaultSeasonId { get; }
-
     public long SeasonRevision { get; }
 
-    public IReadOnlyList<string> PriorityIds { get; }
+    public IReadOnlyList<string> EnabledSeasonIds { get; }
 
     public CampaignSeasonSavedGeneration? SavedGeneration { get; }
 
@@ -169,12 +127,12 @@ public sealed class CampaignSeasonWorldRegenerationSource
     public static CampaignSeasonWorldRegenerationSource Capture(
         CampaignWorld world,
         CampaignSeasonMap seasonMap,
-        IEnumerable<string> priorityIds,
+        IEnumerable<string> enabledSeasonIds,
         CampaignSeasonSavedGeneration? savedGeneration = null)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(seasonMap);
-        ArgumentNullException.ThrowIfNull(priorityIds);
+        ArgumentNullException.ThrowIfNull(enabledSeasonIds);
         if (world.Definition != seasonMap.Definition)
         {
             throw new ArgumentException(
@@ -183,19 +141,19 @@ public sealed class CampaignSeasonWorldRegenerationSource
         }
 
         seasonMap.EnsureValid();
-        var priority = ValidatePriority(seasonMap.Catalog, priorityIds);
+        var enabled = ValidateEnabledSelection(seasonMap.Catalog, enabledSeasonIds);
         savedGeneration?.Settings.EnsureValid(seasonMap.Catalog, world.Definition);
         if (savedGeneration is not null &&
-            !savedGeneration.Settings.PriorityIds.SequenceEqual(priority, StringComparer.Ordinal))
+            !savedGeneration.Settings.EnabledSeasonIds.SequenceEqual(enabled, StringComparer.Ordinal))
         {
             throw new ArgumentException(
-                "Saved Season settings and the active priority must match exactly.",
+                "Saved Season settings and the active generation selection must match exactly.",
                 nameof(savedGeneration));
         }
 
         var terrainRevisionBefore = world.Revision;
         var seasonRevisionBefore = seasonMap.Revision;
-        var entries = seasonMap.GetAllTiles().ToArray();
+        var entries = seasonMap.GetMaterializedOccurrences().ToArray();
         if (terrainRevisionBefore != world.Revision || seasonRevisionBefore != seasonMap.Revision)
         {
             throw new InvalidOperationException(
@@ -206,38 +164,40 @@ public sealed class CampaignSeasonWorldRegenerationSource
             world.Definition with { },
             terrainRevisionBefore,
             seasonMap.Catalog,
-            seasonMap.DefaultSeasonId,
             seasonRevisionBefore,
-            priority,
+            enabled,
             savedGeneration,
             entries);
     }
 
-    internal static IReadOnlyList<string> ValidatePriority(
+    internal static IReadOnlyList<string> ValidateEnabledSelection(
         CampaignSeasonCatalog catalog,
-        IEnumerable<string> priorityIds)
+        IEnumerable<string> enabledSeasonIds)
     {
-        var priority = priorityIds.ToArray();
-        if (priority.Length is 0 or > CampaignSeasonGenerationSettings.MaximumEnabledDefinitionCount)
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(enabledSeasonIds);
+        var enabled = enabledSeasonIds.Order(StringComparer.Ordinal).ToArray();
+        if (enabled.Length is 0 or > CampaignSeasonGenerationSettings.MaximumEnabledDefinitionCount)
         {
             throw new ArgumentException(
-                $"Season priority must contain 1 through {CampaignSeasonGenerationSettings.MaximumEnabledDefinitionCount} definitions.",
-                nameof(priorityIds));
+                $"Season generation selection must contain 1 through {CampaignSeasonGenerationSettings.MaximumEnabledDefinitionCount} definitions.",
+                nameof(enabledSeasonIds));
         }
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var seasonId in priority)
+        foreach (var seasonId in enabled)
         {
             if (!catalog.Contains(seasonId) || !seen.Add(seasonId))
             {
                 throw new ArgumentException(
-                    $"Season priority contains unknown or duplicate ID '{seasonId}'.",
-                    nameof(priorityIds));
+                    $"Season generation selection contains unknown or duplicate ID '{seasonId}'.",
+                    nameof(enabledSeasonIds));
             }
         }
 
-        return Array.AsReadOnly(priority);
+        return Array.AsReadOnly(enabled);
     }
+
 }
 
 public sealed class CampaignSeasonWorldRegenerationResult
@@ -251,18 +211,19 @@ public sealed class CampaignSeasonWorldRegenerationResult
         CampaignSeasonSupportFields? supportFields,
         CampaignSeasonWorldRegenerationReport report)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(candidateWorld);
+        CandidateMap = candidateMap ?? throw new ArgumentNullException(nameof(candidateMap));
+        Report = report ?? throw new ArgumentNullException(nameof(report));
         SourceDefinition = source.Definition;
         SourceTerrainRevision = source.TerrainRevision;
         SourceSeasonRevision = source.SeasonRevision;
-        SourcePriorityIds = Array.AsReadOnly(source.PriorityIds.ToArray());
+        SourceEnabledSeasonIds = Array.AsReadOnly(source.EnabledSeasonIds.ToArray());
         SourceSavedGeneration = source.SavedGeneration;
-        CandidateMap = candidateMap ?? throw new ArgumentNullException(nameof(candidateMap));
         Settings = settings;
         SavedGeneration = savedGeneration;
         SupportFields = supportFields;
-        Report = report ?? throw new ArgumentNullException(nameof(report));
-        CandidateTerrainRevision = candidateWorld?.Revision ??
-            throw new ArgumentNullException(nameof(candidateWorld));
+        CandidateTerrainRevision = candidateWorld.Revision;
         CandidateSeasonRevision = candidateMap.Revision;
         if (candidateWorld.Definition != candidateMap.Definition)
         {
@@ -271,20 +232,19 @@ public sealed class CampaignSeasonWorldRegenerationResult
                 nameof(candidateMap));
         }
 
-        if (!ReferenceEquals(source.Catalog, candidateMap.Catalog) ||
-            !string.Equals(source.DefaultSeasonId, candidateMap.DefaultSeasonId, StringComparison.Ordinal))
+        if (!ReferenceEquals(source.Catalog, candidateMap.Catalog))
         {
             throw new ArgumentException(
-                "Candidate seasons must retain the captured catalog and default identity.",
+                "Candidate seasons must retain the captured catalog.",
                 nameof(candidateMap));
         }
 
         candidateMap.EnsureValid();
         settings?.EnsureValid(candidateMap.Catalog, candidateMap.Definition);
-        if (report.FinalLockedTileCount != candidateMap.LockedTileCount)
+        if (report.FinalLockedOccurrenceCount != candidateMap.LockedOccurrenceCount)
         {
             throw new ArgumentException(
-                "The Season remap report does not match the candidate lock count.",
+                "The Season remap report does not match the candidate locked-occurrence count.",
                 nameof(report));
         }
 
@@ -306,13 +266,6 @@ public sealed class CampaignSeasonWorldRegenerationResult
                 "A changed-lattice Season candidate requires one exact settings, recipe, and support tuple.",
                 nameof(report));
         }
-
-        if (supportFields is not null && supportFields.Terrain.Definition != candidateMap.Definition)
-        {
-            throw new ArgumentException(
-                "Candidate Season support fields must use the replacement world definition.",
-                nameof(supportFields));
-        }
     }
 
     public CampaignWorldDefinition SourceDefinition { get; }
@@ -321,7 +274,7 @@ public sealed class CampaignSeasonWorldRegenerationResult
 
     public long SourceSeasonRevision { get; }
 
-    public IReadOnlyList<string> SourcePriorityIds { get; }
+    public IReadOnlyList<string> SourceEnabledSeasonIds { get; }
 
     public CampaignSeasonSavedGeneration? SourceSavedGeneration { get; }
 
@@ -365,9 +318,10 @@ public sealed class CampaignSeasonNewWorldGenerationResult
         CampaignSeasonGenerationResult generationResult,
         CampaignSeasonSavedGeneration savedGeneration)
     {
+        ArgumentNullException.ThrowIfNull(world);
+        GenerationResult = generationResult ?? throw new ArgumentNullException(nameof(generationResult));
+        SavedGeneration = savedGeneration ?? throw new ArgumentNullException(nameof(savedGeneration));
         CandidateMap = generationResult.CandidateMap;
-        GenerationResult = generationResult;
-        SavedGeneration = savedGeneration;
         CandidateTerrainRevision = world.Revision;
         CandidateSeasonRevision = CandidateMap.Revision;
         if (!ReferenceEquals(savedGeneration.Settings, generationResult.Settings) ||
@@ -396,15 +350,14 @@ public sealed class CampaignSeasonNewWorldGenerationResult
 }
 
 /// <summary>
-/// Builds the Season half of a private terrain replacement candidate. Live source authority
-/// is captured on the owner thread; this deterministic generator can run on a worker.
+/// Builds the Season Occurrence half of a private terrain replacement candidate. Live source
+/// authority is captured on the owner thread; deterministic generation can run on a worker.
 /// </summary>
 public sealed class CampaignSeasonWorldRegenerator
 {
     public CampaignSeasonNewWorldGenerationResult GenerateNewWorld(
         CampaignWorld candidateWorld,
         CampaignSeasonCatalog catalog,
-        string defaultSeasonId,
         CampaignSeasonGenerationSettings settings,
         CancellationToken cancellationToken = default)
     {
@@ -412,7 +365,7 @@ public sealed class CampaignSeasonWorldRegenerator
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(settings);
         settings.EnsureValid(catalog, candidateWorld.Definition);
-        var initialized = new CampaignSeasonMap(candidateWorld.Definition, catalog, defaultSeasonId);
+        var initialized = new CampaignSeasonMap(candidateWorld.Definition, catalog);
         var query = new CampaignSeasonTerrainQueryV2(candidateWorld);
         var source = CampaignSeasonGenerationSource.Capture(query, initialized, cancellationToken);
         var generated = CampaignSeasonGenerator.Generate(
@@ -430,7 +383,6 @@ public sealed class CampaignSeasonWorldRegenerator
         CampaignSeasonWorldRegenerationSource source,
         CampaignWorld candidateWorld,
         CampaignSeasonGenerationSettings changedLatticeSettings,
-        IEnumerable<CampaignSeasonLockResolution>? resolutions = null,
         bool permitLockedDrops = false,
         CancellationToken cancellationToken = default)
     {
@@ -440,38 +392,30 @@ public sealed class CampaignSeasonWorldRegenerator
         cancellationToken.ThrowIfCancellationRequested();
         CampaignWorldDefinition.EnsureValid(candidateWorld.Definition);
         changedLatticeSettings.EnsureValid(source.Catalog, candidateWorld.Definition);
-        if (!changedLatticeSettings.PriorityIds.SequenceEqual(
-                source.PriorityIds,
-                StringComparer.Ordinal))
+        if (!changedLatticeSettings.EnabledSeasonIds.SequenceEqual(source.EnabledSeasonIds, StringComparer.Ordinal))
         {
             throw new ArgumentException(
-                "Changed-lattice Season settings must retain the captured active priority.",
+                "Changed-lattice Season settings must retain the captured generation selection.",
                 nameof(changedLatticeSettings));
         }
 
         if (HasSameCampaignLattice(source.Definition, candidateWorld.Definition))
         {
-            var exact = CampaignSeasonMap.CreateSnapshot(
-                candidateWorld.Definition,
-                source.Catalog,
-                source.DefaultSeasonId,
-                source.Entries.Select(static value => value.Tile).ToArray());
+            var exact = CampaignSeasonMap.CreateSnapshot(candidateWorld.Definition, source.Catalog, source.Entries);
             var preservedReport = new CampaignSeasonWorldRegenerationReport(
                 CampaignSeasonLatticeRemapMode.PreserveSameLattice,
-                source.Entries.Count(static value => value.Tile.Locked),
-                exact.LockedTileCount,
-                movedLockedTileCount: 0,
-                mergedLockedTileCount: 0,
-                displacedLockedTileCount: 0,
+                source.Entries.Count(static value => value.Occurrence.Locked),
+                exact.LockedOccurrenceCount,
+                movedLockedOccurrenceCount: 0,
+                mergedLockedOccurrenceCount: 0,
                 dropsPermitted: true,
                 lockedDrops: [],
-                conflicts: [],
                 remapEntries: source.Entries
-                    .Where(static value => value.Tile.Locked)
+                    .Where(static value => value.Occurrence.Locked)
                     .Select(static value => new CampaignSeasonLockedRemapEntry(
                         value.X,
                         value.Y,
-                        value.Tile.SeasonId,
+                        value.Occurrence.SeasonId,
                         value.X,
                         value.Y,
                         100,
@@ -488,25 +432,9 @@ public sealed class CampaignSeasonWorldRegenerator
                 preservedReport);
         }
 
-        var resolutionMap = ValidateResolutions(resolutions);
-        var remap = RemapLocks(
-            source,
-            candidateWorld.Definition,
-            resolutionMap,
-            permitLockedDrops,
-            cancellationToken);
-        if (resolutionMap.Count != remap.ConsumedResolutionCount)
-        {
-            throw new ArgumentException(
-                "A Season lock resolution does not match a current equal-overlap conflict.",
-                nameof(resolutions));
-        }
-
+        var remap = RemapLockedOccurrences(source, candidateWorld.Definition, cancellationToken);
         var query = new CampaignSeasonTerrainQueryV2(candidateWorld);
-        var generationSource = CampaignSeasonGenerationSource.Capture(
-            query,
-            remap.Map,
-            cancellationToken);
+        var generationSource = CampaignSeasonGenerationSource.Capture(query, remap.Map, cancellationToken);
         var generationResult = CampaignSeasonGenerator.Generate(
             generationSource,
             source.Catalog,
@@ -514,7 +442,16 @@ public sealed class CampaignSeasonWorldRegenerator
             CampaignSeasonGenerationScope.All,
             cancellationToken);
         var saved = CreateSavedGeneration(generationSource, source.Catalog, changedLatticeSettings);
-        var generatedReport = remap.CreateReport(generationResult);
+        var report = new CampaignSeasonWorldRegenerationReport(
+            CampaignSeasonLatticeRemapMode.RemapLocksAndRegenerateUnlocked,
+            remap.SourceLockedOccurrenceCount,
+            generationResult.CandidateMap.LockedOccurrenceCount,
+            remap.MovedLockedOccurrenceCount,
+            remap.MergedLockedOccurrenceCount,
+            permitLockedDrops,
+            remap.LockedDrops,
+            remap.RemapEntries,
+            generationResult.Reports);
         cancellationToken.ThrowIfCancellationRequested();
         return new CampaignSeasonWorldRegenerationResult(
             source,
@@ -523,7 +460,7 @@ public sealed class CampaignSeasonWorldRegenerator
             changedLatticeSettings,
             saved,
             generationResult.SupportFields,
-            generatedReport);
+            report);
     }
 
     private static CampaignSeasonSavedGeneration CreateSavedGeneration(
@@ -534,326 +471,87 @@ public sealed class CampaignSeasonWorldRegenerator
         CampaignSeasonGenerationFingerprint.GetSourceTerrainFingerprint(source.Terrain),
         CampaignSeasonGenerationFingerprint.GetInputFingerprint(catalog, settings));
 
-    private static IReadOnlyDictionary<TargetCoordinate, string> ValidateResolutions(
-        IEnumerable<CampaignSeasonLockResolution>? resolutions)
-    {
-        var result = new Dictionary<TargetCoordinate, string>();
-        foreach (var resolution in resolutions ?? [])
-        {
-            if (!CampaignSeasonDefinition.IsValidIdentifier(resolution.SeasonId))
-            {
-                throw new ArgumentException(
-                    "Season lock resolutions require valid stable IDs.",
-                    nameof(resolutions));
-            }
-
-            var coordinate = new TargetCoordinate(resolution.TargetX, resolution.TargetY);
-            if (!result.TryAdd(coordinate, resolution.SeasonId))
-            {
-                throw new ArgumentException(
-                    $"Season lock target ({resolution.TargetX}, {resolution.TargetY}) is resolved more than once.",
-                    nameof(resolutions));
-            }
-        }
-
-        return result;
-    }
-
-    private static RemapWorkResult RemapLocks(
+    private static RemapResult RemapLockedOccurrences(
         CampaignSeasonWorldRegenerationSource source,
         CampaignWorldDefinition targetDefinition,
-        IReadOnlyDictionary<TargetCoordinate, string> resolutions,
-        bool permitLockedDrops,
         CancellationToken cancellationToken)
     {
-        var targetClaims = new Dictionary<TargetCoordinate, List<MutableClaim>>();
+        var locked = source.Entries.Where(static entry => entry.Occurrence.Locked).ToArray();
+        var target = new CampaignSeasonMap(targetDefinition, source.Catalog);
+        var mutations = new List<CampaignSeasonMutation>(locked.Length);
+        var targetIdentities = new HashSet<(int X, int Y, string SeasonId)>();
         var drops = new List<CampaignSeasonLockedDrop>();
-        var outcomes = new Dictionary<SourceCoordinate, CampaignSeasonLockedRemapEntry>();
-        var lockedEntries = source.Entries.Where(static value => value.Tile.Locked).ToArray();
-        for (var index = 0; index < lockedEntries.Length; index++)
+        var entries = new List<CampaignSeasonLockedRemapEntry>(locked.Length);
+        var moved = 0;
+        var merged = 0;
+        var sourceTileSize = (decimal)source.Definition.CampaignTileSizeMeters;
+        var targetTileSize = (decimal)targetDefinition.CampaignTileSizeMeters;
+
+        for (var index = 0; index < locked.Length; index++)
         {
             if ((index & 0x03FF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            var entry = lockedEntries[index];
-            if (!TryFindGreatestOverlap(
-                    entry,
-                    source.Definition,
-                    targetDefinition,
-                    out var targetX,
-                    out var targetY,
-                    out var overlapPercent,
-                    out var outOfBoundsPercent,
-                    out var overlapArea))
+            var entry = locked[index];
+            var centerX = ((decimal)entry.X + 0.5m) * sourceTileSize;
+            var centerY = ((decimal)entry.Y + 0.5m) * sourceTileSize;
+            if (centerX < 0 || centerY < 0 ||
+                centerX >= targetDefinition.WorldWidthMeters ||
+                centerY >= targetDefinition.WorldHeightMeters)
             {
-                drops.Add(new CampaignSeasonLockedDrop(
+                drops.Add(new CampaignSeasonLockedDrop(entry.X, entry.Y, entry.Occurrence.SeasonId, 100));
+                entries.Add(new CampaignSeasonLockedRemapEntry(
                     entry.X,
                     entry.Y,
-                    entry.Tile.SeasonId,
-                    outOfBoundsPercent));
-                outcomes.Add(
-                    new SourceCoordinate(entry.X, entry.Y),
-                    new CampaignSeasonLockedRemapEntry(
-                        entry.X,
-                        entry.Y,
-                        entry.Tile.SeasonId,
-                        TargetX: null,
-                        TargetY: null,
-                        OverlapPercent: 0,
-                        outOfBoundsPercent,
-                        CampaignSeasonLockedRemapOutcome.Dropped));
+                    entry.Occurrence.SeasonId,
+                    TargetX: null,
+                    TargetY: null,
+                    OverlapPercent: 0,
+                    OutOfBoundsPercent: 100,
+                    CampaignSeasonLockedRemapOutcome.Dropped));
                 continue;
             }
 
-            var target = new TargetCoordinate(targetX, targetY);
-            if (!targetClaims.TryGetValue(target, out var claims))
+            var targetX = decimal.ToInt32(decimal.Floor(centerX / targetTileSize));
+            var targetY = decimal.ToInt32(decimal.Floor(centerY / targetTileSize));
+            var identity = (targetX, targetY, entry.Occurrence.SeasonId);
+            var outcome = targetIdentities.Add(identity)
+                ? CampaignSeasonLockedRemapOutcome.Preserved
+                : CampaignSeasonLockedRemapOutcome.Merged;
+            if (outcome == CampaignSeasonLockedRemapOutcome.Merged)
             {
-                claims = [];
-                targetClaims.Add(target, claims);
-            }
-
-            claims.Add(new MutableClaim(
-                entry.X,
-                entry.Y,
-                entry.Tile.SeasonId,
-                targetX,
-                targetY,
-                overlapArea,
-                overlapPercent,
-                outOfBoundsPercent));
-        }
-
-        var targetMap = new CampaignSeasonMap(
-            targetDefinition,
-            source.Catalog,
-            source.DefaultSeasonId);
-        var mutations = new List<CampaignSeasonMutation>(targetClaims.Count);
-        var conflicts = new List<CampaignSeasonLockConflict>();
-        var movedCount = 0;
-        var mergedCount = 0;
-        var displacedCount = 0;
-        var consumedResolutions = 0;
-        foreach (var pair in targetClaims
-                     .OrderBy(static value => value.Key.Y)
-                     .ThenBy(static value => value.Key.X))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var target = pair.Key;
-            var claims = pair.Value;
-            var maximumOverlap = claims.Max(static value => value.OverlapArea);
-            var greatest = claims
-                .Where(value => value.OverlapArea == maximumOverlap)
-                .OrderBy(static value => value.SeasonId, StringComparer.Ordinal)
-                .ThenBy(static value => value.SourceY)
-                .ThenBy(static value => value.SourceX)
-                .ToArray();
-            var greatestIds = greatest
-                .Select(static value => value.SeasonId)
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            string winnerId;
-            if (greatestIds.Length == 1)
-            {
-                winnerId = greatestIds[0];
+                merged++;
             }
             else
             {
-                resolutions.TryGetValue(target, out var resolvedId);
-                if (resolvedId is not null && !greatestIds.Contains(resolvedId, StringComparer.Ordinal))
-                {
-                    throw new ArgumentException(
-                        $"Resolution for Season target ({target.X}, {target.Y}) must select one of its equal-overlap IDs.",
-                        nameof(resolutions));
-                }
-
-                if (resolvedId is not null)
-                {
-                    consumedResolutions++;
-                }
-
-                conflicts.Add(new CampaignSeasonLockConflict(
-                    target.X,
-                    target.Y,
-                    Array.AsReadOnly(greatest.Select(static value => value.ToPublicClaim()).ToArray()),
-                    resolvedId));
-                if (resolvedId is null)
-                {
-                    // A dense Season map cannot contain an absent value. Reserve this target with
-                    // the project default, then expose the coordinate as an unresolved conflict so
-                    // preview clients can render a sentinel and omit it from observed distribution.
-                    // This placeholder is never acceptable authority and does not choose a claimant.
-                    mutations.Add(new CampaignSeasonMutation(
-                        target.X,
-                        target.Y,
-                        new CampaignSeasonTile(source.DefaultSeasonId, Locked: true)));
-                    foreach (var claim in claims)
-                    {
-                        var outcome = claim.OverlapArea == maximumOverlap
-                            ? CampaignSeasonLockedRemapOutcome.Conflict
-                            : CampaignSeasonLockedRemapOutcome.Displaced;
-                        if (outcome == CampaignSeasonLockedRemapOutcome.Displaced)
-                        {
-                            displacedCount++;
-                        }
-
-                        outcomes.Add(
-                            new SourceCoordinate(claim.SourceX, claim.SourceY),
-                            claim.ToRemapEntry(outcome));
-                    }
-
-                    continue;
-                }
-
-                winnerId = resolvedId;
+                mutations.Add(CampaignSeasonMutation.Upsert(targetX, targetY, entry.Occurrence));
             }
 
-            mutations.Add(new CampaignSeasonMutation(
-                target.X,
-                target.Y,
-                new CampaignSeasonTile(winnerId, Locked: true)));
-            var winningClaims = claims
-                .Where(value => string.Equals(value.SeasonId, winnerId, StringComparison.Ordinal))
-                .OrderByDescending(static value => value.OverlapArea)
-                .ThenBy(static value => value.SourceY)
-                .ThenBy(static value => value.SourceX)
-                .ToArray();
-            var primaryWinner = winningClaims[0];
-            foreach (var claim in claims)
+            if (targetX != entry.X || targetY != entry.Y)
             {
-                var sourceCoordinate = new SourceCoordinate(claim.SourceX, claim.SourceY);
-                CampaignSeasonLockedRemapOutcome outcome;
-                if (!string.Equals(claim.SeasonId, winnerId, StringComparison.Ordinal))
-                {
-                    outcome = CampaignSeasonLockedRemapOutcome.Displaced;
-                    displacedCount++;
-                }
-                else if (!ReferenceEquals(claim, primaryWinner))
-                {
-                    outcome = CampaignSeasonLockedRemapOutcome.Merged;
-                    mergedCount++;
-                }
-                else
-                {
-                    outcome = CampaignSeasonLockedRemapOutcome.Preserved;
-                }
-
-                if ((outcome is CampaignSeasonLockedRemapOutcome.Preserved or
-                        CampaignSeasonLockedRemapOutcome.Merged) &&
-                    (claim.SourceX != target.X || claim.SourceY != target.Y))
-                {
-                    movedCount++;
-                }
-
-                outcomes.Add(sourceCoordinate, claim.ToRemapEntry(outcome));
+                moved++;
             }
+
+            entries.Add(new CampaignSeasonLockedRemapEntry(
+                entry.X,
+                entry.Y,
+                entry.Occurrence.SeasonId,
+                targetX,
+                targetY,
+                100,
+                0,
+                outcome));
         }
 
         if (mutations.Count > 0)
         {
-            targetMap.Apply(mutations);
+            target.Apply(mutations);
         }
 
-        targetMap.EnsureValid();
-        return new RemapWorkResult(
-            targetMap,
-            lockedEntries.Length,
-            movedCount,
-            mergedCount,
-            displacedCount,
-            permitLockedDrops,
-            drops,
-            conflicts,
-            outcomes.Values,
-            consumedResolutions);
-    }
-
-    private static bool TryFindGreatestOverlap(
-        CampaignSeasonEntry entry,
-        CampaignWorldDefinition sourceDefinition,
-        CampaignWorldDefinition targetDefinition,
-        out int targetX,
-        out int targetY,
-        out double overlapPercent,
-        out double outOfBoundsPercent,
-        out decimal overlapArea)
-    {
-        var sourceSize = (decimal)sourceDefinition.CampaignTileSizeMeters;
-        var targetSize = (decimal)targetDefinition.CampaignTileSizeMeters;
-        var sourceMinimumX = entry.X * sourceSize;
-        var sourceMinimumY = entry.Y * sourceSize;
-        var sourceMaximumX = sourceMinimumX + sourceSize;
-        var sourceMaximumY = sourceMinimumY + sourceSize;
-        var clippedMaximumX = Math.Min(sourceMaximumX, targetDefinition.WorldWidthMeters);
-        var clippedMaximumY = Math.Min(sourceMaximumY, targetDefinition.WorldHeightMeters);
-        var clippedMinimumX = Math.Max(0, sourceMinimumX);
-        var clippedMinimumY = Math.Max(0, sourceMinimumY);
-        var sourceArea = sourceSize * sourceSize;
-        var inBoundsWidth = Math.Max(0, clippedMaximumX - clippedMinimumX);
-        var inBoundsHeight = Math.Max(0, clippedMaximumY - clippedMinimumY);
-        var inBoundsArea = inBoundsWidth * inBoundsHeight;
-        outOfBoundsPercent = decimal.ToDouble((sourceArea - inBoundsArea) * 100 / sourceArea);
-        if (inBoundsArea <= 0)
-        {
-            targetX = -1;
-            targetY = -1;
-            overlapPercent = 0;
-            overlapArea = 0;
-            return false;
-        }
-
-        var minimumTargetX = decimal.ToInt32(decimal.Floor(clippedMinimumX / targetSize));
-        var minimumTargetY = decimal.ToInt32(decimal.Floor(clippedMinimumY / targetSize));
-        var maximumTargetX = decimal.ToInt32(decimal.Ceiling(clippedMaximumX / targetSize)) - 1;
-        var maximumTargetY = decimal.ToInt32(decimal.Ceiling(clippedMaximumY / targetSize)) - 1;
-        minimumTargetX = Math.Clamp(minimumTargetX, 0, targetDefinition.TilesX - 1);
-        minimumTargetY = Math.Clamp(minimumTargetY, 0, targetDefinition.TilesY - 1);
-        maximumTargetX = Math.Clamp(maximumTargetX, 0, targetDefinition.TilesX - 1);
-        maximumTargetY = Math.Clamp(maximumTargetY, 0, targetDefinition.TilesY - 1);
-        var sourceCenterX = sourceMinimumX + (sourceSize / 2);
-        var sourceCenterY = sourceMinimumY + (sourceSize / 2);
-        var candidates = new List<(int X, int Y, decimal Area, bool ContainsCentre)>();
-        overlapArea = 0;
-        for (var y = minimumTargetY; y <= maximumTargetY; y++)
-        {
-            var targetMinimumY = y * targetSize;
-            var targetMaximumY = targetMinimumY + targetSize;
-            var overlapY = Math.Max(
-                0,
-                Math.Min(sourceMaximumY, targetMaximumY) - Math.Max(sourceMinimumY, targetMinimumY));
-            for (var x = minimumTargetX; x <= maximumTargetX; x++)
-            {
-                var targetMinimumX = x * targetSize;
-                var targetMaximumX = targetMinimumX + targetSize;
-                var overlapX = Math.Max(
-                    0,
-                    Math.Min(sourceMaximumX, targetMaximumX) - Math.Max(sourceMinimumX, targetMinimumX));
-                var area = overlapX * overlapY;
-                if (area <= 0)
-                {
-                    continue;
-                }
-
-                var containsCentre =
-                    sourceCenterX >= targetMinimumX && sourceCenterX < targetMaximumX &&
-                    sourceCenterY >= targetMinimumY && sourceCenterY < targetMaximumY;
-                candidates.Add((x, y, area, containsCentre));
-                overlapArea = Math.Max(overlapArea, area);
-            }
-        }
-
-        var greatestArea = overlapArea;
-        var selected = candidates
-            .Where(value => value.Area == greatestArea)
-            .OrderByDescending(static value => value.ContainsCentre)
-            .ThenBy(static value => value.Y)
-            .ThenBy(static value => value.X)
-            .First();
-        targetX = selected.X;
-        targetY = selected.Y;
-        overlapPercent = decimal.ToDouble(overlapArea * 100 / sourceArea);
-        return true;
+        target.EnsureValid();
+        return new RemapResult(target, locked.Length, moved, merged, drops, entries);
     }
 
     private static bool HasSameCampaignLattice(
@@ -863,81 +561,11 @@ public sealed class CampaignSeasonWorldRegenerator
         left.WorldHeightMeters == right.WorldHeightMeters &&
         left.CampaignTileSizeMeters == right.CampaignTileSizeMeters;
 
-    private readonly record struct SourceCoordinate(int X, int Y);
-
-    private readonly record struct TargetCoordinate(int X, int Y);
-
-    private sealed class MutableClaim(
-        int sourceX,
-        int sourceY,
-        string seasonId,
-        int targetX,
-        int targetY,
-        decimal overlapArea,
-        double overlapPercent,
-        double outOfBoundsPercent)
-    {
-        public int SourceX { get; } = sourceX;
-
-        public int SourceY { get; } = sourceY;
-
-        public string SeasonId { get; } = seasonId;
-
-        public int TargetX { get; } = targetX;
-
-        public int TargetY { get; } = targetY;
-
-        public decimal OverlapArea { get; } = overlapArea;
-
-        public double OverlapPercent { get; } = overlapPercent;
-
-        public double OutOfBoundsPercent { get; } = outOfBoundsPercent;
-
-        public CampaignSeasonLockClaim ToPublicClaim() => new(
-            SourceX,
-            SourceY,
-            SeasonId,
-            TargetX,
-            TargetY,
-            OverlapPercent,
-            OutOfBoundsPercent);
-
-        public CampaignSeasonLockedRemapEntry ToRemapEntry(
-            CampaignSeasonLockedRemapOutcome outcome) => new(
-            SourceX,
-            SourceY,
-            SeasonId,
-            TargetX,
-            TargetY,
-            OverlapPercent,
-            OutOfBoundsPercent,
-            outcome);
-    }
-
-    private sealed record RemapWorkResult(
+    private sealed record RemapResult(
         CampaignSeasonMap Map,
-        int SourceLockedTileCount,
-        int MovedLockedTileCount,
-        int MergedLockedTileCount,
-        int DisplacedLockedTileCount,
-        bool DropsPermitted,
+        int SourceLockedOccurrenceCount,
+        int MovedLockedOccurrenceCount,
+        int MergedLockedOccurrenceCount,
         IReadOnlyList<CampaignSeasonLockedDrop> LockedDrops,
-        IReadOnlyList<CampaignSeasonLockConflict> Conflicts,
-        IEnumerable<CampaignSeasonLockedRemapEntry> RemapEntries,
-        int ConsumedResolutionCount)
-    {
-        public CampaignSeasonWorldRegenerationReport CreateReport(
-            CampaignSeasonGenerationResult generationResult) => new(
-            CampaignSeasonLatticeRemapMode.RemapLocksAndRegenerateUnlocked,
-            SourceLockedTileCount,
-            generationResult.CandidateMap.LockedTileCount,
-            MovedLockedTileCount,
-            MergedLockedTileCount,
-            DisplacedLockedTileCount,
-            DropsPermitted,
-            LockedDrops,
-            Conflicts,
-            RemapEntries,
-            generationResult.Reports);
-    }
+        IReadOnlyList<CampaignSeasonLockedRemapEntry> RemapEntries);
 }

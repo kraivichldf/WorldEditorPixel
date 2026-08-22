@@ -3,9 +3,8 @@ namespace Kingdom.World.Core.Campaign.Seasons;
 public sealed record CampaignSeasonGenerationDiagnostic(
     CampaignSeasonTerrainSample Terrain,
     CampaignSeasonSupportSample Support,
-    string WinningSeasonId,
     IReadOnlyList<string> MatchingSeasonIds,
-    IReadOnlyList<string> ShadowedSeasonIds);
+    IReadOnlyList<string> NonMatchingSeasonIds);
 
 public static class CampaignSeasonGenerationDiagnostics
 {
@@ -31,29 +30,25 @@ public static class CampaignSeasonGenerationDiagnostics
 
         var terrain = supportFields.Terrain.GetSample(x, y);
         var support = supportFields.GetSample(x, y);
-        var priority = settings.GetPriorityDefinitions(catalog);
-        var matches = new List<string>(priority.Count);
-        for (var index = 0; index < priority.Count; index++)
+        var enabled = settings.GetEnabledDefinitions(catalog);
+        var matches = new List<string>(enabled.Count);
+        var nonMatches = new List<string>(enabled.Count);
+        foreach (var definition in enabled)
         {
-            var definition = priority[index];
-            if (index == priority.Count - 1 ||
-                CampaignSeasonRuleEvaluator.MatchesValidated(definition.Rule, terrain, support))
+            if (CampaignSeasonRuleEvaluator.MatchesValidated(definition.Rule, terrain, support))
             {
                 matches.Add(definition.Id);
             }
-        }
-
-        if (matches.Count == 0)
-        {
-            throw new InvalidOperationException(
-                "The validated season priority did not produce its required final catch-all match.");
+            else
+            {
+                nonMatches.Add(definition.Id);
+            }
         }
 
         return new CampaignSeasonGenerationDiagnostic(
             terrain,
             support,
-            matches[0],
             Array.AsReadOnly(matches.ToArray()),
-            Array.AsReadOnly(matches.Skip(1).ToArray()));
+            Array.AsReadOnly(nonMatches.ToArray()));
     }
 }

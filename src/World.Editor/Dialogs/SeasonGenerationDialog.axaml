@@ -133,12 +133,12 @@
 
           <Border Classes="win98-group">
             <StackPanel Spacing="6">
-              <TextBlock Text="FIRST-MATCH PRIORITY" Classes="section-title" />
-              <TextBlock x:Name="PrioritySummaryText"
+              <TextBlock Text="GENERATED SEASONS" Classes="section-title" />
+              <TextBlock x:Name="EnabledSummaryText"
                          Classes="measurement"
                          FontSize="11"
                          TextWrapping="Wrap" />
-              <TextBlock Text="The first matching rule wins. The last enabled definition is always evaluated as Catch-all."
+              <TextBlock Text="Every enabled definition evaluates independently. A tile receives every matching Season Occurrence."
                          FontSize="11"
                          Foreground="{StaticResource EditorMutedTextBrush}"
                          TextWrapping="Wrap" />

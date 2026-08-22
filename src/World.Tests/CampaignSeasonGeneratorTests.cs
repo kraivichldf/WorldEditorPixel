@@ -7,7 +7,7 @@ namespace Kingdom.World.Tests;
 public sealed class CampaignSeasonGeneratorTests
 {
     [Fact]
-    public void Generate_UsesOrderedFirstMatchAndCustomCatchAllWithoutQuotas()
+    public void Generate_EvaluatesDefinitionsIndependentlyAndKeepsOverlaps()
     {
         var definition = CreateDefinition(4, 2);
         var north = Custom(
@@ -18,7 +18,7 @@ public sealed class CampaignSeasonGeneratorTests
         var map = new CampaignSeasonMap(definition, catalog);
         var settings = new CampaignSeasonGenerationSettings(
             17_029,
-            priorityIds: [north.Id, south.Id]);
+            enabledSeasonIds: [north.Id, south.Id]);
         var source = Capture(definition, catalog, map, Land());
 
         var result = CampaignSeasonGenerator.Generate(
@@ -27,18 +27,22 @@ public sealed class CampaignSeasonGeneratorTests
             settings,
             CampaignSeasonGenerationScope.All);
 
-        Assert.All(result.CandidateMap.GetTiles(new CampaignTileArea(0, 0, 3, 0)),
-            entry => Assert.Equal(north.Id, entry.Tile.SeasonId));
-        Assert.All(result.CandidateMap.GetTiles(new CampaignTileArea(0, 1, 3, 1)),
-            entry => Assert.Equal(south.Id, entry.Tile.SeasonId));
-        Assert.Equal(8, result.ChangedTileCount);
+        for (var x = 0; x < definition.TilesX; x++)
+        {
+            Assert.True(result.CandidateMap.TryGetOccurrence(x, 0, north.Id, out _));
+            Assert.True(result.CandidateMap.TryGetOccurrence(x, 0, south.Id, out _));
+            Assert.False(result.CandidateMap.TryGetOccurrence(x, 1, north.Id, out _));
+            Assert.True(result.CandidateMap.TryGetOccurrence(x, 1, south.Id, out _));
+        }
+
+        Assert.Equal(12, result.ChangedIdentityCount);
         Assert.Equal(50, Report(result, north.Id).CandidateCoveragePercent, precision: 8);
-        Assert.Equal(50, Report(result, south.Id).CandidateCoveragePercent, precision: 8);
+        Assert.Equal(100, Report(result, south.Id).CandidateCoveragePercent, precision: 8);
         Assert.Null(Report(result, north.Id).ZeroReason);
     }
 
     [Fact]
-    public void Generate_ReportsLowerPriorityShadowingAndManualOnlyDefinitions()
+    public void Generate_AllowsEveryMatchingDefinitionAndPreservesExcludedDefinitions()
     {
         var definition = CreateDefinition(3, 2);
         var first = Custom("first-season", CampaignSeasonRule.Unrestricted);
@@ -51,20 +55,19 @@ public sealed class CampaignSeasonGeneratorTests
             catalog,
             new CampaignSeasonGenerationSettings(
                 91,
-                priorityIds: [first.Id, final.Id]),
+                enabledSeasonIds: [first.Id, final.Id]),
             CampaignSeasonGenerationScope.All);
 
         var firstReport = Report(result, first.Id);
         var finalReport = Report(result, final.Id);
         var manualReport = Report(result, manual.Id);
         Assert.Equal(6, firstReport.EnvironmentalMatchCount);
-        Assert.Equal(6, firstReport.PriorityWinCount);
+        Assert.Equal(6, firstReport.CandidateOccurrenceCount);
         Assert.Equal(6, finalReport.EnvironmentalMatchCount);
-        Assert.Equal(6, finalReport.ShadowedMatchCount);
-        Assert.Equal(0, finalReport.CandidateTileCount);
-        Assert.Contains("higher-priority", finalReport.ZeroReason, StringComparison.OrdinalIgnoreCase);
-        Assert.False(manualReport.GenerationEnabled);
-        Assert.Contains("Manual-paint-only", manualReport.ZeroReason, StringComparison.Ordinal);
+        Assert.Equal(6, finalReport.CandidateOccurrenceCount);
+        Assert.Equal(12, result.CandidateMap.OccurrenceCount);
+        Assert.False(manualReport.Selected);
+        Assert.Contains("Excluded", manualReport.ZeroReason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -77,26 +80,30 @@ public sealed class CampaignSeasonGeneratorTests
         var south = Custom("southern-season", CampaignSeasonRule.Unrestricted);
         var catalog = new CampaignSeasonCatalog([north, south]);
         var map = new CampaignSeasonMap(definition, catalog);
-        map.Paint(0, 0, CampaignSeasonCatalog.SummerId, locked: true);
-        map.Paint(3, 1, CampaignSeasonCatalog.AutumnId, locked: false);
+        map.Upsert(0, 0, new(CampaignSeasonCatalog.SummerId, Locked: true));
+        map.Upsert(0, 1, new(north.Id, Locked: true));
+        map.Upsert(3, 1, new(CampaignSeasonCatalog.FallId));
         var sourceRevision = map.Revision;
         var result = CampaignSeasonGenerator.Generate(
             Capture(definition, catalog, map, Land()),
             catalog,
             new CampaignSeasonGenerationSettings(
                 17_029,
-                priorityIds: [north.Id, south.Id]),
+                enabledSeasonIds: [north.Id, south.Id]),
             CampaignSeasonGenerationScope.ForArea(new CampaignTileArea(0, 0, 1, 1)));
 
-        Assert.Equal(
-            new CampaignSeasonTile(CampaignSeasonCatalog.SummerId, Locked: true),
-            result.CandidateMap.GetTile(0, 0));
-        Assert.Equal(north.Id, result.CandidateMap.GetTile(1, 0).SeasonId);
-        Assert.Equal(south.Id, result.CandidateMap.GetTile(0, 1).SeasonId);
-        Assert.Equal(CampaignSeasonCatalog.AutumnId, result.CandidateMap.GetTile(3, 1).SeasonId);
-        Assert.Equal(1, Report(result, north.Id).LockedOverrideCount);
+        Assert.True(result.CandidateMap.TryGetOccurrence(0, 0, CampaignSeasonCatalog.SummerId, out var summer));
+        Assert.True(summer.Locked);
+        Assert.True(result.CandidateMap.TryGetOccurrence(0, 0, north.Id, out _));
+        Assert.True(result.CandidateMap.TryGetOccurrence(0, 0, south.Id, out _));
+        Assert.True(result.CandidateMap.TryGetOccurrence(1, 0, north.Id, out _));
+        Assert.True(result.CandidateMap.TryGetOccurrence(0, 1, north.Id, out var lockedNorth));
+        Assert.True(lockedNorth.Locked);
+        Assert.True(result.CandidateMap.TryGetOccurrence(0, 1, south.Id, out _));
+        Assert.True(result.CandidateMap.TryGetOccurrence(3, 1, CampaignSeasonCatalog.FallId, out _));
+        Assert.Equal(1, Report(result, north.Id).PreservedLockCount);
         Assert.Equal(sourceRevision, map.Revision);
-        Assert.Equal(CampaignSeasonCatalog.AutumnId, map.GetTile(3, 1).SeasonId);
+        Assert.True(map.TryGetOccurrence(3, 1, CampaignSeasonCatalog.FallId, out _));
     }
 
     [Fact]
@@ -113,14 +120,14 @@ public sealed class CampaignSeasonGeneratorTests
             catalog,
             new CampaignSeasonGenerationSettings(
                 17_029,
-                priorityIds: [impossible.Id, final.Id]),
+                enabledSeasonIds: [impossible.Id, final.Id]),
             CampaignSeasonGenerationScope.All);
 
         var report = Report(result, impossible.Id);
         Assert.Equal(0, report.EnvironmentalMatchCount);
-        Assert.Equal(0, report.CandidateTileCount);
+        Assert.Equal(0, report.CandidateOccurrenceCount);
         Assert.Contains("No tile passed", report.ZeroReason, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(definition.TileCount, Report(result, final.Id).CandidateTileCount);
+        Assert.Equal(definition.TileCount, Report(result, final.Id).CandidateOccurrenceCount);
     }
 
     [Fact]
@@ -143,11 +150,12 @@ public sealed class CampaignSeasonGeneratorTests
             settings,
             CampaignSeasonGenerationScope.All);
 
-        Assert.Equal(first.CandidateMap.GetAllTiles(), second.CandidateMap.GetAllTiles());
+        Assert.Equal(
+            first.CandidateMap.GetMaterializedOccurrences(),
+            second.CandidateMap.GetMaterializedOccurrences());
         Assert.Equal(first.Reports, second.Reports);
         Assert.Equal(0, map.Revision);
-        Assert.All(map.GetAllTiles(), entry =>
-            Assert.Equal(CampaignSeasonCatalog.SpringId, entry.Tile.SeasonId));
+        Assert.Empty(map.GetMaterializedOccurrences());
     }
 
     [Fact]
@@ -184,18 +192,21 @@ public sealed class CampaignSeasonGeneratorTests
         var world = new CampaignWorld(definition);
         world.Tiles.SetTile(0, 0, new CampaignTileData(CampaignTileType.Plains, 100));
         var map = new CampaignSeasonMap(definition, catalog);
-        map.Paint(0, 0, CampaignSeasonCatalog.WinterId, locked: true);
+        map.Upsert(0, 0, new(CampaignSeasonCatalog.WinterId, Locked: true));
         var source = CampaignSeasonGenerationSource.Capture(
             new CampaignSeasonTerrainQueryV2(world),
             map);
 
         world.Tiles.SetTile(0, 0, new CampaignTileData(CampaignTileType.Desert, 900));
-        map.Paint(0, 0, CampaignSeasonCatalog.SummerId, locked: false);
+        map.Upsert(0, 0, new(CampaignSeasonCatalog.SummerId));
         Assert.Equal(CampaignTileType.Plains, source.Terrain.GetSample(0, 0).TerrainType);
         Assert.Equal(100, source.Terrain.GetSample(0, 0).ElevationMeters);
         Assert.Equal(
-            new CampaignSeasonTile(CampaignSeasonCatalog.WinterId, Locked: true),
-            source.CurrentTiles[0]);
+            new CampaignSeasonEntry(
+                0,
+                0,
+                new CampaignSeasonOccurrence(CampaignSeasonCatalog.WinterId, Locked: true)),
+            Assert.Single(source.CurrentEntries));
 
         var drifting = new DriftingTerrainQuery(definition, Land());
         Assert.Throws<InvalidOperationException>(() =>
@@ -227,7 +238,7 @@ public sealed class CampaignSeasonGeneratorTests
             catalog,
             new CampaignSeasonGenerationSettings(1),
             CampaignSeasonGenerationScope.All);
-        map.Paint(0, 0, CampaignSeasonCatalog.WinterId);
+        map.Upsert(0, 0, new(CampaignSeasonCatalog.WinterId));
         Assert.False(second.IsCurrent(query, map));
 
         var third = CampaignSeasonGenerator.Generate(
@@ -235,12 +246,17 @@ public sealed class CampaignSeasonGeneratorTests
             catalog,
             new CampaignSeasonGenerationSettings(1),
             CampaignSeasonGenerationScope.All);
-        third.CandidateMap.Paint(0, 0, CampaignSeasonCatalog.SummerId);
+        var firstEntry = third.CandidateMap.GetMaterializedOccurrences()[0];
+        third.CandidateMap.SetLocked(
+            firstEntry.X,
+            firstEntry.Y,
+            firstEntry.Occurrence.SeasonId,
+            !firstEntry.Occurrence.Locked);
         Assert.False(third.IsCurrent(query, map));
     }
 
     [Fact]
-    public void Generate_CoversTheRepresentative140By140CampaignGridExactlyOnce()
+    public void Generate_CoversRepresentative140By140GridWithIndependentOccurrences()
     {
         var definition = CampaignWorldDefinition.Create(
             worldWidthMeters: 700_000,
@@ -259,10 +275,11 @@ public sealed class CampaignSeasonGeneratorTests
 
         Assert.Equal(19_600, result.CandidateMap.TileCount);
         Assert.Equal(
-            19_600,
+            result.CandidateMap.OccurrenceCount,
             result.Reports
-                .Where(static report => report.GenerationEnabled)
-                .Sum(static report => report.CandidateTileCount));
+                .Where(static report => report.Selected)
+                .Sum(static report => report.CandidateOccurrenceCount));
+        Assert.True(result.CandidateMap.OccurrenceCount >= 19_600);
         Assert.Empty(result.CandidateMap.Validate());
     }
 
@@ -298,14 +315,14 @@ public sealed class CampaignSeasonGeneratorTests
             {
                 CampaignSeasonCatalog.WinterId,
                 CampaignSeasonCatalog.SpringId,
-                CampaignSeasonCatalog.AutumnId,
+                CampaignSeasonCatalog.FallId,
                 CampaignSeasonCatalog.SummerId,
             },
-            id => Assert.True(Report(result, id).CandidateTileCount > 0, id));
+            id => Assert.True(Report(result, id).CandidateOccurrenceCount > 0, id));
     }
 
     [Fact]
-    public void Generate_ZeroTiltRemovesSpringAndAutumnButRetainsColdAndWarmBands()
+    public void Generate_ZeroTiltRemovesSeasonsThatRequireAnnualSeasonality()
     {
         var definition = CampaignWorldDefinition.Create(
             worldWidthMeters: 4_000_000,
@@ -331,10 +348,10 @@ public sealed class CampaignSeasonGeneratorTests
                     rainShadowStrength: 0)),
             CampaignSeasonGenerationScope.All);
 
-        Assert.Equal(0, Report(result, CampaignSeasonCatalog.SpringId).CandidateTileCount);
-        Assert.Equal(0, Report(result, CampaignSeasonCatalog.AutumnId).CandidateTileCount);
-        Assert.True(Report(result, CampaignSeasonCatalog.WinterId).CandidateTileCount > 0);
-        Assert.True(Report(result, CampaignSeasonCatalog.SummerId).CandidateTileCount > 0);
+        Assert.Equal(0, Report(result, CampaignSeasonCatalog.SpringId).CandidateOccurrenceCount);
+        Assert.Equal(0, Report(result, CampaignSeasonCatalog.FallId).CandidateOccurrenceCount);
+        Assert.Equal(0, Report(result, CampaignSeasonCatalog.WinterId).CandidateOccurrenceCount);
+        Assert.True(Report(result, CampaignSeasonCatalog.SummerId).CandidateOccurrenceCount > 0);
     }
 
     private static CampaignSeasonGenerationReport Report(

@@ -47,17 +47,17 @@ The campaign-resource core tests cover:
 - project-level staged terrain/resource round trips, legacy isolation, stale sidecar removal, revision/cancellation guards, rollback, and editor-integrated runtime version-2 export.
 - custom-resource addition/selection, built-in duplication including soft and hard terrain rules, advanced-rule round trips, supported-factor/surface enforcement, exact occurrence preservation, used identity/category/deletion protection, stale override cleanup, equivalent-catalog no-op behavior, and one-pass sparse usage counts.
 
-The campaign-season Slice 1 tests cover:
+The campaign Season Occurrence domain tests cover:
 
-- stable Spring/Summer/Autumn/Winter identities, fallbacks, appearance defaults, starter rules, built-in name/fallback protection, custom-definition validation, deterministic catalog order/indexes, and immutable views;
+- stable Spring/Summer/Fall/Winter identities, fallbacks, appearance defaults, starter rules, built-in name/fallback protection, custom-definition validation, deterministic catalog order/indexes, and immutable views;
 - inclusive environmental ranges, canonical terrain filters, empty-whitelist behavior, Exclude precedence, exact custom-terrain overrides, safe-base inheritance, defensive copying, and contradiction rejection;
-- default Winter/Spring/Autumn/Summer priority, custom catch-all, manual-only customs, unknown/duplicate/empty priority rejection, exactly `256` enabled definitions, and larger manual-only catalogs;
+- default enabled Spring/Summer/Fall/Winter set, manual-only customs, unknown/duplicate/empty enabled-set rejection, exactly `256` enabled definitions, and larger manual-only catalogs;
 - Whole-globe and Regional settings, exact Earth-scale latitude span, pole-cross rejection, axial-tilt and Advanced climate bounds, and complete rectangular scopes;
-- dense complete Spring authority, custom defaults, lock bits/counts, no-op revision stability, atomic batch rejection, deterministic row-major/area enumeration, dense usage counts, and the `500 × 500 = 250,000` tile boundary;
-- live season strokes, cancellation, lock/reset state, exact Undo/Redo, empty-command Redo preservation, terrain/season shared-history ordering, and command prevalidation;
+- sparse zero-to-many occurrence authority, three- and four-season Tile Sets, per-identity lock counts, no-op revision stability, atomic batch rejection, deterministic Y/X/ID area enumeration, usage counts, and the `500 × 500 = 250,000` tile boundary;
+- live add/erase/lock/unlock strokes that change only the selected identity, cancellation, exact Undo/Redo, empty-command Redo preservation, terrain/season shared-history ordering, and command prevalidation;
 - locked deterministic terrain-seed/definition-seed/phase outputs and canonical catalog-ID SHA-256 fingerprints.
 
-The campaign-season Slice 2 tests cover:
+The campaign Season Occurrence generation tests cover:
 
 - version-2 legacy-water/custom-terrain/River normalization and version-3 surface/River-overlay normalization;
 - owner-thread immutable capture, terrain/season revision-drift rejection, snapshot independence, catalog identity, cancellation, and stale source/candidate guards;
@@ -66,54 +66,54 @@ The campaign-season Slice 2 tests cover:
 - zero-tilt removal of orbital intensity/tendency, warming/cooling signs, and default four-season versus zero-tilt cold/warm bands;
 - exact physical Sea/Lake/River distances, positive infinity for absent sources, River moisture without maritime inertia, maritime and moisture decay, deterministic latitude-cell wind, and physical-fetch rain shadow;
 - continuous periodic Whole-globe longitude noise and physically consistent climate at equivalent positions on `5 km` and `20 km` grids;
-- ordered first match, custom final catch-all, lower-priority shadow reports, manual-only reports, truthful geographic zero, lock preservation, rectangular-scope preservation, and source non-mutation;
-- exact deterministic replay and complete one-value-per-tile generation on the representative `700 x 700 km`, `5 km` tile, `140 x 140 = 19,600` grid.
+- independent definition evaluation, overlapping matches on one tile, manual-only reports, truthful geographic zero, per-identity lock preservation, rectangular-scope preservation, and source non-mutation;
+- exact deterministic replay and zero-to-many occurrence generation on the representative `700 x 700 km`, `5 km` tile, `140 x 140 = 19,600` grid.
 
-The campaign-season Slice 3 tests cover:
+The campaign Season Occurrence persistence/export tests cover:
 
-- exact catalog, built-in override, custom rule, default, priority, Advanced climate, fingerprint, dense identity, and lock round trips with deterministic bytes;
-- clean missing-sidecar Spring compatibility, optional recipe absence/removal, partial-authority rejection, and legacy-import isolation;
-- strict unknown/duplicate/null/property/enum/version/canonical-order validation plus invalid cross-file priority protection;
-- exact `KWSEASON` magic/version/stride/dimensions/count/fingerprint/length/index/reserved-bit validation and corruption rejection;
+- exact catalog, built-in override, custom rule, enabled set, Advanced climate, fingerprint, zero-to-many identity, and lock round trips with deterministic bytes;
+- clean missing-sidecar empty compatibility, optional recipe absence/removal, partial-authority rejection, and legacy-import isolation;
+- strict unknown/duplicate/null/property/enum/version/canonical-order validation plus invalid cross-file enabled-set protection;
+- exact `KWSEASON` magic/version/index-and-occurrence strides/dimensions/counts/fingerprint/length/span/catalog/reserved-bit validation and corruption rejection;
 - season-aware nine-file staged save/open, all-three-revision gates, cancellation cleanup, rollback, and deliberate preservation of season files by the older six-file coordinator overload;
-- runtime package version 3 entry order/timestamps, dense little-endian season indexes, canonical catalog identity/fallback/appearance, exact SHA/layout metadata, authoring-state omission, deterministic lock-insensitive bytes, definition mismatch/cancellation preservation, and byte-identical version-2 terrain/resource streams.
+- runtime package version 3 entry order/timestamps, dense little-endian per-tile spans, sparse occurrence records, canonical catalog identity/fallback/appearance, exact SHA/layout metadata, authoring-state omission, deterministic lock-insensitive bytes, definition mismatch/cancellation preservation, and byte-identical version-2 terrain/resource streams.
 
-The campaign-season Slice 4 tests cover:
+The campaign Season Occurrence editor tests cover:
 
-- new/open editor Season document invariants, implicit Spring/default priority state, searchable stable-ID selection, workspace/tool state, exact accepted recipe retention, and normal dirty/project identity behavior;
+- new/open editor Season document invariants, implicit empty compatibility, searchable stable-ID selection, workspace/tool state, exact accepted recipe retention, and normal dirty/project identity behavior;
 - terrain/resource/season commands interleaving through one LIFO history, empty/no-op catalog apply preserving existing history, complete replacement clearing obsolete history, pinned lock Undo/Redo, and terrain/resource non-mutation;
-- custom-definition editor round trips for every appearance/range/terrain-filter field, invariant `min..max` parsing, immutable existing IDs, project-default/usage/priority replacement detection, referenced deletion, exact lock-preserving tile replacement, and final priority Catch-all semantics;
-- canvas Paint/Reset/Lock/Unlock routing through clipped complete-cell areas, default lock/reset behavior, invalid-ID/radius atomic rejection, and independent Season viewport/raster properties;
-- changed-lattice terrain replacement blocking whenever assignments, locks, or an accepted Season recipe would be discarded, while the existing uniform unlocked default compatibility case remains allowed;
+- custom-definition editor round trips for every appearance/range/terrain-filter field, invariant `min..max` parsing, immutable existing IDs, occurrence usage/enabled-set replacement detection, referenced deletion, lock-preserving identity replacement, and safe same-ID merge semantics;
+- canvas Add selected/Erase selected/Lock/Unlock routing through clipped complete-cell areas, independent per-ID behavior, invalid-ID/radius atomic rejection, and independent Season viewport/raster properties;
+- changed-lattice terrain replacement blocking whenever occurrences, locks, or an accepted Season recipe would be discarded without a reviewed candidate;
 - Main Window integration with season-aware open/save/runtime-v3 export and the exact nine-file managed lifecycle.
 
-The campaign-season Slice 5 tests cover:
+The campaign Season Occurrence preview/diagnostic tests cover:
 
 - canonical source and generation-input fingerprints, including terrain/input changes and presentation-only catalog changes that do not stale generation;
-- exact first winning definition and shadowed-match diagnostics by evaluating current rules against immutable support fields;
+- exact independent rule-match and authority-agreement diagnostics against immutable support fields;
 - inclusive read-only rectangular selection normalized in every drag direction and clipped to the world;
 - saved-recipe, session terrain-seed, and stable terrain-content seed resolution without inventing persisted settings;
 - exact Candidate and settings acceptance, shared-history clearing, dirty transition, and terrain/resource/project/import identity preservation;
-- stale terrain, stale Season authority, mutated Candidate, world-definition, catalog, and priority mismatch rejection without mutation;
-- accepted and reopened diagnostic projection rebuild, exact support/winner/current-state reporting, terrain staleness, and busy-state gating.
+- stale terrain, stale Season authority, mutated Candidate, world-definition, catalog, and enabled-set mismatch rejection without mutation;
+- accepted and reopened diagnostic projection rebuild, exact support/rule/agreement/current-state reporting, terrain staleness, and busy-state gating.
 
-The campaign-season Slice 6 tests cover:
+The campaign Season Occurrence world-composition/remap tests cover:
 
-- generated-new-world composition that returns one complete terrain-and-Season Candidate, derives the initial Season seed from terrain generation, retains the exact accepted recipe/support tuple, and initializes Blank worlds from the selected default Season without inventing a recipe;
-- same-lattice regeneration preserving every Season ID and lock exactly;
-- changed-lattice locked-cell remapping by greatest physical-area overlap, deterministic centre/Y/X tie-breaking, same-ID merges, strictly greater different-ID winners, explicit equal-area different-ID conflicts, and explicit no-overlap drops;
-- separate conflict-winner and drop-permission decisions, with acceptance blocked until every conflict and drop is reviewed;
-- generation of only unlocked target cells after the reviewed lock composition, deterministic cancellation, and source/Candidate freshness guards;
-- exact ViewModel installation of reviewed new-world and changed-lattice Season tuples, shared-history clearing, dirty transition, project/import identity preservation, and atomic rejection of unresolved or stale results.
+- generated-new-world composition that returns one terrain-and-Season Candidate, derives the initial Season seed from terrain generation, retains the exact accepted recipe/support tuple, and initializes Blank worlds with an empty occurrence layer and no invented recipe;
+- same-lattice regeneration preserving every Season Occurrence and lock exactly;
+- changed-lattice locked-occurrence remapping by physical tile centre, same-ID target merges, different-ID coexistence, and explicit out-of-bounds drops;
+- separate affirmative drop permission, with acceptance blocked only until every out-of-bounds locked occurrence is reviewed;
+- generation of unlocked target identities after the reviewed lock composition, deterministic cancellation, and source/Candidate freshness guards;
+- exact ViewModel installation of reviewed new-world and changed-lattice Season tuples, shared-history clearing, dirty transition, project/import identity preservation, and atomic rejection of unpermitted-drop or stale results.
 
-The campaign-season Slice 7 tests cover:
+The campaign Season Occurrence native/performance tests cover:
 
 - real Avalonia dialog construction/rendering in-process at normal and narrow sizes, with all asserted controls inside their native window bounds;
 - New World Terrain/Seasons preview switching, retained stale Candidate behavior, and Generate/Use default-action changes;
 - Season Current/Candidate narrow switching, accessibility naming, Enter activation, Tab traversal, and exact Use enablement;
-- changed-lattice lock-resolution validation with no silent preselected winner and a readable narrow recovery path;
+- changed-lattice locked-drop review with a readable narrow recovery path;
 - cross-test rendering safety through immutable shared `WorldCanvas` brushes/pens;
-- the exact `500 x 500 = 250,000` tile grid with all `256` first-match definitions enabled, one valid output per tile, and bounded work without a retained tile-by-definition matrix.
+- the exact `500 x 500 = 250,000` tile grid with all `256` definitions enabled, independent evaluation, sparse output, and bounded work without a retained tile-by-definition matrix.
 
 The campaign-generation tests cover:
 
@@ -132,6 +132,18 @@ Run:
 ```powershell
 dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 ```
+
+## Season Occurrence rework verification on 2026-08-20
+
+- Replaced the rejected one-value Tile Season model with a sparse Season Occurrence authority keyed by `(x, y, seasonId)`. One tile may contain zero, one, three, four, or more custom Season IDs; each identity has its own lock.
+- Generation evaluates every enabled definition independently. It has no first-match order, winner, shadow result, default Season, or catch-all, and it may produce overlapping occurrences or truthful empty sets.
+- Manual Add selected, Erase selected, Lock, and Unlock change only the selected Season ID. Same-lattice world regeneration preserves exact occurrence authority; changed lattices map locked identities by physical centre, merge only the same target ID, allow different IDs to coexist, and separately review out-of-bounds drops.
+- Project persistence now round-trips a dense eight-byte tile-span index plus sparse three-byte locked occurrence records. Runtime package version 3 exports `season-index.bin` plus `season-records.bin` without authoring locks.
+- Focused Season verification passed `124/124`; full Release verification passed `560/560`. The Release solution build completed with zero warnings and zero errors.
+- The corrected self-contained launcher build is published separately at `artifacts/publish/season-occurrences/World.Editor.exe` so an already-running legacy `artifacts/publish/seasons/World.Editor.exe` cannot block replacement. `Launch Tile Editor.cmd` targets the corrected occurrence build; close any older editor window and relaunch to load it.
+
+> [!warning] Superseded historical evidence
+> The dated Slice 1-7 entries below describe the earlier one-value Tile Season implementation as it existed on 2026-08-17. They are retained only as development history. ADR-0030, the current coverage lists above, and the 2026-08-20 verification are authoritative.
 
 ## Static campaign-season Slice 1 verification on 2026-08-17
 
@@ -634,11 +646,12 @@ The initial tile-only verification could not establish a Windows desktop-control
 39. Open **Resources**, choose one stable resource ID, set potential and independent Paint Area, then add/update across complete tiles. Confirm terrain/height stay unchanged, the fixed heatmap shows exact numbers at readable zoom, and erase removes only that ID. Right-click a populated tile and verify every occurrence, lock text, warning, and unevaluated factors; exercise Use selected, Lock/Unlock, shared Undo/Redo, save/reopen, and the byte-compatible Resource streams inside runtime package version 3. Accept a same-lattice terrain preview and confirm every resource stays at its exact coordinate/potential/lock.
 40. Keep at least one locked and one unlocked resource occurrence, then open **Regenerate world...** and change campaign tile size to another exactly divisible grid. Generate the preview and confirm the scrollable **Resource impact** well reports moved, merged, dropped, locked-retained, replaced-unlocked, regenerated-unlocked, and final counts as applicable. Shrink one axis past a locked source and confirm its stable ID and old coordinate are named before acceptance. Change another terrain input and confirm the old impact remains visible but stale while **Use this world** is disabled. Regenerate, accept, and confirm the exact reviewed terrain/resource result replaces the document together, the project path remains, and shared Undo/Redo is empty. Repeat with no saved resource-generation settings and confirm all in-bounds occurrences remap without inventing generated deposits.
 41. Open **New**, enter `10,000 × 10,000 km` and `20 km` campaign tiles, choose **East Coast**, **Natural mixed coast**, seed `17,029`, **None** hydrology, and generate. Confirm the preview reports `500 × 500 · 250,000 tiles`, the east edge remains Sea, the coast contains broad shelf advance/retreat plus irregular smaller bays/headlands and separated offshore pieces, and no repeated paired-round-bay/hooked-cape stamp dominates the map. Compare Rugged for stronger detail and Flowing for the intentionally smoother authored cape. Remember that every visible shoreline step is a complete `20 km` tile.
-42. Open **New**, keep **Blank**, choose a non-Spring **Default tile season**, and create the world. Confirm every tile receives that exact Season, terrain remains Blank, and the document has no accepted Season-generation recipe.
-43. Open **New**, choose a generated terrain preset, generate a preview, and switch between **Terrain** and **Seasons**. Confirm both views belong to one unapplied Candidate, the Season distribution totals the complete grid, changing a generation input keeps the old result visible but stale, and **Use this world** remains disabled until regeneration completes. Cancel once to prove the current document is unchanged; regenerate and accept once to prove terrain and Seasons change together.
-44. Regenerate an existing world without changing its dimensions or campaign tile size. Confirm every current Season ID and lock is preserved exactly even though terrain is replaced, and confirm shared Undo/Redo clears only after acceptance.
-45. Lock several differently named Seasons, then regenerate onto a changed campaign lattice. Confirm the **Layer impact** report distinguishes retained, moved, merged, displaced, conflicted, and dropped locks. Exercise one unique greatest-overlap winner, one equal same-ID merge, one unequal different-ID winner, one equal different-ID conflict, and one no-overlap drop. Confirm **Use this world** stays disabled until every conflict has an explicit winner and drops receive separate permission; cancelling the resolver or dialog leaves all authorities unchanged.
-46. While a changed-lattice preview is ready, alter any terrain or Season-generation input. Confirm the previous terrain/Season result and lock report remain visible but stale and cannot be accepted. Regenerate, resolve blockers, accept, and confirm the exact reviewed terrain/resource/Season tuple installs atomically while project/import identity remains unchanged.
+42. Open **New**, keep **Blank**, and create the world. Confirm terrain remains Blank, every tile begins with an empty Season Set, and the document has no accepted Season-generation recipe.
+43. Open **New**, choose a generated terrain preset, generate a preview, and switch between **Terrain** and **Seasons**. Confirm both views belong to one unapplied Candidate, several Season colors may coexist on one tile, changing a generation input keeps the old result visible but stale, and **Use this world** remains disabled until regeneration completes. Cancel once to prove the current document is unchanged; regenerate and accept once to prove terrain and Season Occurrences change together.
+44. In the Seasons workspace, add Spring, Summer, and Fall to one tile, then add all four built-ins to another. Confirm the complete sets appear in hover/pin/labels, erase selected removes only that ID, per-ID Lock/Unlock leaves the other occurrences exact, and one Undo reverses one whole drag.
+45. Regenerate an existing world without changing its dimensions or campaign tile size. Confirm every current Season Occurrence and per-ID lock is preserved exactly even though terrain is replaced, and confirm shared Undo/Redo clears only after acceptance.
+46. Lock several differently named Season Occurrences, then regenerate onto a changed campaign lattice. Confirm the **Layer impact** report distinguishes retained, moved, same-ID merged, and dropped identities. Exercise a same-ID merge, two different IDs mapping to the same target and coexisting, and one out-of-bounds drop. Confirm **Use this world** is blocked only until drops receive explicit permission; cancelling the review or dialog leaves all authorities unchanged.
+47. While a changed-lattice preview is ready, alter any terrain or Season-generation input. Confirm the previous terrain/Season result and drop report remain visible but stale and cannot be accepted. Regenerate, review blockers, accept, and confirm the exact reviewed terrain/resource/Season tuple installs atomically while project/import identity remains unchanged.
 
 The executable domain tests are authoritative for exact values; this path checks that the same operations are reachable and legible in the desktop UI.
 

@@ -53,12 +53,12 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
 
         Assert.False(loaded.WasConvertedFromLegacy);
         Assert.True(loaded.SeasonsWereImplicitCompatibility);
-        Assert.Equal(CampaignSeasonCatalog.SpringId, loaded.SeasonMap.DefaultSeasonId);
-        Assert.Equal(world.Definition.TileCount, loaded.SeasonMap.GetUsageCount("spring"));
-        Assert.Equal(0, loaded.SeasonMap.LockedTileCount);
+        Assert.Equal(0, loaded.SeasonMap.OccurrenceCount);
+        Assert.Equal(0, loaded.SeasonMap.GetUsageCount("spring"));
+        Assert.Equal(0, loaded.SeasonMap.LockedOccurrenceCount);
         Assert.Equal(0, loaded.SeasonMap.Revision);
         Assert.Null(loaded.SeasonSavedGeneration);
-        Assert.Equal(CampaignSeasonGenerationSettings.DefaultPriority, loaded.SeasonPriorityIds);
+        Assert.Equal(CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds, loaded.SeasonEnabledIds);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
 
         Assert.True(loaded.WasConvertedFromLegacy);
         Assert.True(loaded.SeasonsWereImplicitCompatibility);
-        Assert.Equal(loaded.World.Definition.TileCount, loaded.SeasonMap.GetUsageCount("spring"));
+        Assert.Equal(0, loaded.SeasonMap.GetUsageCount("spring"));
         Assert.Null(loaded.SeasonSavedGeneration);
     }
 
@@ -100,22 +100,24 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
         var customSeason = CreateCustomSeason();
         var seasonMap = new CampaignSeasonMap(
             world.Definition,
-            new CampaignSeasonCatalog([customSeason]),
-            "monsoon");
+            new CampaignSeasonCatalog([customSeason]));
         seasonMap.Apply(
         [
-            new CampaignSeasonMutation(0, 0, new CampaignSeasonTile("winter", true)),
-            new CampaignSeasonMutation(1, 1, new CampaignSeasonTile("spring")),
+            CampaignSeasonMutation.Upsert(0, 0, new("winter", Locked: true)),
+            CampaignSeasonMutation.Upsert(0, 0, new("spring")),
+            CampaignSeasonMutation.Upsert(1, 1, new("spring")),
         ]);
-        var priority = new[] { "winter", "monsoon", "spring" };
+        var enabledSeasonIds = new[] { "winter", "monsoon", "spring" };
         var seasonSettings = new CampaignSeasonGenerationSettings(
             91,
             seedDerivedFromTerrain: false,
-            priorityIds: priority);
+            enabledSeasonIds: enabledSeasonIds);
         var savedSeason = new CampaignSeasonSavedGeneration(
             seasonSettings,
             new string('a', 64),
-            new string('b', 64));
+            CampaignSeasonGenerationFingerprint.GetInputFingerprint(
+                seasonMap.Catalog,
+                seasonSettings));
         var worldRevision = world.Revision;
         var resourceRevision = resources.Revision;
         var seasonRevision = seasonMap.Revision;
@@ -125,7 +127,7 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
             resources,
             resourceSettings,
             seasonMap,
-            priority,
+            enabledSeasonIds,
             savedSeason,
             projectPath);
         var loaded = await CampaignEditorProjectSerializer.LoadWithSeasonsAsync(projectPath);
@@ -137,9 +139,10 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
         Assert.False(loaded.SeasonsWereImplicitCompatibility);
         Assert.Equal(world.Tiles.GetTile(1, 1), loaded.World.Tiles.GetTile(1, 1));
         Assert.Equal(resources.GetMaterializedOccurrences(), loaded.ResourceMap.GetMaterializedOccurrences());
-        Assert.Equal(seasonMap.GetAllTiles(), loaded.SeasonMap.GetAllTiles());
-        Assert.Equal("monsoon", loaded.SeasonMap.DefaultSeasonId);
-        Assert.Equal(priority, loaded.SeasonPriorityIds);
+        Assert.Equal(
+            seasonMap.GetMaterializedOccurrences(),
+            loaded.SeasonMap.GetMaterializedOccurrences());
+        Assert.Equal(enabledSeasonIds.Order(StringComparer.Ordinal), loaded.SeasonEnabledIds);
         Assert.Equal(91, loaded.SeasonGenerationSettings!.SeasonSeed);
         Assert.Equal(new string('a', 64), loaded.SeasonSavedGeneration!.SourceTerrainFingerprint);
         Assert.All(
@@ -169,17 +172,14 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
         var world = CreateWorld();
         var resources = new CampaignResourceMap(world.Definition);
         var seasons = new CampaignSeasonMap(world.Definition);
-        var priority = CampaignSeasonGenerationSettings.DefaultPriority;
+        var enabledSeasonIds = CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds;
         await CampaignEditorProjectSerializer.SaveWithSeasonsAsync(
             world,
             resources,
             resourceGenerationSettings: null,
             seasons,
-            priority,
-            new CampaignSeasonSavedGeneration(
-                new CampaignSeasonGenerationSettings(11),
-                new string('1', 64),
-                new string('2', 64)),
+            enabledSeasonIds,
+            CreateSavedGeneration(seasons, new CampaignSeasonGenerationSettings(11), '1'),
             projectPath);
 
         await CampaignEditorProjectSerializer.SaveWithSeasonsAsync(
@@ -187,7 +187,7 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
             resources,
             resourceGenerationSettings: null,
             seasons,
-            priority,
+            enabledSeasonIds,
             seasonSavedGeneration: null,
             projectPath);
         var loaded = await CampaignEditorProjectSerializer.LoadWithSeasonsAsync(projectPath);
@@ -213,13 +213,13 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
         var world = CreateWorld();
         var resources = new CampaignResourceMap(world.Definition);
         var seasons = new CampaignSeasonMap(world.Definition);
-        seasons.Paint(1, 1, "winter");
+        seasons.Upsert(1, 1, new("winter"));
         await CampaignEditorProjectSerializer.SaveWithSeasonsAsync(
             world,
             resources,
             resourceGenerationSettings: null,
             seasons,
-            CampaignSeasonGenerationSettings.DefaultPriority,
+            CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds,
             seasonSavedGeneration: null,
             projectPath);
         var before = await ReadSeasonFilesAsync(projectPath);
@@ -271,11 +271,8 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
                 resources,
                 resourceGenerationSettings: null,
                 seasons,
-                CampaignSeasonGenerationSettings.DefaultPriority,
-                new CampaignSeasonSavedGeneration(
-                    new CampaignSeasonGenerationSettings(9),
-                    new string('a', 64),
-                    new string('b', 64)),
+                CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds,
+                CreateSavedGeneration(seasons, new CampaignSeasonGenerationSettings(9), 'a'),
                 projectPath));
 
         foreach (var pair in original)
@@ -307,7 +304,7 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
                 new CampaignResourceMap(world.Definition),
                 resourceGenerationSettings: null,
                 new CampaignSeasonMap(world.Definition),
-                CampaignSeasonGenerationSettings.DefaultPriority,
+                CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds,
                 seasonSavedGeneration: null,
                 projectPath,
                 cancellation.Token));
@@ -330,10 +327,10 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
             resources,
             resourceGenerationSettings: null,
             seasons,
-            CampaignSeasonGenerationSettings.DefaultPriority,
+            CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds,
             seasonSavedGeneration: null,
             projectPath);
-        seasons.Paint(0, 0, "winter");
+        seasons.Upsert(0, 0, new("winter"));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => saveTask);
         Assert.Contains("seasons changed", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -355,7 +352,8 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
             packagePath);
 
         using var archive = ZipFile.OpenRead(packagePath);
-        Assert.NotNull(archive.GetEntry(CampaignWorldRuntimeExporter.SeasonTilesEntryName));
+        Assert.NotNull(archive.GetEntry(CampaignWorldRuntimeExporter.SeasonIndexEntryName));
+        Assert.NotNull(archive.GetEntry(CampaignWorldRuntimeExporter.SeasonRecordsEntryName));
         await using var manifestStream = archive
             .GetEntry(CampaignWorldRuntimeExporter.ManifestEntryName)!
             .Open();
@@ -383,6 +381,15 @@ public sealed class CampaignSeasonEditorProjectSerializerTests
             64,
             81,
             new CampaignSeasonRule(moisture: new CampaignSeasonRange(0.6, 1)));
+
+    private static CampaignSeasonSavedGeneration CreateSavedGeneration(
+        CampaignSeasonMap seasons,
+        CampaignSeasonGenerationSettings settings,
+        char sourceFingerprintCharacter) =>
+        new(
+            settings,
+            new string(sourceFingerprintCharacter, 64),
+            CampaignSeasonGenerationFingerprint.GetInputFingerprint(seasons.Catalog, settings));
 
     private static IEnumerable<string> GetStagingDirectories(
         string parentDirectory,

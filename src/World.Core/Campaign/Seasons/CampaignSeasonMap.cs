@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Kingdom.World.Core.Models;
 using Kingdom.World.Core.Validation;
 
@@ -5,62 +6,29 @@ namespace Kingdom.World.Core.Campaign.Seasons;
 
 public sealed class CampaignSeasonMap
 {
-    private readonly ushort[] _seasonIndexes;
-    private readonly ulong[] _lockWords;
-    private int _lockedTileCount;
+    private readonly Dictionary<long, Dictionary<string, CampaignSeasonOccurrence>> _tiles = [];
+    private int _occurrenceCount;
+    private int _lockedOccurrenceCount;
 
     public CampaignSeasonMap(
         CampaignWorldDefinition definition,
-        CampaignSeasonCatalog? catalog = null,
-        string defaultSeasonId = CampaignSeasonCatalog.SpringId)
+        CampaignSeasonCatalog? catalog = null)
     {
         Definition = definition ?? throw new ArgumentNullException(nameof(definition));
         CampaignWorldDefinition.EnsureValid(definition);
-        if (definition.TileCount > int.MaxValue)
-        {
-            throw new ArgumentException(
-                "Campaign season grids cannot exceed the supported 32-bit dense tile count.",
-                nameof(definition));
-        }
-
         Catalog = catalog ?? new CampaignSeasonCatalog();
-        if (!Catalog.Contains(defaultSeasonId))
-        {
-            throw new ArgumentException(
-                $"Default season '{defaultSeasonId}' is not present in the season catalog.",
-                nameof(defaultSeasonId));
-        }
-
-        DefaultSeasonId = defaultSeasonId;
-        var tileCount = checked((int)definition.TileCount);
-        _seasonIndexes = new ushort[tileCount];
-        Array.Fill(_seasonIndexes, Catalog.GetIndex(defaultSeasonId));
-        _lockWords = new ulong[checked((int)((tileCount + 63L) / 64))];
     }
 
     internal static CampaignSeasonMap CreateSnapshot(
         CampaignWorldDefinition definition,
         CampaignSeasonCatalog catalog,
-        string defaultSeasonId,
-        IReadOnlyList<CampaignSeasonTile> tiles)
+        IEnumerable<CampaignSeasonEntry> entries)
     {
-        ArgumentNullException.ThrowIfNull(tiles);
-        var map = new CampaignSeasonMap(definition, catalog, defaultSeasonId);
-        if (tiles.Count != map.TileCount)
-        {
-            throw new ArgumentException(
-                $"Season snapshot contains {tiles.Count:N0} tiles; expected {map.TileCount:N0}.",
-                nameof(tiles));
-        }
-
-        for (var index = 0; index < tiles.Count; index++)
-        {
-            var tile = tiles[index];
-            tile.EnsureValid(catalog);
-            map._seasonIndexes[index] = catalog.GetIndex(tile.SeasonId);
-            map.SetLockBit(index, tile.Locked);
-        }
-
+        ArgumentNullException.ThrowIfNull(entries);
+        var map = new CampaignSeasonMap(definition, catalog);
+        map.Apply(entries.Select(static entry =>
+            CampaignSeasonMutation.Upsert(entry.X, entry.Y, entry.Occurrence)));
+        map.Revision = 0;
         return map;
     }
 
@@ -68,127 +36,150 @@ public sealed class CampaignSeasonMap
 
     public CampaignSeasonCatalog Catalog { get; }
 
-    public string DefaultSeasonId { get; }
-
-    public int TileCount => _seasonIndexes.Length;
-
-    public int LockedTileCount => _lockedTileCount;
-
     public long Revision { get; private set; }
+
+    public int MaterializedTileCount => _tiles.Count;
+
+    public int OccurrenceCount => _occurrenceCount;
+
+    public int LockedOccurrenceCount => _lockedOccurrenceCount;
+
+    public long TileCount => Definition.TileCount;
 
     public bool IsValidCoordinate(int x, int y) =>
         (uint)x < (uint)Definition.TilesX && (uint)y < (uint)Definition.TilesY;
 
-    public CampaignSeasonTile GetTile(int x, int y)
+    public bool TryGetOccurrence(
+        int x,
+        int y,
+        string seasonId,
+        out CampaignSeasonOccurrence occurrence)
     {
-        var index = GetFlatIndex(x, y);
-        return ReadTile(index);
+        EnsureValidCoordinate(x, y);
+        ArgumentException.ThrowIfNullOrWhiteSpace(seasonId);
+        if (_tiles.TryGetValue(GetTileKey(x, y), out var tile) &&
+            tile.TryGetValue(seasonId, out var found))
+        {
+            occurrence = found;
+            return true;
+        }
+
+        occurrence = default;
+        return false;
     }
 
-    public IReadOnlyList<CampaignSeasonEntry> GetTiles(CampaignTileArea area)
+    public IReadOnlyList<CampaignSeasonOccurrence> GetOccurrences(int x, int y)
+    {
+        EnsureValidCoordinate(x, y);
+        return _tiles.TryGetValue(GetTileKey(x, y), out var tile)
+            ? tile.Values.OrderBy(static value => value.SeasonId, StringComparer.Ordinal).ToArray()
+            : [];
+    }
+
+    public IReadOnlyList<CampaignSeasonEntry> GetOccurrences(
+        CampaignTileArea area,
+        string? seasonId = null)
     {
         EnsureValidArea(area);
-        var entries = new CampaignSeasonEntry[checked(area.Width * area.Height)];
-        var destination = 0;
-        for (var y = area.MinimumY; y <= area.MaximumY; y++)
+        if (seasonId is not null)
         {
-            for (var x = area.MinimumX; x <= area.MaximumX; x++)
-            {
-                entries[destination++] = new CampaignSeasonEntry(x, y, GetTile(x, y));
-            }
+            EnsureKnownSeasonId(seasonId, nameof(seasonId));
         }
 
-        return entries;
+        var areaTileCount = (long)area.Width * area.Height;
+        return _tiles.Count <= areaTileCount
+            ? GetOccurrencesBySparseFiltering(area, seasonId)
+            : GetOccurrencesByCoordinateTraversal(area, seasonId);
     }
 
-    public IReadOnlyList<CampaignSeasonEntry> GetAllTiles()
-    {
-        var entries = new CampaignSeasonEntry[_seasonIndexes.Length];
-        var destination = 0;
-        for (var y = 0; y < Definition.TilesY; y++)
-        {
-            for (var x = 0; x < Definition.TilesX; x++)
+    public IReadOnlyList<CampaignSeasonEntry> GetMaterializedOccurrences() =>
+        _tiles
+            .SelectMany(static pair =>
             {
-                entries[destination] = new CampaignSeasonEntry(x, y, ReadTile(destination));
-                destination++;
-            }
-        }
-
-        return entries;
-    }
+                var (x, y) = GetCoordinate(pair.Key);
+                return pair.Value.Values.Select(value => new CampaignSeasonEntry(x, y, value));
+            })
+            .OrderBy(static entry => entry.Y)
+            .ThenBy(static entry => entry.X)
+            .ThenBy(static entry => entry.Occurrence.SeasonId, StringComparer.Ordinal)
+            .ToArray();
 
     public int GetUsageCount(string seasonId)
     {
-        var targetIndex = GetCatalogIndex(seasonId, nameof(seasonId));
-        var count = 0;
-        foreach (var value in _seasonIndexes)
-        {
-            if (value == targetIndex)
-            {
-                count++;
-            }
-        }
-
-        return count;
+        EnsureKnownSeasonId(seasonId, nameof(seasonId));
+        return _tiles.Values.Count(tile => tile.ContainsKey(seasonId));
     }
 
     public IReadOnlyDictionary<string, int> GetUsageCounts(IEnumerable<string> seasonIds)
     {
         ArgumentNullException.ThrowIfNull(seasonIds);
-        var requested = new SortedDictionary<string, int>(StringComparer.Ordinal);
-        var indexToId = new Dictionary<ushort, string>();
+        var counts = new SortedDictionary<string, int>(StringComparer.Ordinal);
         foreach (var seasonId in seasonIds)
         {
-            var index = GetCatalogIndex(seasonId, nameof(seasonIds));
-            if (!requested.TryAdd(seasonId, 0))
+            EnsureKnownSeasonId(seasonId, nameof(seasonIds));
+            if (!counts.TryAdd(seasonId, 0))
             {
                 throw new ArgumentException(
                     $"Season usage query contains '{seasonId}' more than once.",
                     nameof(seasonIds));
             }
-
-            indexToId.Add(index, seasonId);
         }
 
-        foreach (var value in _seasonIndexes)
+        foreach (var tile in _tiles.Values)
         {
-            if (indexToId.TryGetValue(value, out var seasonId))
+            foreach (var seasonId in tile.Keys)
             {
-                requested[seasonId]++;
+                if (counts.TryGetValue(seasonId, out var count))
+                {
+                    counts[seasonId] = count + 1;
+                }
             }
         }
 
-        return new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(requested);
+        return new ReadOnlyDictionary<string, int>(counts);
     }
 
-    public bool SetTile(int x, int y, CampaignSeasonTile value) =>
-        Apply([new CampaignSeasonMutation(x, y, value)]) > 0;
+    public bool Upsert(int x, int y, CampaignSeasonOccurrence occurrence) =>
+        Apply([CampaignSeasonMutation.Upsert(x, y, occurrence)]) > 0;
 
-    public bool Paint(int x, int y, string seasonId, bool locked = true) =>
-        SetTile(x, y, new CampaignSeasonTile(seasonId, locked));
+    public bool Remove(int x, int y, string seasonId) =>
+        Apply([CampaignSeasonMutation.Remove(x, y, seasonId)]) > 0;
 
-    public bool ResetToDefault(int x, int y, bool locked = false) =>
-        SetTile(x, y, new CampaignSeasonTile(DefaultSeasonId, locked));
-
-    public bool SetLocked(int x, int y, bool locked)
+    public bool SetLocked(int x, int y, string seasonId, bool locked)
     {
-        var current = GetTile(x, y);
-        return SetTile(x, y, current with { Locked = locked });
+        if (!TryGetOccurrence(x, y, seasonId, out var current))
+        {
+            return false;
+        }
+
+        return Upsert(x, y, current with { Locked = locked });
     }
 
     public int Apply(IEnumerable<CampaignSeasonMutation> mutations)
     {
         ArgumentNullException.ThrowIfNull(mutations);
         var pending = mutations.ToArray();
-        var seen = new HashSet<int>();
+        var seen = new HashSet<(long TileKey, string SeasonId)>();
         foreach (var mutation in pending)
         {
-            var index = GetFlatIndex(mutation.X, mutation.Y);
-            mutation.Value.EnsureValid(Catalog);
-            if (!seen.Add(index))
+            EnsureValidCoordinate(mutation.X, mutation.Y);
+            EnsureKnownSeasonId(mutation.SeasonId, nameof(mutations));
+            if (mutation.Value is { } value)
+            {
+                value.EnsureValid();
+                if (!string.Equals(value.SeasonId, mutation.SeasonId, StringComparison.Ordinal))
+                {
+                    throw new ArgumentException(
+                        "Season mutation identity does not match its occurrence value.",
+                        nameof(mutations));
+                }
+            }
+
+            var identity = (GetTileKey(mutation.X, mutation.Y), mutation.SeasonId);
+            if (!seen.Add(identity))
             {
                 throw new ArgumentException(
-                    $"Season tile ({mutation.X}, {mutation.Y}) appears more than once in one update batch.",
+                    $"Season '{mutation.SeasonId}' at ({mutation.X}, {mutation.Y}) appears more than once in one update batch.",
                     nameof(mutations));
             }
         }
@@ -196,15 +187,59 @@ public sealed class CampaignSeasonMap
         var changed = 0;
         foreach (var mutation in pending)
         {
-            var index = GetFlatIndex(mutation.X, mutation.Y);
-            var previous = ReadTile(index);
-            if (previous == mutation.Value)
+            var tileKey = GetTileKey(mutation.X, mutation.Y);
+            if (mutation.Value is null)
             {
-                continue;
+                if (!_tiles.TryGetValue(tileKey, out var existingTile) ||
+                    !existingTile.Remove(mutation.SeasonId, out var removed))
+                {
+                    continue;
+                }
+
+                _occurrenceCount--;
+                if (removed.Locked)
+                {
+                    _lockedOccurrenceCount--;
+                }
+
+                if (existingTile.Count == 0)
+                {
+                    _tiles.Remove(tileKey);
+                }
+            }
+            else
+            {
+                var value = mutation.Value.Value;
+                if (!_tiles.TryGetValue(tileKey, out var tile))
+                {
+                    tile = new Dictionary<string, CampaignSeasonOccurrence>(StringComparer.Ordinal);
+                    _tiles.Add(tileKey, tile);
+                }
+
+                if (tile.TryGetValue(mutation.SeasonId, out var previous))
+                {
+                    if (previous == value)
+                    {
+                        continue;
+                    }
+
+                    if (previous.Locked != value.Locked)
+                    {
+                        _lockedOccurrenceCount += value.Locked ? 1 : -1;
+                    }
+                }
+                else
+                {
+                    _occurrenceCount++;
+                    if (value.Locked)
+                    {
+                        _lockedOccurrenceCount++;
+                    }
+                }
+
+                tile[mutation.SeasonId] = value;
             }
 
-            _seasonIndexes[index] = Catalog.GetIndex(mutation.Value.SeasonId);
-            SetLockBit(index, mutation.Value.Locked);
             Revision++;
             changed++;
         }
@@ -215,29 +250,46 @@ public sealed class CampaignSeasonMap
     public IReadOnlyList<string> Validate()
     {
         var errors = new List<string>();
-        if (!Catalog.Contains(DefaultSeasonId))
-        {
-            errors.Add($"Unknown default season ID '{DefaultSeasonId}'.");
-        }
-
+        var countedOccurrences = 0;
         var countedLocks = 0;
-        for (var index = 0; index < _seasonIndexes.Length; index++)
+        foreach (var entry in GetMaterializedOccurrences())
         {
-            if (_seasonIndexes[index] >= Catalog.Definitions.Count)
-            {
-                errors.Add($"Season catalog index {_seasonIndexes[index]} at dense tile {index} is invalid.");
-            }
-
-            if (GetLockBit(index))
+            countedOccurrences++;
+            if (entry.Occurrence.Locked)
             {
                 countedLocks++;
             }
+
+            if (!IsValidCoordinate(entry.X, entry.Y))
+            {
+                errors.Add($"Season coordinate ({entry.X}, {entry.Y}) is outside the campaign grid.");
+            }
+
+            if (!Catalog.Contains(entry.Occurrence.SeasonId))
+            {
+                errors.Add($"Unknown season ID '{entry.Occurrence.SeasonId}'.");
+            }
+
+            try
+            {
+                entry.Occurrence.EnsureValid();
+            }
+            catch (ArgumentException exception)
+            {
+                errors.Add(exception.Message);
+            }
         }
 
-        if (countedLocks != _lockedTileCount)
+        if (countedOccurrences != _occurrenceCount)
         {
             errors.Add(
-                $"Season lock count {_lockedTileCount} does not match the dense lock data count {countedLocks}.");
+                $"Season occurrence count {_occurrenceCount} does not match materialized count {countedOccurrences}.");
+        }
+
+        if (countedLocks != _lockedOccurrenceCount)
+        {
+            errors.Add(
+                $"Season lock count {_lockedOccurrenceCount} does not match materialized count {countedLocks}.");
         }
 
         return errors;
@@ -252,13 +304,78 @@ public sealed class CampaignSeasonMap
         }
     }
 
-    private CampaignSeasonTile ReadTile(int flatIndex)
+    private IReadOnlyList<CampaignSeasonEntry> GetOccurrencesBySparseFiltering(
+        CampaignTileArea area,
+        string? seasonId)
     {
-        var definition = Catalog.GetByIndex(_seasonIndexes[flatIndex]);
-        return new CampaignSeasonTile(definition.Id, GetLockBit(flatIndex));
+        var entries = new List<CampaignSeasonEntry>();
+        foreach (var (tileKey, tile) in _tiles)
+        {
+            var (x, y) = GetCoordinate(tileKey);
+            if (x < area.MinimumX || x > area.MaximumX ||
+                y < area.MinimumY || y > area.MaximumY)
+            {
+                continue;
+            }
+
+            if (seasonId is not null)
+            {
+                if (tile.TryGetValue(seasonId, out var occurrence))
+                {
+                    entries.Add(new CampaignSeasonEntry(x, y, occurrence));
+                }
+
+                continue;
+            }
+
+            entries.AddRange(tile.Values.Select(value =>
+                new CampaignSeasonEntry(x, y, value)));
+        }
+
+        return entries
+            .OrderBy(static entry => entry.Y)
+            .ThenBy(static entry => entry.X)
+            .ThenBy(static entry => entry.Occurrence.SeasonId, StringComparer.Ordinal)
+            .ToArray();
     }
 
-    private ushort GetCatalogIndex(string seasonId, string parameterName)
+    private IReadOnlyList<CampaignSeasonEntry> GetOccurrencesByCoordinateTraversal(
+        CampaignTileArea area,
+        string? seasonId)
+    {
+        var entries = new List<CampaignSeasonEntry>();
+        for (var y = area.MinimumY; y <= area.MaximumY; y++)
+        {
+            for (var x = area.MinimumX; x <= area.MaximumX; x++)
+            {
+                if (!_tiles.TryGetValue(GetTileKey(x, y), out var tile))
+                {
+                    continue;
+                }
+
+                if (seasonId is not null)
+                {
+                    if (tile.TryGetValue(seasonId, out var occurrence))
+                    {
+                        entries.Add(new CampaignSeasonEntry(x, y, occurrence));
+                    }
+
+                    continue;
+                }
+
+                foreach (var occurrence in tile.Values.OrderBy(
+                             static value => value.SeasonId,
+                             StringComparer.Ordinal))
+                {
+                    entries.Add(new CampaignSeasonEntry(x, y, occurrence));
+                }
+            }
+        }
+
+        return entries;
+    }
+
+    private void EnsureKnownSeasonId(string seasonId, string parameterName)
     {
         if (!CampaignSeasonDefinition.IsValidIdentifier(seasonId) || !Catalog.Contains(seasonId))
         {
@@ -266,11 +383,9 @@ public sealed class CampaignSeasonMap
                 $"Season query references unknown or invalid season '{seasonId}'.",
                 parameterName);
         }
-
-        return Catalog.GetIndex(seasonId);
     }
 
-    private int GetFlatIndex(int x, int y)
+    private void EnsureValidCoordinate(int x, int y)
     {
         if (!IsValidCoordinate(x, y))
         {
@@ -278,8 +393,6 @@ public sealed class CampaignSeasonMap
                 nameof(x),
                 $"Campaign season coordinate ({x}, {y}) is outside 0..{Definition.TilesX - 1}, 0..{Definition.TilesY - 1}.");
         }
-
-        return checked(y * Definition.TilesX + x);
     }
 
     private void EnsureValidArea(CampaignTileArea area)
@@ -294,32 +407,8 @@ public sealed class CampaignSeasonMap
         }
     }
 
-    private bool GetLockBit(int index)
-    {
-        var wordIndex = index >> 6;
-        var mask = 1UL << (index & 63);
-        return (_lockWords[wordIndex] & mask) != 0;
-    }
+    private static long GetTileKey(int x, int y) => ((long)y << 32) | (uint)x;
 
-    private void SetLockBit(int index, bool locked)
-    {
-        var wordIndex = index >> 6;
-        var mask = 1UL << (index & 63);
-        var wasLocked = (_lockWords[wordIndex] & mask) != 0;
-        if (wasLocked == locked)
-        {
-            return;
-        }
-
-        if (locked)
-        {
-            _lockWords[wordIndex] |= mask;
-            _lockedTileCount++;
-        }
-        else
-        {
-            _lockWords[wordIndex] &= ~mask;
-            _lockedTileCount--;
-        }
-    }
+    private static (int X, int Y) GetCoordinate(long key) =>
+        ((int)(uint)key, (int)(key >> 32));
 }

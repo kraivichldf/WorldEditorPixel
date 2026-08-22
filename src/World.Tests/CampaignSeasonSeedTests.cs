@@ -48,7 +48,7 @@ public sealed class CampaignSeasonSeedTests
         var fingerprint = CampaignSeasonSeed.GetCatalogIdFingerprint(new CampaignSeasonCatalog());
 
         Assert.Equal(
-            "C0332D36734678DD75BAB75340DE24823780F18ACC63972E7A6C57E04D431462",
+            "095D1A06DA880ED33D92D013963DDED5E5576127C01BFB408C4894CBF574E4B0",
             fingerprint);
     }
 
@@ -74,7 +74,7 @@ public sealed class CampaignSeasonSeedTests
         var equalWorld = new CampaignWorld(definition with { });
         equalWorld.Tiles.SetTile(0, 0, new CampaignTileData(CampaignTileType.Forest, 120));
         var equalMap = new CampaignSeasonMap(definition with { }, catalog);
-        equalMap.Paint(1, 0, CampaignSeasonCatalog.WinterId, locked: true);
+        equalMap.Upsert(1, 0, new(CampaignSeasonCatalog.WinterId, Locked: true));
         var equal = CampaignSeasonSeed.FromCurrentWorld(
             CampaignSeasonGenerationSource.Capture(
                 new CampaignSeasonTerrainQueryV2(equalWorld),

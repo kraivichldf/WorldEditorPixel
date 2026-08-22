@@ -6,14 +6,11 @@ public sealed class CampaignSeasonProjectLoadResult
 {
     public CampaignSeasonProjectLoadResult(
         CampaignSeasonMap seasonMap,
-        IEnumerable<string> priorityIds,
         CampaignSeasonSavedGeneration? savedGeneration,
         string sourceProjectDirectory,
         bool wasImplicitCompatibility)
     {
         SeasonMap = seasonMap ?? throw new ArgumentNullException(nameof(seasonMap));
-        ArgumentNullException.ThrowIfNull(priorityIds);
-        PriorityIds = Array.AsReadOnly(priorityIds.ToArray());
         SavedGeneration = savedGeneration;
         SourceProjectDirectory = sourceProjectDirectory ??
             throw new ArgumentNullException(nameof(sourceProjectDirectory));
@@ -21,8 +18,6 @@ public sealed class CampaignSeasonProjectLoadResult
     }
 
     public CampaignSeasonMap SeasonMap { get; }
-
-    public IReadOnlyList<string> PriorityIds { get; }
 
     public CampaignSeasonSavedGeneration? SavedGeneration { get; }
 

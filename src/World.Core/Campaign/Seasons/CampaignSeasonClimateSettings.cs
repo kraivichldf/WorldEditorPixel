@@ -10,7 +10,6 @@ public sealed class CampaignSeasonClimateSettings
         double seaMaritimeRadiusKilometers = 650,
         double lakeMaritimeStrength = 0.25,
         double lakeMaritimeRadiusKilometers = 180,
-        double maximumPhaseLagOrbitFraction = 0.08,
         double maritimeAmplitudeReduction = 0.55,
         double temperatureNoiseCelsius = 2.5,
         double seaMoistureStrength = 0.30,
@@ -32,7 +31,6 @@ public sealed class CampaignSeasonClimateSettings
         SeaMaritimeRadiusKilometers = seaMaritimeRadiusKilometers;
         LakeMaritimeStrength = lakeMaritimeStrength;
         LakeMaritimeRadiusKilometers = lakeMaritimeRadiusKilometers;
-        MaximumPhaseLagOrbitFraction = maximumPhaseLagOrbitFraction;
         MaritimeAmplitudeReduction = maritimeAmplitudeReduction;
         TemperatureNoiseCelsius = temperatureNoiseCelsius;
         SeaMoistureStrength = seaMoistureStrength;
@@ -60,8 +58,6 @@ public sealed class CampaignSeasonClimateSettings
     public double LakeMaritimeStrength { get; }
 
     public double LakeMaritimeRadiusKilometers { get; }
-
-    public double MaximumPhaseLagOrbitFraction { get; }
 
     public double MaritimeAmplitudeReduction { get; }
 
@@ -100,7 +96,6 @@ public sealed class CampaignSeasonClimateSettings
         EnsurePositive(SeaMaritimeRadiusKilometers, nameof(SeaMaritimeRadiusKilometers));
         EnsureInRange(LakeMaritimeStrength, 0, 2, nameof(LakeMaritimeStrength));
         EnsurePositive(LakeMaritimeRadiusKilometers, nameof(LakeMaritimeRadiusKilometers));
-        EnsureInRange(MaximumPhaseLagOrbitFraction, 0, 0.25, nameof(MaximumPhaseLagOrbitFraction));
         EnsureInRange(MaritimeAmplitudeReduction, 0, 1, nameof(MaritimeAmplitudeReduction));
         EnsureInRange(TemperatureNoiseCelsius, 0, 30, nameof(TemperatureNoiseCelsius));
         EnsureInRange(SeaMoistureStrength, 0, 1, nameof(SeaMoistureStrength));

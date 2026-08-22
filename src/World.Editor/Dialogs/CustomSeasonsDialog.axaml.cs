@@ -32,8 +32,10 @@ public sealed partial class CustomSeasonsDialog : Window
     private readonly TextBox _elevationInput;
     private readonly TextBox _temperatureInput;
     private readonly TextBox _moistureInput;
-    private readonly TextBox _intensityInput;
-    private readonly TextBox _tendencyInput;
+    private readonly TextBox _warmTemperatureInput;
+    private readonly TextBox _coldTemperatureInput;
+    private readonly TextBox _annualRangeInput;
+    private readonly TextBox _seasonalityInput;
     private readonly TextBox _seaDistanceInput;
     private readonly TextBox _lakeDistanceInput;
     private readonly TextBox _riverDistanceInput;
@@ -43,7 +45,6 @@ public sealed partial class CustomSeasonsDialog : Window
     private readonly TextBox _customExcludesInput;
     private readonly Border _validationPanel;
     private readonly TextBlock _validationText;
-    private string _defaultSeasonId = CampaignSeasonCatalog.SpringId;
     private SeasonDefinitionEditorItem? _formItem;
     private bool _synchronizing;
 
@@ -67,8 +68,10 @@ public sealed partial class CustomSeasonsDialog : Window
         _elevationInput = FindRequired<TextBox>("ElevationInput");
         _temperatureInput = FindRequired<TextBox>("TemperatureInput");
         _moistureInput = FindRequired<TextBox>("MoistureInput");
-        _intensityInput = FindRequired<TextBox>("IntensityInput");
-        _tendencyInput = FindRequired<TextBox>("TendencyInput");
+        _warmTemperatureInput = FindRequired<TextBox>("WarmTemperatureInput");
+        _coldTemperatureInput = FindRequired<TextBox>("ColdTemperatureInput");
+        _annualRangeInput = FindRequired<TextBox>("AnnualRangeInput");
+        _seasonalityInput = FindRequired<TextBox>("SeasonalityInput");
         _seaDistanceInput = FindRequired<TextBox>("SeaDistanceInput");
         _lakeDistanceInput = FindRequired<TextBox>("LakeDistanceInput");
         _riverDistanceInput = FindRequired<TextBox>("RiverDistanceInput");
@@ -88,53 +91,30 @@ public sealed partial class CustomSeasonsDialog : Window
 
     public CustomSeasonsDialog(
         CampaignSeasonCatalog catalog,
-        IReadOnlyList<string> priorityIds,
-        IReadOnlyDictionary<string, int> usageCounts,
-        string defaultSeasonId)
+        IReadOnlyList<string> enabledSeasonIds,
+        IReadOnlyDictionary<string, int> usageCounts)
         : this()
     {
         ArgumentNullException.ThrowIfNull(catalog);
-        ArgumentNullException.ThrowIfNull(priorityIds);
+        ArgumentNullException.ThrowIfNull(enabledSeasonIds);
         ArgumentNullException.ThrowIfNull(usageCounts);
-        if (!catalog.Contains(defaultSeasonId))
+        var enabled = enabledSeasonIds.ToHashSet(StringComparer.Ordinal);
+        if (enabled.Count != enabledSeasonIds.Count || enabled.Any(id => !catalog.Contains(id)))
         {
-            throw new ArgumentException(
-                $"Project default season '{defaultSeasonId}' is not in the season catalog.",
-                nameof(defaultSeasonId));
+            throw new ArgumentException("Enabled seasons contain an unknown or duplicate ID.", nameof(enabledSeasonIds));
         }
 
-        _defaultSeasonId = defaultSeasonId;
-        var enabled = priorityIds.ToHashSet(StringComparer.Ordinal);
-        var byId = catalog.Definitions.ToDictionary(static definition => definition.Id, StringComparer.Ordinal);
-        foreach (var seasonId in priorityIds)
-        {
-            if (!byId.Remove(seasonId, out var definition))
-            {
-                throw new ArgumentException($"Season priority references unknown season '{seasonId}'.", nameof(priorityIds));
-            }
-
-            _definitions.Add(SeasonDefinitionEditorItem.FromDefinition(
-                definition,
-                catalog.IsBuiltIn(definition.Id),
-                usageCounts.GetValueOrDefault(definition.Id),
-                generationEnabled: true,
-                isProjectDefault: string.Equals(definition.Id, defaultSeasonId, StringComparison.Ordinal),
-                canEditId: false));
-        }
-
-        foreach (var definition in catalog.Definitions.Where(value => byId.ContainsKey(value.Id)))
+        foreach (var definition in catalog.Definitions)
         {
             _definitions.Add(SeasonDefinitionEditorItem.FromDefinition(
                 definition,
                 catalog.IsBuiltIn(definition.Id),
                 usageCounts.GetValueOrDefault(definition.Id),
                 enabled.Contains(definition.Id),
-                isProjectDefault: string.Equals(definition.Id, defaultSeasonId, StringComparison.Ordinal),
                 canEditId: false));
         }
 
         _definitionsList.SelectedIndex = _definitions.Count > 0 ? 0 : -1;
-        RefreshPriorityLabels();
         RefreshReplacementChoices();
         UpdateFormFromSelection();
     }
@@ -166,7 +146,6 @@ public sealed partial class CustomSeasonsDialog : Window
 
         _definitions.Move(index, target);
         _definitionsList.SelectedItem = selected;
-        RefreshPriorityLabels();
     }
 
     private void Add_OnClick(object? sender, RoutedEventArgs e)
@@ -184,7 +163,6 @@ public sealed partial class CustomSeasonsDialog : Window
             isBuiltIn: false,
             usageCount: 0,
             generationEnabled: false,
-            isProjectDefault: false,
             canEditId: true);
         _definitions.Add(item);
         _definitionsList.SelectedItem = item;
@@ -213,7 +191,6 @@ public sealed partial class CustomSeasonsDialog : Window
             isBuiltIn: false,
             usageCount: 0,
             generationEnabled: false,
-            isProjectDefault: false,
             canEditId: true);
         _definitions.Add(duplicate);
         _definitionsList.SelectedItem = duplicate;
@@ -230,13 +207,13 @@ public sealed partial class CustomSeasonsDialog : Window
         }
 
         SeasonDefinitionEditorItem? replacementItem = null;
-        if (RequiresReplacement(selected, _defaultSeasonId))
+        if (RequiresReplacement(selected))
         {
             if (_replacementInput.SelectedItem is not SeasonReplacementChoice replacement ||
                 string.Equals(replacement.Id, selected.Id, StringComparison.Ordinal))
             {
                 ShowValidation(
-                    $"{selected.Name} is referenced by tiles, the project default, or generation priority. " +
+                    $"{selected.Name} is referenced by Season Occurrences. " +
                     "Choose a remaining replacement first.");
                 return;
             }
@@ -270,7 +247,6 @@ public sealed partial class CustomSeasonsDialog : Window
             }
         }
 
-        RefreshPriorityLabels();
         RefreshReplacementChoices();
         HideValidation();
     }
@@ -302,12 +278,12 @@ public sealed partial class CustomSeasonsDialog : Window
                 .Select(static pair => pair.Second)
                 .ToArray();
             var catalog = new CampaignSeasonCatalog(custom, builtIns);
-            var priority = _definitions
+            var enabledIds = _definitions
                 .Zip(definitions)
                 .Where(static pair => pair.First.GenerationEnabled)
                 .Select(static pair => pair.Second.Id)
                 .ToArray();
-            new CampaignSeasonGenerationSettings(0, priorityIds: priority).EnsureValid(catalog);
+            new CampaignSeasonGenerationSettings(0, enabledSeasonIds: enabledIds).EnsureValid(catalog);
 
             foreach (var (removedId, replacementId) in _deletedReplacements)
             {
@@ -324,7 +300,7 @@ public sealed partial class CustomSeasonsDialog : Window
             Close(new CustomSeasonsDialogResult(
                 builtIns,
                 custom,
-                priority,
+                enabledIds,
                 new Dictionary<string, string>(_deletedReplacements, StringComparer.Ordinal),
                 selectedId));
         }
@@ -355,8 +331,10 @@ public sealed partial class CustomSeasonsDialog : Window
         _formItem.Elevation = _elevationInput.Text ?? string.Empty;
         _formItem.Temperature = _temperatureInput.Text ?? string.Empty;
         _formItem.Moisture = _moistureInput.Text ?? string.Empty;
-        _formItem.Intensity = _intensityInput.Text ?? string.Empty;
-        _formItem.Tendency = _tendencyInput.Text ?? string.Empty;
+        _formItem.WarmTemperature = _warmTemperatureInput.Text ?? string.Empty;
+        _formItem.ColdTemperature = _coldTemperatureInput.Text ?? string.Empty;
+        _formItem.AnnualTemperatureRange = _annualRangeInput.Text ?? string.Empty;
+        _formItem.Seasonality = _seasonalityInput.Text ?? string.Empty;
         _formItem.SeaDistance = _seaDistanceInput.Text ?? string.Empty;
         _formItem.LakeDistance = _lakeDistanceInput.Text ?? string.Empty;
         _formItem.RiverDistance = _riverDistanceInput.Text ?? string.Empty;
@@ -365,7 +343,6 @@ public sealed partial class CustomSeasonsDialog : Window
         _formItem.CustomIncludes = _customIncludesInput.Text ?? string.Empty;
         _formItem.CustomExcludes = _customExcludesInput.Text ?? string.Empty;
         _formItem.RefreshDerived();
-        RefreshPriorityLabels();
         RefreshReplacementChoices();
     }
 
@@ -384,14 +361,12 @@ public sealed partial class CustomSeasonsDialog : Window
 
             var identityLocked = !_formItem.CanEditId;
             _identityHelpText.Text = _formItem.IsBuiltIn
-                ? "Built-in name, ID, and fallback are canonical. Project color, tint, effect, rules, enabled state, and priority remain editable."
-                : _formItem.IsProjectDefault
-                    ? "This is the project default season. Its stable ID is locked; delete only with a replacement."
+                ? "Built-in name, ID, and fallback are canonical. Project color, tint, effect, rules, and generated state remain editable."
                 : _formItem.UsageCount > 0
                     ? $"Used by {_formItem.UsageCount:N0} tile(s). Stable ID is locked; delete only with a replacement."
                     : _formItem.CanEditId
                         ? "New custom draft. Its stable ID remains editable until this dialog is applied."
-                        : "Existing custom season. Its stable ID is immutable; name, fallback, appearance, rules, and priority remain editable.";
+                        : "Existing custom season. Its stable ID is immutable; name, fallback, appearance, rules, and generated state remain editable.";
             _nameInput.IsEnabled = !_formItem.IsBuiltIn;
             _idInput.IsEnabled = !identityLocked;
             _fallbackInput.IsEnabled = !_formItem.IsBuiltIn;
@@ -406,8 +381,10 @@ public sealed partial class CustomSeasonsDialog : Window
             _elevationInput.Text = _formItem.Elevation;
             _temperatureInput.Text = _formItem.Temperature;
             _moistureInput.Text = _formItem.Moisture;
-            _intensityInput.Text = _formItem.Intensity;
-            _tendencyInput.Text = _formItem.Tendency;
+            _warmTemperatureInput.Text = _formItem.WarmTemperature;
+            _coldTemperatureInput.Text = _formItem.ColdTemperature;
+            _annualRangeInput.Text = _formItem.AnnualTemperatureRange;
+            _seasonalityInput.Text = _formItem.Seasonality;
             _seaDistanceInput.Text = _formItem.SeaDistance;
             _lakeDistanceInput.Text = _formItem.LakeDistance;
             _riverDistanceInput.Text = _formItem.RiverDistance;
@@ -436,15 +413,6 @@ public sealed partial class CustomSeasonsDialog : Window
         _replacementInput.ItemsSource = choices;
         _replacementInput.SelectedItem = choices.FirstOrDefault(value =>
             string.Equals(value.Id, selectedId, StringComparison.Ordinal)) ?? choices.FirstOrDefault();
-    }
-
-    private void RefreshPriorityLabels()
-    {
-        var catchAll = _definitions.LastOrDefault(static item => item.GenerationEnabled);
-        foreach (var item in _definitions)
-        {
-            item.IsCatchAll = ReferenceEquals(item, catchAll);
-        }
     }
 
     private string CreateUniqueId(string baseId)
@@ -556,12 +524,8 @@ public sealed partial class CustomSeasonsDialog : Window
     internal static string[] SplitValues(string value) =>
         value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-    internal static bool RequiresReplacement(
-        SeasonDefinitionEditorItem item,
-        string defaultSeasonId) =>
-        item.UsageCount > 0 ||
-        item.GenerationEnabled ||
-        string.Equals(item.OriginalId, defaultSeasonId, StringComparison.Ordinal);
+    internal static bool RequiresReplacement(SeasonDefinitionEditorItem item) =>
+        item.UsageCount > 0;
 }
 
 public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
@@ -570,7 +534,6 @@ public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
     private string _name = string.Empty;
     private string _colorHex = "#808080";
     private bool _generationEnabled;
-    private bool _isCatchAll;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -579,8 +542,6 @@ public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
     public required bool IsBuiltIn { get; init; }
 
     public required int UsageCount { get; init; }
-
-    public bool IsProjectDefault { get; init; }
 
     public bool CanEditId { get; init; }
 
@@ -614,22 +575,6 @@ public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
         set => SetField(ref _generationEnabled, value);
     }
 
-    public bool IsCatchAll
-    {
-        get => _isCatchAll;
-        set
-        {
-            if (_isCatchAll == value)
-            {
-                return;
-            }
-
-            _isCatchAll = value;
-            OnPropertyChanged(nameof(IsCatchAll));
-            OnPropertyChanged(nameof(GenerationStateText));
-        }
-    }
-
     public string Latitude { get; set; } = string.Empty;
 
     public string Elevation { get; set; } = string.Empty;
@@ -638,9 +583,13 @@ public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
 
     public string Moisture { get; set; } = string.Empty;
 
-    public string Intensity { get; set; } = string.Empty;
+    public string WarmTemperature { get; set; } = string.Empty;
 
-    public string Tendency { get; set; } = string.Empty;
+    public string ColdTemperature { get; set; } = string.Empty;
+
+    public string AnnualTemperatureRange { get; set; } = string.Empty;
+
+    public string Seasonality { get; set; } = string.Empty;
 
     public string SeaDistance { get; set; } = string.Empty;
 
@@ -659,14 +608,9 @@ public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
     public string IdText => $"ID: {Id}";
 
     public string SourceAndUsageText =>
-        $"{(IsBuiltIn ? "Built-in" : "Custom")} · {UsageCount:N0} tile(s)" +
-        (IsProjectDefault ? " · project default" : string.Empty);
+        $"{(IsBuiltIn ? "Built-in" : "Custom")} · {UsageCount:N0} occurrence(s)";
 
-    public string GenerationStateText => IsCatchAll
-        ? "Catch-all"
-        : GenerationEnabled
-            ? "Enabled"
-            : "Manual only";
+    public string GenerationStateText => GenerationEnabled ? "Generated" : "Manual only";
 
     public IBrush SwatchBrush => TryGetColor(out var color)
         ? new SolidColorBrush(color)
@@ -677,14 +621,12 @@ public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
         bool isBuiltIn,
         int usageCount,
         bool generationEnabled,
-        bool isProjectDefault = false,
         bool canEditId = false) =>
         new()
         {
             OriginalId = definition.Id,
             IsBuiltIn = isBuiltIn,
             UsageCount = usageCount,
-            IsProjectDefault = isProjectDefault,
             CanEditId = canEditId,
             Id = definition.Id,
             Name = definition.Name,
@@ -696,9 +638,11 @@ public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
             Latitude = CustomSeasonsDialog.FormatRange(definition.Rule.LatitudeDegrees),
             Elevation = CustomSeasonsDialog.FormatRange(definition.Rule.ElevationMeters),
             Temperature = CustomSeasonsDialog.FormatRange(definition.Rule.TemperatureCelsius),
+            WarmTemperature = CustomSeasonsDialog.FormatRange(definition.Rule.WarmSeasonTemperatureCelsius),
+            ColdTemperature = CustomSeasonsDialog.FormatRange(definition.Rule.ColdSeasonTemperatureCelsius),
+            AnnualTemperatureRange = CustomSeasonsDialog.FormatRange(definition.Rule.AnnualTemperatureRangeCelsius),
             Moisture = CustomSeasonsDialog.FormatRange(definition.Rule.Moisture),
-            Intensity = CustomSeasonsDialog.FormatRange(definition.Rule.SeasonalIntensity),
-            Tendency = CustomSeasonsDialog.FormatRange(definition.Rule.SeasonalTendency),
+            Seasonality = CustomSeasonsDialog.FormatRange(definition.Rule.Seasonality),
             SeaDistance = CustomSeasonsDialog.FormatRange(definition.Rule.SeaDistanceKilometers),
             LakeDistance = CustomSeasonsDialog.FormatRange(definition.Rule.LakeDistanceKilometers),
             RiverDistance = CustomSeasonsDialog.FormatRange(definition.Rule.RiverDistanceKilometers),
@@ -720,9 +664,11 @@ public sealed class SeasonDefinitionEditorItem : INotifyPropertyChanged
                 CustomSeasonsDialog.ParseRange(Latitude, "Latitude"),
                 CustomSeasonsDialog.ParseRange(Elevation, "Elevation"),
                 CustomSeasonsDialog.ParseRange(Temperature, "Temperature"),
+                CustomSeasonsDialog.ParseRange(WarmTemperature, "Warm-season temperature"),
+                CustomSeasonsDialog.ParseRange(ColdTemperature, "Cold-season temperature"),
+                CustomSeasonsDialog.ParseRange(AnnualTemperatureRange, "Annual temperature range"),
                 CustomSeasonsDialog.ParseRange(Moisture, "Moisture"),
-                CustomSeasonsDialog.ParseRange(Intensity, "Seasonal intensity"),
-                CustomSeasonsDialog.ParseRange(Tendency, "Seasonal tendency"),
+                CustomSeasonsDialog.ParseRange(Seasonality, "Seasonality"),
                 CustomSeasonsDialog.ParseRange(SeaDistance, "Sea distance"),
                 CustomSeasonsDialog.ParseRange(LakeDistance, "Lake distance"),
                 CustomSeasonsDialog.ParseRange(RiverDistance, "River distance"),
@@ -776,6 +722,6 @@ public sealed record SeasonReplacementChoice(string Id, string Name)
 public sealed record CustomSeasonsDialogResult(
     IReadOnlyList<CampaignSeasonDefinition> BuiltInDefinitions,
     IReadOnlyList<CampaignSeasonDefinition> CustomDefinitions,
-    IReadOnlyList<string> PriorityIds,
+    IReadOnlyList<string> EnabledSeasonIds,
     IReadOnlyDictionary<string, string> DeletedSeasonReplacements,
     string? SelectedSeasonId);

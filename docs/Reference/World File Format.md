@@ -131,33 +131,40 @@ season-generation.json       optional
 season-layer.bin
 ```
 
-`season-definitions.json` version 1 always writes the complete canonical catalog, not only custom definitions. Its built-ins therefore retain the exact project appearance and rule meaning if future application defaults change. It stores `defaultSeasonId`, ordered enabled `priorityIds`, and each definition's stable ID, name, built-in/custom flag, built-in fallback, `#RRGGBB` color, tint/effect percentages, optional inclusive environmental ranges, and sorted built-in/custom terrain Include/Exclude lists. Catalog order is Spring, Summer, Autumn, Winter, then custom IDs in ordinal order.
+`season-definitions.json` version 1 always writes the complete canonical catalog, not only custom definitions. Its built-ins therefore retain the exact project appearance and rule meaning if future application defaults change. It stores each definition's stable ID, name, built-in/custom flag, built-in fallback, `#RRGGBB` color, tint/effect percentages, optional inclusive environmental ranges, and sorted built-in/custom terrain Include/Exclude lists. It stores no default, winner, or priority. Catalog order is canonical presentation/serialization order only.
 
-`season-generation.json` version 1 exists only after generation settings are accepted. It stores the season seed and terrain-link flag, Whole-globe/Regional coverage, nullable Regional centre latitude, axial tilt, every Advanced climate control, and 64-character SHA-256 source/input fingerprints. Priority remains in the definitions file and must agree with the reconstructed recipe. Missing generation data means **no saved recipe**; loading never invents one.
+`season-generation.json` version 1 exists only after generation settings are accepted. It stores the season seed and terrain-link flag, Whole-globe/Regional coverage, nullable Regional centre latitude, axial tilt, the sorted enabled Season ID set, every Advanced climate control, and 64-character SHA-256 source/input fingerprints. Every enabled definition evaluates independently. Missing generation data means **no saved recipe**; loading never invents one.
 
-`season-layer.bin` version 1 is little-endian and dense:
+`season-layer.bin` version 1 is little-endian. Its tile index is dense and its occurrence records are sparse:
 
 ```text
 8 bytes   ASCII magic "KWSEASON"
 2 bytes   uint16 version = 1
-2 bytes   uint16 recordStride = 3
+2 bytes   uint16 indexRecordStride = 8
+2 bytes   uint16 occurrenceRecordStride = 3
+2 bytes   uint16 reserved = 0
 4 bytes   int32 tilesX
 4 bytes   int32 tilesY
 4 bytes   int32 tileCount
+4 bytes   int32 occurrenceCount
 32 bytes  SHA-256 of length-prefixed canonical ordered catalog IDs
 
-tileCount row-major records:
-  2 bytes uint16 season catalog index
+tileCount row-major index records:
+  4 bytes uint32 firstOccurrenceIndex
+  4 bytes uint32 occurrenceCount
+
+occurrenceCount records, grouped by tile and ordered by catalog index:
+  2 bytes uint16 seasonCatalogIndex
   1 byte  flags: bit 0 locked; bits 1..7 zero
 ```
 
-The reader requires the exact header, version, stride, dimensions, tile count, file length, catalog fingerprint, in-range indexes, and zero reserved flag bits. JSON readers require the exact camel-case schema, string enums, every required property, no unknown/duplicate properties, canonical definition order, and valid cross-file references. A malformed or partial season set is rejected before visible document replacement.
+The reader requires the exact 64-byte header, version, both strides, zero reserved field, dimensions, tile/occurrence counts, file length, catalog fingerprint, contiguous tile spans, in-range catalog indexes, strictly increasing IDs within each tile, and zero reserved flag bits. JSON readers require the exact camel-case schema, string enums, every required property, no unknown/duplicate properties, canonical definition order, and valid cross-file references. A malformed or partial season set is rejected before visible document replacement.
 
-When all three files are absent, the season-aware loader returns the built-in catalog, `defaultSeasonId = spring`, default priority, one unlocked Spring value per tile, revision zero, and no generation recipe. This compatibility projection is clean. `season-generation.json` may be absent while the other two files exist; any other partial combination is invalid. A legacy version-1 terrain import never attaches sibling season files.
+When all three files are absent, the season-aware loader returns the built-in catalog, an empty revision-zero Season Occurrence map, and no generation recipe. This compatibility projection is clean. `season-generation.json` may be absent while the other two files exist; any other partial combination is invalid. A legacy version-1 terrain import never attaches sibling season files.
 
 `CampaignEditorProjectSerializer.SaveWithSeasonsAsync` stages terrain, resources, and seasons into one sibling folder, reload-validates them, checks all three captured revisions, and commits the nine known files with backup rollback. The running editor uses the season-aware load/save boundary. Its older overload intentionally keeps the earlier six-file ownership and neither rewrites nor deletes season files, preserving compatibility for terrain/resource-only callers that do not own Season authority.
 
-ADR-0030 Slice 7 verifies this implemented contract through the full `588/588` Release suite: exact definitions/settings/dense ID/lock round trips, clean missing-sidecar Spring compatibility, partial/corrupt sidecar rejection, nine-file rollback, and save/reopen after exact Candidate acceptance.
+ADR-0030 verification covers exact catalog/settings/zero-to-many occurrence/lock round trips, clean missing-sidecar empty compatibility, partial/corrupt sidecar rejection, nine-file rollback, and save/reopen after exact Candidate acceptance.
 
 ## Metadata version 2
 

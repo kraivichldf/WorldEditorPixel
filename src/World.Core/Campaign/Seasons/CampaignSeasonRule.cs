@@ -15,9 +15,11 @@ public sealed class CampaignSeasonRule
         CampaignSeasonRange? latitudeDegrees = null,
         CampaignSeasonRange? elevationMeters = null,
         CampaignSeasonRange? temperatureCelsius = null,
+        CampaignSeasonRange? warmSeasonTemperatureCelsius = null,
+        CampaignSeasonRange? coldSeasonTemperatureCelsius = null,
+        CampaignSeasonRange? annualTemperatureRangeCelsius = null,
         CampaignSeasonRange? moisture = null,
-        CampaignSeasonRange? seasonalIntensity = null,
-        CampaignSeasonRange? seasonalTendency = null,
+        CampaignSeasonRange? seasonality = null,
         CampaignSeasonRange? seaDistanceKilometers = null,
         CampaignSeasonRange? lakeDistanceKilometers = null,
         CampaignSeasonRange? riverDistanceKilometers = null,
@@ -29,9 +31,11 @@ public sealed class CampaignSeasonRule
         LatitudeDegrees = latitudeDegrees;
         ElevationMeters = elevationMeters;
         TemperatureCelsius = temperatureCelsius;
+        WarmSeasonTemperatureCelsius = warmSeasonTemperatureCelsius;
+        ColdSeasonTemperatureCelsius = coldSeasonTemperatureCelsius;
+        AnnualTemperatureRangeCelsius = annualTemperatureRangeCelsius;
         Moisture = moisture;
-        SeasonalIntensity = seasonalIntensity;
-        SeasonalTendency = seasonalTendency;
+        Seasonality = seasonality;
         SeaDistanceKilometers = seaDistanceKilometers;
         LakeDistanceKilometers = lakeDistanceKilometers;
         RiverDistanceKilometers = riverDistanceKilometers;
@@ -52,11 +56,15 @@ public sealed class CampaignSeasonRule
 
     public CampaignSeasonRange? TemperatureCelsius { get; }
 
+    public CampaignSeasonRange? WarmSeasonTemperatureCelsius { get; }
+
+    public CampaignSeasonRange? ColdSeasonTemperatureCelsius { get; }
+
+    public CampaignSeasonRange? AnnualTemperatureRangeCelsius { get; }
+
     public CampaignSeasonRange? Moisture { get; }
 
-    public CampaignSeasonRange? SeasonalIntensity { get; }
-
-    public CampaignSeasonRange? SeasonalTendency { get; }
+    public CampaignSeasonRange? Seasonality { get; }
 
     public CampaignSeasonRange? SeaDistanceKilometers { get; }
 
@@ -77,9 +85,11 @@ public sealed class CampaignSeasonRule
         LatitudeDegrees?.EnsureValid(nameof(LatitudeDegrees), -90, 90);
         ElevationMeters?.EnsureValid(nameof(ElevationMeters));
         TemperatureCelsius?.EnsureValid(nameof(TemperatureCelsius), -273.15);
+        WarmSeasonTemperatureCelsius?.EnsureValid(nameof(WarmSeasonTemperatureCelsius), -273.15);
+        ColdSeasonTemperatureCelsius?.EnsureValid(nameof(ColdSeasonTemperatureCelsius), -273.15);
+        AnnualTemperatureRangeCelsius?.EnsureValid(nameof(AnnualTemperatureRangeCelsius), 0);
         Moisture?.EnsureValid(nameof(Moisture), 0, 1);
-        SeasonalIntensity?.EnsureValid(nameof(SeasonalIntensity), -1, 1);
-        SeasonalTendency?.EnsureValid(nameof(SeasonalTendency), -1, 1);
+        Seasonality?.EnsureValid(nameof(Seasonality), 0, 1);
         SeaDistanceKilometers?.EnsureValid(nameof(SeaDistanceKilometers), 0);
         LakeDistanceKilometers?.EnsureValid(nameof(LakeDistanceKilometers), 0);
         RiverDistanceKilometers?.EnsureValid(nameof(RiverDistanceKilometers), 0);

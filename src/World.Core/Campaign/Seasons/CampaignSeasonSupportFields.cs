@@ -7,9 +7,11 @@ namespace Kingdom.World.Core.Campaign.Seasons;
 public readonly record struct CampaignSeasonSupportSample(
     double? LongitudeDegrees,
     double LatitudeDegrees,
-    double SeasonalIntensity,
-    double SeasonalTendency,
+    double Seasonality,
     double TemperatureCelsius,
+    double WarmSeasonTemperatureCelsius,
+    double ColdSeasonTemperatureCelsius,
+    double AnnualTemperatureRangeCelsius,
     double Moisture,
     double MaritimeInfluence,
     double RainShadow,
@@ -18,18 +20,18 @@ public readonly record struct CampaignSeasonSupportSample(
     double RiverDistanceKilometers);
 
 /// <summary>
-/// Immutable Earth-like support fields used to explain and reproduce one season candidate.
+/// Immutable Earth-like support fields used to explain and reproduce a Season Occurrence candidate.
 /// These diagnostics are derived and are not project authority.
 /// </summary>
 public sealed class CampaignSeasonSupportFields
 {
-    private const double OrbitDerivativeStep = 1d / 1_024;
-
     private readonly float[]? _longitudeDegrees;
     private readonly float[] _latitudeDegrees;
-    private readonly float[] _seasonalIntensity;
-    private readonly float[] _seasonalTendency;
+    private readonly float[] _seasonality;
     private readonly float[] _temperatureCelsius;
+    private readonly float[] _warmSeasonTemperatureCelsius;
+    private readonly float[] _coldSeasonTemperatureCelsius;
+    private readonly float[] _annualTemperatureRangeCelsius;
     private readonly float[] _moisture;
     private readonly float[] _maritimeInfluence;
     private readonly float[] _rainShadow;
@@ -42,9 +44,11 @@ public sealed class CampaignSeasonSupportFields
         CampaignSeasonGenerationSettings settings,
         float[]? longitudeDegrees,
         float[] latitudeDegrees,
-        float[] seasonalIntensity,
-        float[] seasonalTendency,
+        float[] seasonality,
         float[] temperatureCelsius,
+        float[] warmSeasonTemperatureCelsius,
+        float[] coldSeasonTemperatureCelsius,
+        float[] annualTemperatureRangeCelsius,
         float[] moisture,
         float[] maritimeInfluence,
         float[] rainShadow,
@@ -56,9 +60,11 @@ public sealed class CampaignSeasonSupportFields
         Settings = settings;
         _longitudeDegrees = longitudeDegrees;
         _latitudeDegrees = latitudeDegrees;
-        _seasonalIntensity = seasonalIntensity;
-        _seasonalTendency = seasonalTendency;
+        _seasonality = seasonality;
         _temperatureCelsius = temperatureCelsius;
+        _warmSeasonTemperatureCelsius = warmSeasonTemperatureCelsius;
+        _coldSeasonTemperatureCelsius = coldSeasonTemperatureCelsius;
+        _annualTemperatureRangeCelsius = annualTemperatureRangeCelsius;
         _moisture = moisture;
         _maritimeInfluence = maritimeInfluence;
         _rainShadow = rainShadow;
@@ -77,9 +83,11 @@ public sealed class CampaignSeasonSupportFields
         return new CampaignSeasonSupportSample(
             _longitudeDegrees is null ? null : _longitudeDegrees[index],
             _latitudeDegrees[index],
-            _seasonalIntensity[index],
-            _seasonalTendency[index],
+            _seasonality[index],
             _temperatureCelsius[index],
+            _warmSeasonTemperatureCelsius[index],
+            _coldSeasonTemperatureCelsius[index],
+            _annualTemperatureRangeCelsius[index],
             _moisture[index],
             _maritimeInfluence[index],
             _rainShadow[index],
@@ -119,17 +127,22 @@ public sealed class CampaignSeasonSupportFields
             ? new float[count]
             : null;
         var latitude = new float[count];
-        var intensity = new float[count];
-        var tendency = new float[count];
+        var seasonality = new float[count];
         var temperature = new float[count];
+        var warmSeasonTemperature = new float[count];
+        var coldSeasonTemperature = new float[count];
+        var annualTemperatureRange = new float[count];
         var moisture = new float[count];
         var maritime = new float[count];
         var rainShadow = new float[count];
         var seaDistance = new double[count];
         var lakeDistance = new double[count];
         var riverDistance = new double[count];
-        var phase = CampaignSeasonSeed.ToPhase01(settings.SeasonSeed);
         var climate = settings.Climate;
+        var earthTiltSine = Math.Sin(DegreesToRadians(CampaignSeasonGenerationSettings.EarthAxialTiltDegrees));
+        var tiltScale = earthTiltSine <= double.Epsilon
+            ? 0
+            : Math.Sin(DegreesToRadians(settings.AxialTiltDegrees)) / earthTiltSine;
 
         for (var y = 0; y < height; y++)
         {
@@ -163,18 +176,7 @@ public sealed class CampaignSeasonSupportFields
                         distances.Lake,
                         climate.LakeMaritimeRadiusKilometers)));
                 maritime[index] = (float)maritimeValue;
-                var localPhase = Wrap01(phase - (climate.MaximumPhaseLagOrbitFraction * maritimeValue));
                 var amplitudeScale = 1 - (climate.MaritimeAmplitudeReduction * maritimeValue);
-                var seasonalIntensity = GetSeasonalIntensity(
-                    latitudeDegrees,
-                    localPhase,
-                    settings.AxialTiltDegrees);
-                var seasonalTendency = GetSeasonalTendency(
-                    latitudeDegrees,
-                    localPhase,
-                    settings.AxialTiltDegrees);
-                intensity[index] = (float)seasonalIntensity;
-                tendency[index] = (float)seasonalTendency;
 
                 var temperatureNoise = GetRegionalNoise(
                     xKilometers,
@@ -189,15 +191,21 @@ public sealed class CampaignSeasonSupportFields
                 var absoluteLatitude = Math.Abs(latitudeDegrees);
                 var latitudeMeanCelsius = 30 - (0.42 * absoluteLatitude);
                 var continentalAmplitudeCelsius =
-                    2 + (20 * Math.Pow(absoluteLatitude / 90, 1.35));
+                    (2 + (20 * Math.Pow(absoluteLatitude / 90, 1.35))) * tiltScale;
                 var heightAboveSeaKilometers = Math.Max(
                     0,
                     samples[index].ElevationMeters - definition.SeaLevelMeters) / 1_000d;
-                temperature[index] = (float)(
+                var meanTemperature =
                     latitudeMeanCelsius +
-                    (continentalAmplitudeCelsius * amplitudeScale * seasonalIntensity) -
-                    (climate.LapseRateCelsiusPerKilometer * heightAboveSeaKilometers) +
-                    (climate.TemperatureNoiseCelsius * temperatureNoise));
+                    (-climate.LapseRateCelsiusPerKilometer * heightAboveSeaKilometers) +
+                    (climate.TemperatureNoiseCelsius * temperatureNoise);
+                var amplitudeCelsius = Math.Max(0, continentalAmplitudeCelsius * amplitudeScale);
+                var annualRangeCelsius = 2 * amplitudeCelsius;
+                temperature[index] = (float)meanTemperature;
+                warmSeasonTemperature[index] = (float)(meanTemperature + amplitudeCelsius);
+                coldSeasonTemperature[index] = (float)(meanTemperature - amplitudeCelsius);
+                annualTemperatureRange[index] = (float)annualRangeCelsius;
+                seasonality[index] = (float)Clamp01(annualRangeCelsius / 40);
             }
         }
 
@@ -256,68 +264,17 @@ public sealed class CampaignSeasonSupportFields
             settings,
             longitude,
             latitude,
-            intensity,
-            tendency,
+            seasonality,
             temperature,
+            warmSeasonTemperature,
+            coldSeasonTemperature,
+            annualTemperatureRange,
             moisture,
             maritime,
             rainShadow,
             seaDistance,
             lakeDistance,
             riverDistance);
-    }
-
-    internal static double GetSeasonalIntensity(
-        double latitudeDegrees,
-        double phase01,
-        double axialTiltDegrees)
-    {
-        var tiltRadians = DegreesToRadians(axialTiltDegrees);
-        var currentDeclination = Math.Asin(
-            Math.Sin(tiltRadians) * Math.Sin(2 * Math.PI * Wrap01(phase01)));
-        var negativeSolstice = GetDailyMeanInsolation(latitudeDegrees, -tiltRadians);
-        var equinox = GetDailyMeanInsolation(latitudeDegrees, 0);
-        var positiveSolstice = GetDailyMeanInsolation(latitudeDegrees, tiltRadians);
-        var minimum = Math.Min(negativeSolstice, Math.Min(equinox, positiveSolstice));
-        var maximum = Math.Max(negativeSolstice, Math.Max(equinox, positiveSolstice));
-        var span = maximum - minimum;
-        if (span <= 1e-12)
-        {
-            return 0;
-        }
-
-        var current = GetDailyMeanInsolation(latitudeDegrees, currentDeclination);
-        return Math.Clamp(((current - minimum) / span * 2) - 1, -1, 1);
-    }
-
-    internal static double GetSeasonalTendency(
-        double latitudeDegrees,
-        double phase01,
-        double axialTiltDegrees)
-    {
-        var previous = GetSeasonalIntensity(
-            latitudeDegrees,
-            phase01 - OrbitDerivativeStep,
-            axialTiltDegrees);
-        var next = GetSeasonalIntensity(
-            latitudeDegrees,
-            phase01 + OrbitDerivativeStep,
-            axialTiltDegrees);
-        var normalizer = 2 * Math.Sin(2 * Math.PI * OrbitDerivativeStep);
-        return Math.Clamp((next - previous) / normalizer, -1, 1);
-    }
-
-    private static double GetDailyMeanInsolation(
-        double latitudeDegrees,
-        double declinationRadians)
-    {
-        var latitudeRadians = DegreesToRadians(latitudeDegrees);
-        var sunsetExpression = -Math.Tan(latitudeRadians) * Math.Tan(declinationRadians);
-        var sunsetHourAngle = Math.Acos(Math.Clamp(sunsetExpression, -1, 1));
-        return (
-            (sunsetHourAngle * Math.Sin(latitudeRadians) * Math.Sin(declinationRadians)) +
-            (Math.Cos(latitudeRadians) * Math.Cos(declinationRadians) * Math.Sin(sunsetHourAngle))) /
-            Math.PI;
     }
 
     private static void BuildRainShadow(
@@ -536,8 +493,6 @@ public sealed class CampaignSeasonSupportFields
     private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180;
 
     private static double Clamp01(double value) => Math.Clamp(value, 0, 1);
-
-    private static double Wrap01(double value) => value - Math.Floor(value);
 
     private static int OffsetSeed(int seed, int offset) => unchecked(seed + offset);
 }
