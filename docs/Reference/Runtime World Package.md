@@ -4,11 +4,11 @@
 
 Use the editor's project folder for authoring and a `.kworld` package for game integration. Do not use a headerless `.raw` file as the primary interchange format: without a header it cannot identify grid dimensions, tile size, coordinate orientation, terrain values, custom terrain mappings, or schema version. Full JSON is easy to inspect but needlessly repeats coordinates and field names for every tile.
 
-`.kworld` is a ZIP container with a self-describing JSON manifest and one or more dense binary streams. Version 1 carries only terrain; version 2 adds compact resource streams without changing the terrain record stride; the implemented season-aware version 3 keeps those three streams byte-compatible and adds one dense season index per tile.
+`.kworld` is a ZIP container with a self-describing JSON manifest and binary streams. Version 1 carries only terrain; version 2 adds compact resource streams without changing the terrain record stride; the implemented season-aware version 3 keeps those three streams byte-compatible and adds a dense Season span index plus sparse Season occurrence records.
 
 | Purpose | Format | Behavior |
 |---|---|---|
-| Continue editing | Project folder: terrain JSON plus optional resource sidecars and season definitions/generation/dense layer | Versioned authoring authority through the staged project coordinator. |
+| Continue editing | Project folder: terrain JSON plus optional resource sidecars and Season catalog/generation/occurrence layer | Versioned authoring authority through the staged project coordinator. |
 | Import into a game | One `*.kworld` file | Dense, deterministic runtime interchange data. |
 
 Export never marks the editor world saved, changes its project folder, or alters tile data. The game package is a derived artifact, not authoring authority.
@@ -154,29 +154,36 @@ The season-aware exporter keeps the version-2 `tiles.bin`, `resource-index.bin`,
 tiles.bin
 resource-index.bin
 resource-records.bin
-season-tiles.bin
+season-index.bin
+season-records.bin
 manifest.json
 ```
 
-`season-tiles.bin` is dense row-major data with one little-endian `uint16` season catalog index per campaign tile:
+`season-index.bin` stores one eight-byte little-endian row-major span per campaign tile:
 
 ```text
 recordIndex = y * tilesX + x
-byteOffset  = recordIndex * 2
+byteOffset  = recordIndex * 8
+
+offset 0: uint32 firstRecordIndex
+offset 4: uint16 recordCount
+offset 6: uint16 reserved = 0
 ```
 
-The version-3 manifest adds a `seasons` section. `seasons.tileRecord` declares file name, two-byte record size, tile-count record count, exact uncompressed byte length, little-endian storage, SHA-256, and one `seasonCatalogIndex` field mapped to `seasons.catalog`. The catalog uses the same canonical index order as authoring: Spring, Summer, Autumn, Winter, then custom stable IDs in ordinal order. Each entry contains:
+`season-records.bin` concatenates each tile's occurrences in catalog order. Every two-byte record is one little-endian `uint16 seasonCatalogIndex`. A tile may reference zero, one, or several consecutive records; no duplicate catalog index is valid within a span.
+
+The version-3 manifest adds a `seasons` section. `seasons.indexRecord` and `seasons.occurrenceRecord` declare both files, record sizes/counts, exact uncompressed lengths, little-endian storage, SHA-256, field offsets, and the mapping from `seasonCatalogIndex` to `seasons.catalog`. The catalog uses the same canonical order as authoring. Each entry contains:
 
 - unsigned 16-bit index;
 - stable ID and name;
 - built-in/custom flag;
-- built-in fallback (`spring`, `summer`, `autumn`, or `winter`);
+- built-in fallback (`spring`, `summer`, `fall`, or `winter`);
 - portable `#RRGGBB` color, tint strength, and effect intensity.
 
-Authoring locks, defaults, priority, rules, generation settings, source/input fingerprints, climate support fields, diagnostics, and preview reports are intentionally absent. Two maps with identical season IDs but different lock bits therefore export identical runtime packages.
+Authoring locks, rules, generation settings, source/input fingerprints, climate support fields, diagnostics, and preview reports are intentionally absent. Two maps with identical tile/Season-ID memberships but different lock bits therefore export identical runtime packages.
 
-A version-3 importer must require all five entries and manifest version `3`; verify every v2 stream using the version-2 rules; require `season-tiles.bin` length `tileCount * 2`; verify its SHA-256; require contiguous catalog indexes beginning at zero; and reject every tile index outside that catalog. Importers must reject unsupported versions instead of treating v3 as v2.
+A version-3 importer must require all six entries and manifest version `3`; verify every v2 stream using the version-2 rules; require `season-index.bin` length `tileCount * 8` and `season-records.bin` length `occurrenceCount * 2`; verify both SHA-256 values; require zero reserved fields and monotonic contiguous in-bounds spans ending at the declared occurrence count; require contiguous catalog indexes beginning at zero; and reject unknown or duplicate Season indexes within a tile span. Importers must reject unsupported versions instead of treating v3 as v2.
 
 The exporter captures terrain, resource, and season revisions, writes bounded buffers with fixed ZIP timestamps and entry order, and performs a final cancellation/revision gate before atomic destination replacement. Equal authoritative inputs produce byte-identical packages. `CampaignEditorProjectSerializer.ExportWithSeasonsAsync` exposes this boundary, and the running Main Window now calls it for every export. Version 1 and version 2 overloads remain compatibility/test seams for callers that intentionally own fewer authorities.
 
-ADR-0030 Slice 7 verifies the importer-facing mapping in the Release suite: every dense `uint16` index resolves through the canonical manifest catalog to the expected stable Season ID and built-in fallback, stream lengths and SHA-256 values agree, authoring locks remain absent, and the version-2 terrain/resource streams remain byte-identical inside version 3.
+ADR-0030 verification covers zero-to-many Season records per tile, catalog resolution and fallback, exact stream lengths and SHA-256 values, absent authoring locks, and byte-identical version-2 terrain/resource streams inside version 3.

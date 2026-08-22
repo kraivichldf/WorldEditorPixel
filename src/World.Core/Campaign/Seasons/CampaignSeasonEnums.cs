@@ -4,7 +4,7 @@ public enum CampaignBuiltInSeason : byte
 {
     Spring = 0,
     Summer = 1,
-    Autumn = 2,
+    Fall = 2,
     Winter = 3,
 }
 

@@ -20,9 +20,11 @@ public sealed class CustomSeasonsDialogTests
                 latitudeDegrees: new CampaignSeasonRange(-20, 30),
                 elevationMeters: new CampaignSeasonRange(0, 2_500),
                 temperatureCelsius: new CampaignSeasonRange(18, 42),
+                warmSeasonTemperatureCelsius: new CampaignSeasonRange(20, 48),
+                coldSeasonTemperatureCelsius: new CampaignSeasonRange(5, 30),
+                annualTemperatureRangeCelsius: new CampaignSeasonRange(5, 35),
                 moisture: new CampaignSeasonRange(0.55, 1),
-                seasonalIntensity: new CampaignSeasonRange(-0.2, 1),
-                seasonalTendency: new CampaignSeasonRange(0.05, 1),
+                seasonality: new CampaignSeasonRange(0.2, 1),
                 seaDistanceKilometers: new CampaignSeasonRange(0, 900),
                 lakeDistanceKilometers: new CampaignSeasonRange(0, 250),
                 riverDistanceKilometers: new CampaignSeasonRange(0, 80),
@@ -36,7 +38,6 @@ public sealed class CustomSeasonsDialogTests
             isBuiltIn: false,
             usageCount: 12,
             generationEnabled: true,
-            isProjectDefault: true,
             canEditId: false);
         var actual = item.ToDefinition();
 
@@ -49,9 +50,11 @@ public sealed class CustomSeasonsDialogTests
         Assert.Equal(definition.Rule.LatitudeDegrees, actual.Rule.LatitudeDegrees);
         Assert.Equal(definition.Rule.ElevationMeters, actual.Rule.ElevationMeters);
         Assert.Equal(definition.Rule.TemperatureCelsius, actual.Rule.TemperatureCelsius);
+        Assert.Equal(definition.Rule.WarmSeasonTemperatureCelsius, actual.Rule.WarmSeasonTemperatureCelsius);
+        Assert.Equal(definition.Rule.ColdSeasonTemperatureCelsius, actual.Rule.ColdSeasonTemperatureCelsius);
+        Assert.Equal(definition.Rule.AnnualTemperatureRangeCelsius, actual.Rule.AnnualTemperatureRangeCelsius);
         Assert.Equal(definition.Rule.Moisture, actual.Rule.Moisture);
-        Assert.Equal(definition.Rule.SeasonalIntensity, actual.Rule.SeasonalIntensity);
-        Assert.Equal(definition.Rule.SeasonalTendency, actual.Rule.SeasonalTendency);
+        Assert.Equal(definition.Rule.Seasonality, actual.Rule.Seasonality);
         Assert.Equal(definition.Rule.SeaDistanceKilometers, actual.Rule.SeaDistanceKilometers);
         Assert.Equal(definition.Rule.LakeDistanceKilometers, actual.Rule.LakeDistanceKilometers);
         Assert.Equal(definition.Rule.RiverDistanceKilometers, actual.Rule.RiverDistanceKilometers);
@@ -59,7 +62,7 @@ public sealed class CustomSeasonsDialogTests
         Assert.Equal(definition.Rule.TerrainExcludes, actual.Rule.TerrainExcludes);
         Assert.Equal(definition.Rule.CustomTerrainIncludes, actual.Rule.CustomTerrainIncludes);
         Assert.Equal(definition.Rule.CustomTerrainExcludes, actual.Rule.CustomTerrainExcludes);
-        Assert.Contains("project default", item.SourceAndUsageText, StringComparison.Ordinal);
+        Assert.Contains("12 occurrence", item.SourceAndUsageText, StringComparison.Ordinal);
         Assert.False(item.CanEditId);
     }
 
@@ -80,7 +83,7 @@ public sealed class CustomSeasonsDialogTests
     }
 
     [Fact]
-    public void ReplacementRequirement_CoversTilesDefaultAndGenerationPriority()
+    public void ReplacementRequirement_IsOnlyForExistingOccurrences()
     {
         var definition = new CampaignSeasonDefinition(
             "monsoon",
@@ -105,9 +108,8 @@ public sealed class CustomSeasonsDialogTests
             usageCount: 0,
             generationEnabled: true);
 
-        Assert.False(CustomSeasonsDialog.RequiresReplacement(manual, CampaignSeasonCatalog.SpringId));
-        Assert.True(CustomSeasonsDialog.RequiresReplacement(used, CampaignSeasonCatalog.SpringId));
-        Assert.True(CustomSeasonsDialog.RequiresReplacement(enabled, CampaignSeasonCatalog.SpringId));
-        Assert.True(CustomSeasonsDialog.RequiresReplacement(manual, definition.Id));
+        Assert.False(CustomSeasonsDialog.RequiresReplacement(manual));
+        Assert.True(CustomSeasonsDialog.RequiresReplacement(used));
+        Assert.False(CustomSeasonsDialog.RequiresReplacement(enabled));
     }
 }

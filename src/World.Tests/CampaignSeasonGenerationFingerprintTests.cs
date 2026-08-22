@@ -80,7 +80,7 @@ public sealed class CampaignSeasonGenerationFingerprintTests
     }
 
     [Fact]
-    public void DiagnosticEvaluation_ReportsFirstWinnerAndShadowedMatchesExactly()
+    public void DiagnosticEvaluation_ReportsAllIndependentMatchesExactly()
     {
         var definition = CreateDefinition();
         var world = new CampaignWorld(definition);
@@ -90,7 +90,7 @@ public sealed class CampaignSeasonGenerationFingerprintTests
             seasons);
         var settings = new CampaignSeasonGenerationSettings(
             9,
-            priorityIds:
+            enabledSeasonIds:
             [
                 CampaignSeasonCatalog.SpringId,
                 CampaignSeasonCatalog.SummerId,
@@ -104,11 +104,10 @@ public sealed class CampaignSeasonGenerationFingerprintTests
             1,
             1);
 
-        Assert.Equal(CampaignSeasonCatalog.SpringId, diagnostic.WinningSeasonId);
         Assert.Equal(
             [CampaignSeasonCatalog.SpringId, CampaignSeasonCatalog.SummerId],
             diagnostic.MatchingSeasonIds);
-        Assert.Equal([CampaignSeasonCatalog.SummerId], diagnostic.ShadowedSeasonIds);
+        Assert.Empty(diagnostic.NonMatchingSeasonIds);
         Assert.Equal(source.Terrain.GetSample(1, 1), diagnostic.Terrain);
     }
 

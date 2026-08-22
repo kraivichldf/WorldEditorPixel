@@ -5,5 +5,6 @@ namespace Kingdom.World.Core.Commands;
 public readonly record struct CampaignSeasonChange(
     int X,
     int Y,
-    CampaignSeasonTile Before,
-    CampaignSeasonTile After);
+    string SeasonId,
+    CampaignSeasonOccurrence? Before,
+    CampaignSeasonOccurrence? After);

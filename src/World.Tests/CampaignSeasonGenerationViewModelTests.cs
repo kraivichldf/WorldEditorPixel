@@ -30,7 +30,7 @@ public sealed class CampaignSeasonGenerationViewModelTests
             new CampaignResourceMap(definition),
             resourceGenerationSettings: null,
             seasons,
-            settings.PriorityIds,
+            settings.EnabledSeasonIds,
             saved,
             @"F:\Worlds\SavedSeasons",
             wasConvertedFromLegacy: false,
@@ -86,7 +86,7 @@ public sealed class CampaignSeasonGenerationViewModelTests
         var originalResources = viewModel.ResourceMap;
         var originalProjectDirectory = viewModel.ProjectDirectory;
         var stroke = new CampaignSeasonStrokeBuilder(viewModel.SeasonMap!);
-        stroke.Paint(new CampaignTileCoordinate(0, 0), CampaignSeasonCatalog.WinterId, locked: true);
+        stroke.Upsert(new CampaignTileCoordinate(0, 0), CampaignSeasonCatalog.WinterId, locked: true);
         viewModel.RecordSeasonStroke(stroke.Complete("Paint Winter"));
         Assert.True(viewModel.CanUndo);
         var settings = new CampaignSeasonGenerationSettings(
@@ -143,7 +143,7 @@ public sealed class CampaignSeasonGenerationViewModelTests
         var current = viewModel.SeasonMap!;
         var result = Generate(viewModel);
         var originalStatus = viewModel.StatusMessage;
-        current.Paint(0, 0, CampaignSeasonCatalog.WinterId);
+        current.Upsert(0, 0, new(CampaignSeasonCatalog.WinterId));
 
         Assert.Throws<InvalidOperationException>(() => viewModel.AcceptSeasonGeneration(result));
 
@@ -194,11 +194,12 @@ public sealed class CampaignSeasonGenerationViewModelTests
         var viewModel = CreateViewModel();
         var current = viewModel.SeasonMap;
         var result = Generate(viewModel);
-        var tile = result.CandidateMap.GetTile(0, 0);
-        var replacement = tile.SeasonId == CampaignSeasonCatalog.SpringId
-            ? CampaignSeasonCatalog.WinterId
-            : CampaignSeasonCatalog.SpringId;
-        result.CandidateMap.Paint(0, 0, replacement, locked: false);
+        var entry = result.CandidateMap.GetMaterializedOccurrences()[0];
+        result.CandidateMap.SetLocked(
+            entry.X,
+            entry.Y,
+            entry.Occurrence.SeasonId,
+            !entry.Occurrence.Locked);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             viewModel.AcceptSeasonGeneration(result));
@@ -209,29 +210,23 @@ public sealed class CampaignSeasonGenerationViewModelTests
     }
 
     [Fact]
-    public void AcceptSeasonGeneration_PriorityMismatchThrowsBeforeMutation()
+    public void AcceptSeasonGeneration_EnabledSelectionMismatchThrowsBeforeMutation()
     {
         var viewModel = CreateViewModel();
         var settings = new CampaignSeasonGenerationSettings(
             19,
-            priorityIds:
-            [
-                CampaignSeasonCatalog.WinterId,
-                CampaignSeasonCatalog.AutumnId,
-                CampaignSeasonCatalog.SpringId,
-                CampaignSeasonCatalog.SummerId,
-            ]);
+            enabledSeasonIds: [CampaignSeasonCatalog.WinterId]);
         var result = Generate(viewModel, settings);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             viewModel.AcceptSeasonGeneration(result));
 
-        Assert.Contains("priority changed", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("selection changed", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Null(viewModel.SeasonSavedGeneration);
     }
 
     [Fact]
-    public async Task AcceptedAndRebuiltDiagnosticsReportExactWinnerSupportAndStaleness()
+    public async Task AcceptedAndRebuiltDiagnosticsReportIndependentMatchesSupportAndStaleness()
     {
         var viewModel = CreateViewModel();
         var result = Generate(viewModel, new CampaignSeasonGenerationSettings(42));
@@ -239,7 +234,7 @@ public sealed class CampaignSeasonGenerationViewModelTests
         viewModel.SelectCoordinate(new CampaignTileCoordinate(2, 1));
 
         Assert.Contains("Climate", viewModel.PinnedSeasonGenerationText, StringComparison.Ordinal);
-        Assert.Contains("Generator winner", viewModel.PinnedSeasonGenerationText, StringComparison.Ordinal);
+        Assert.Contains("Independent rule matches", viewModel.PinnedSeasonGenerationText, StringComparison.Ordinal);
         Assert.Contains("source current", viewModel.PinnedSeasonGenerationText, StringComparison.Ordinal);
         Assert.Contains("inputs current", viewModel.PinnedSeasonGenerationText, StringComparison.Ordinal);
 
@@ -249,7 +244,7 @@ public sealed class CampaignSeasonGenerationViewModelTests
             viewModel.ResourceMap!,
             resourceGenerationSettings: null,
             viewModel.SeasonMap!,
-            viewModel.SeasonPriorityIds,
+            viewModel.SeasonEnabledIds,
             viewModel.SeasonSavedGeneration,
             @"F:\Worlds\ReopenedSeasons",
             wasConvertedFromLegacy: false,
@@ -257,7 +252,7 @@ public sealed class CampaignSeasonGenerationViewModelTests
         Assert.True(await reopened.RebuildSeasonDiagnosticsAsync());
         reopened.SelectCoordinate(new CampaignTileCoordinate(2, 1));
 
-        Assert.Contains("Generator winner", reopened.PinnedSeasonGenerationText, StringComparison.Ordinal);
+        Assert.Contains("Independent rule matches", reopened.PinnedSeasonGenerationText, StringComparison.Ordinal);
         Assert.Contains("source current", reopened.PinnedSeasonGenerationText, StringComparison.Ordinal);
 
         reopened.World!.Tiles.SetTile(

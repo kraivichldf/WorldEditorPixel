@@ -60,10 +60,10 @@
                   InputGesture="Ctrl+Shift+G" IsEnabled="{Binding CanGenerateSeasons}"
                   ToolTip.Tip="Preview Earth-like static seasons without changing terrain, resources, or the current Season Layer" />
         <MenuItem Header="_Manage seasons…" Click="CustomSeasons_OnClick"
-                  ToolTip.Tip="Edit built-in presentation and rules, add custom seasons, and order first-match priority" />
+                  ToolTip.Tip="Edit independent built-in and custom Season Occurrence definitions and generation rules" />
         <Separator />
         <MenuItem Header="Open Seasons workspace" Click="SeasonsWorkspace_OnClick"
-                  ToolTip.Tip="Inspect and paint one authoritative season per campaign tile" />
+                  ToolTip.Tip="Inspect, add, erase, and lock multiple Season Occurrences per campaign tile" />
       </MenuItem>
       <MenuItem Header="_View">
         <MenuItem Header="Campaign grid" ToggleType="CheckBox" IsChecked="{Binding ShowCampaignGrid, Mode=TwoWay}"
@@ -80,7 +80,7 @@
         <MenuItem Header="Blend season boundaries" ToggleType="CheckBox"
                   IsChecked="{Binding BlendSeasonBoundaries, Mode=TwoWay}"
                   IsEnabled="{Binding IsSeasonsWorkspace}"
-                  ToolTip.Tip="Display-only blending; tile season IDs never change" />
+                  ToolTip.Tip="Display-only blending for the selected season overlay; occurrence IDs never change" />
         <Separator />
         <MenuItem Header="Zoom to fit" Click="ZoomToFit_OnClick" InputGesture="F" IsEnabled="{Binding HasWorld}" />
       </MenuItem>
@@ -430,7 +430,7 @@
           <StackPanel Margin="8" Spacing="8">
             <StackPanel Spacing="3">
               <TextBlock Classes="section-title" Text="CAMPAIGN SEASON PAINT" />
-              <TextBlock Text="One season ID per tile; terrain and resources stay unchanged"
+              <TextBlock Text="Each tile can contain multiple seasons; terrain and resources stay unchanged"
                          FontSize="12" Foreground="{StaticResource EditorMutedTextBrush}"
                          TextWrapping="Wrap" />
             </StackPanel>
@@ -443,7 +443,7 @@
               <Button Grid.Column="2" Content="Manage seasons…" Classes="quiet"
                       HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                       Click="CustomSeasons_OnClick"
-                      AutomationProperties.Name="Manage season definitions and priority" />
+                      AutomationProperties.Name="Manage independent season definitions" />
             </Grid>
 
             <Border Classes="win98-group">
@@ -489,13 +489,13 @@
               <StackPanel Spacing="7">
                 <TextBlock Classes="section-title" Text="TOOL" />
                 <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="6">
-                  <Button Content="Paint selected" Classes="quiet"
+                  <Button Content="Add selected" Classes="quiet"
                           Classes.primary="{Binding IsSeasonPaintTool}"
                           Click="SeasonPaintTool_OnClick" />
-                  <Button Grid.Column="1" Content="Reset default" Classes="quiet"
-                          Classes.primary="{Binding IsSeasonResetTool}"
-                          Click="SeasonResetTool_OnClick"
-                          ToolTip.Tip="Write the project default season and unlock the tile" />
+                  <Button Grid.Column="1" Content="Erase selected" Classes="quiet"
+                          Classes.primary="{Binding IsSeasonEraseTool}"
+                          Click="SeasonEraseTool_OnClick"
+                          ToolTip.Tip="Remove only the selected Season Occurrence; other seasons on the tile remain" />
                   <Button Grid.Row="1" Content="Lock" Classes="quiet"
                           Classes.primary="{Binding IsSeasonLockTool}"
                           Click="SeasonLockTool_OnClick" />
@@ -506,8 +506,8 @@
                 <CheckBox Content="Lock manual edits"
                           IsChecked="{Binding LockManualSeasonEdits, Mode=TwoWay}"
                           IsVisible="{Binding IsSeasonPaintTool}"
-                          ToolTip.Tip="Locked season tiles survive later scoped generation" />
-                <TextBlock Text="Reset changes the season to the project default and unlocks it. Lock and Unlock preserve the existing season ID."
+                          ToolTip.Tip="Locked Season Occurrences survive later scoped generation" />
+                <TextBlock Text="Add creates or updates only the selected occurrence. Erase removes only that occurrence. Lock and Unlock also affect only the selected season."
                            FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}"
                            TextWrapping="Wrap" />
               </StackPanel>
@@ -547,7 +547,7 @@
                 <TextBlock Text="Display and authority" FontWeight="SemiBold" />
                 <CheckBox Content="Season labels" IsChecked="{Binding ShowSeasonLabels, Mode=TwoWay}" />
                 <CheckBox Content="Blend boundaries" IsChecked="{Binding BlendSeasonBoundaries, Mode=TwoWay}" />
-                <TextBlock Text="Blending only softens the preview edge. Export and game data still contain one exact season catalog index per tile."
+                <TextBlock Text="The map shows the selected season's presence. Export stores a per-tile index into zero or more Season Occurrence records."
                            FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}"
                            TextWrapping="Wrap" />
               </StackPanel>
@@ -772,7 +772,7 @@
               <StackPanel Spacing="7" IsVisible="{Binding IsSeasonsWorkspace}">
                 <Border Classes="win98-group">
                   <StackPanel Spacing="6">
-                    <TextBlock Text="Authoritative season" FontWeight="SemiBold" />
+                    <TextBlock Text="Tile Season Occurrences" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding PinnedSeasonIdentityText}" TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
                       <Button Content="Lock" Classes="quiet" Click="LockPinnedSeason_OnClick"

@@ -8,47 +8,62 @@ namespace Kingdom.World.Tests;
 public sealed class CampaignSeasonCommandTests
 {
     [Fact]
-    public void Stroke_PaintLockResetAndRepeatAreOneUndoableCommand()
+    public void Stroke_AddLockRemoveAndRepeatAreOneUndoableCommand()
     {
         var seasons = CampaignSeasonMapTests.CreateMap();
+        seasons.Upsert(2, 2, new("spring"));
+        var baselineRevision = seasons.Revision;
         var stroke = new CampaignSeasonStrokeBuilder(seasons);
-        stroke.Paint(new CampaignTileCoordinate(2, 2), "winter", locked: true);
-        stroke.SetLocked(new CampaignTileCoordinate(2, 2), locked: false);
-        stroke.Paint(new CampaignTileCoordinate(3, 2), "autumn", locked: true);
-        stroke.Paint(new CampaignTileCoordinate(3, 2), "summer", locked: true);
+        stroke.Upsert(new CampaignTileCoordinate(2, 2), "winter", locked: true);
+        stroke.SetLocked(new CampaignTileCoordinate(2, 2), "winter", locked: false);
+        stroke.Upsert(new CampaignTileCoordinate(3, 2), "fall", locked: true);
+        stroke.Remove(new CampaignTileCoordinate(3, 2), "fall");
+        stroke.Upsert(new CampaignTileCoordinate(3, 2), "summer", locked: true);
         var revisionAfterLiveEdit = seasons.Revision;
-        var command = stroke.Complete("Paint seasons");
+        var command = stroke.Complete("Edit season occurrences");
         var history = new CommandHistory();
         history.RecordExecuted(command);
 
         Assert.Equal(2, command.Changes.Count);
-        Assert.Equal(revisionAfterLiveEdit, seasons.Revision);
-        Assert.Equal(new CampaignSeasonTile("winter"), seasons.GetTile(2, 2));
-        Assert.Equal(new CampaignSeasonTile("summer", Locked: true), seasons.GetTile(3, 2));
+        Assert.True(revisionAfterLiveEdit > baselineRevision);
+        Assert.True(seasons.TryGetOccurrence(2, 2, "spring", out _));
+        Assert.True(seasons.TryGetOccurrence(2, 2, "winter", out var winter));
+        Assert.False(winter.Locked);
+        Assert.True(seasons.TryGetOccurrence(3, 2, "summer", out var summer));
+        Assert.True(summer.Locked);
 
         Assert.True(history.Undo());
-        Assert.Equal(new CampaignSeasonTile("spring"), seasons.GetTile(2, 2));
-        Assert.Equal(new CampaignSeasonTile("spring"), seasons.GetTile(3, 2));
+        Assert.True(seasons.TryGetOccurrence(2, 2, "spring", out _));
+        Assert.False(seasons.TryGetOccurrence(2, 2, "winter", out _));
+        Assert.Empty(seasons.GetOccurrences(3, 2));
 
         Assert.True(history.Redo());
-        Assert.Equal(new CampaignSeasonTile("winter"), seasons.GetTile(2, 2));
-        Assert.Equal(new CampaignSeasonTile("summer", Locked: true), seasons.GetTile(3, 2));
+        Assert.Equal(["spring", "winter"],
+            seasons.GetOccurrences(2, 2).Select(static value => value.SeasonId));
+        Assert.True(seasons.TryGetOccurrence(3, 2, "summer", out summer));
+        Assert.True(summer.Locked);
     }
 
     [Fact]
-    public void Stroke_CancelRestoresInitialValuesAndClosesBuilder()
+    public void Stroke_CancelRestoresEveryIndependentIdentityAndClosesBuilder()
     {
         var seasons = CampaignSeasonMapTests.CreateMap();
-        seasons.Paint(1, 1, "autumn", locked: true);
+        seasons.Upsert(1, 1, new("fall", Locked: true));
+        seasons.Upsert(1, 1, new("spring"));
         var stroke = new CampaignSeasonStrokeBuilder(seasons);
-        stroke.Paint(new CampaignTileCoordinate(1, 1), "winter", locked: false);
-        stroke.Paint(new CampaignTileCoordinate(2, 1), "summer", locked: true);
+        stroke.Remove(new CampaignTileCoordinate(1, 1), "fall");
+        stroke.Upsert(new CampaignTileCoordinate(1, 1), "winter");
+        stroke.Upsert(new CampaignTileCoordinate(2, 1), "summer", locked: true);
 
         stroke.Cancel();
 
-        Assert.Equal(new CampaignSeasonTile("autumn", Locked: true), seasons.GetTile(1, 1));
-        Assert.Equal(new CampaignSeasonTile("spring"), seasons.GetTile(2, 1));
-        Assert.Throws<ObjectDisposedException>(() => stroke.ResetToDefault(new CampaignTileCoordinate(0, 0)));
+        Assert.Equal(["fall", "spring"],
+            seasons.GetOccurrences(1, 1).Select(static value => value.SeasonId));
+        Assert.True(seasons.TryGetOccurrence(1, 1, "fall", out var fall));
+        Assert.True(fall.Locked);
+        Assert.Empty(seasons.GetOccurrences(2, 1));
+        Assert.Throws<ObjectDisposedException>(() =>
+            stroke.Remove(new CampaignTileCoordinate(0, 0), "spring"));
     }
 
     [Fact]
@@ -58,30 +73,18 @@ public sealed class CampaignSeasonCommandTests
         var history = new CommandHistory();
         history.Execute(new CampaignSeasonEditCommand(
             seasons,
-            "Set winter",
-            [
-                new CampaignSeasonChange(
-                    0,
-                    0,
-                    new CampaignSeasonTile("spring"),
-                    new CampaignSeasonTile("winter")),
-            ]));
+            "Add winter",
+            [new CampaignSeasonChange(0, 0, "winter", null, new("winter"))]));
         Assert.True(history.Undo());
 
         history.RecordExecuted(new CampaignSeasonEditCommand(
             seasons,
             "No season change",
-            [
-                new CampaignSeasonChange(
-                    1,
-                    1,
-                    new CampaignSeasonTile("spring"),
-                    new CampaignSeasonTile("spring")),
-            ]));
+            [new CampaignSeasonChange(1, 1, "spring", null, null)]));
 
         Assert.True(history.CanRedo);
         Assert.True(history.Redo());
-        Assert.Equal(new CampaignSeasonTile("winter"), seasons.GetTile(0, 0));
+        Assert.True(seasons.TryGetOccurrence(0, 0, "winter", out _));
     }
 
     [Fact]
@@ -105,22 +108,23 @@ public sealed class CampaignSeasonCommandTests
         history.RecordExecuted(terrainStroke.Complete("Paint terrain"));
 
         var seasonStroke = new CampaignSeasonStrokeBuilder(seasons);
-        seasonStroke.Paint(new CampaignTileCoordinate(0, 0), "winter");
-        history.RecordExecuted(seasonStroke.Complete("Paint season"));
+        seasonStroke.Upsert(new CampaignTileCoordinate(0, 0), "winter");
+        history.RecordExecuted(seasonStroke.Complete("Add winter"));
 
         Assert.True(history.Undo());
-        Assert.Equal(new CampaignSeasonTile("spring"), seasons.GetTile(0, 0));
+        Assert.Empty(seasons.GetOccurrences(0, 0));
         Assert.Equal(CampaignTileType.Forest, world.Tiles.GetTile(0, 0).Type);
         Assert.True(history.Undo());
         Assert.Equal(world.Tiles.DefaultTile, world.Tiles.GetTile(0, 0));
         Assert.True(history.Redo());
         Assert.True(history.Redo());
         Assert.Equal(CampaignTileType.Forest, world.Tiles.GetTile(0, 0).Type);
-        Assert.Equal(new CampaignSeasonTile("winter", Locked: true), seasons.GetTile(0, 0));
+        Assert.True(seasons.TryGetOccurrence(0, 0, "winter", out var winter));
+        Assert.True(winter.Locked);
     }
 
     [Fact]
-    public void CommandRejectsDuplicatesUnknownIdsAndCoordinatesBeforeMutation()
+    public void CommandRejectsDuplicateIdentitiesUnknownIdsAndCoordinates()
     {
         var seasons = CampaignSeasonMapTests.CreateMap();
 
@@ -128,17 +132,17 @@ public sealed class CampaignSeasonCommandTests
             seasons,
             "Duplicates",
             [
-                new CampaignSeasonChange(0, 0, new("spring"), new("winter")),
-                new CampaignSeasonChange(0, 0, new("spring"), new("summer")),
+                new CampaignSeasonChange(0, 0, "winter", null, new("winter")),
+                new CampaignSeasonChange(0, 0, "winter", null, new("winter", true)),
             ]));
         Assert.Throws<ArgumentException>(() => new CampaignSeasonEditCommand(
             seasons,
             "Unknown",
-            [new CampaignSeasonChange(0, 0, new("spring"), new("unknown-season"))]));
+            [new CampaignSeasonChange(0, 0, "unknown-season", null, new("unknown-season"))]));
         Assert.Throws<ArgumentOutOfRangeException>(() => new CampaignSeasonEditCommand(
             seasons,
             "Outside",
-            [new CampaignSeasonChange(8, 0, new("spring"), new("winter"))]));
+            [new CampaignSeasonChange(8, 0, "winter", null, new("winter"))]));
         Assert.Equal(0, seasons.Revision);
     }
 }

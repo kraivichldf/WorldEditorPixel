@@ -7,133 +7,172 @@ namespace Kingdom.World.Tests;
 public sealed class CampaignSeasonMapTests
 {
     [Fact]
-    public void Map_IsCompleteSpringAndUnlockedByDefault()
+    public void Map_StartsEmptyAndSparse()
     {
         var map = CreateMap();
 
         Assert.Equal(64, map.TileCount);
-        Assert.Equal(64, map.GetUsageCount("spring"));
-        Assert.Equal(0, map.LockedTileCount);
-        Assert.All(map.GetAllTiles(), static entry =>
-            Assert.Equal(new CampaignSeasonTile("spring"), entry.Tile));
+        Assert.Equal(0, map.OccurrenceCount);
+        Assert.Equal(0, map.MaterializedTileCount);
+        Assert.Equal(0, map.LockedOccurrenceCount);
+        Assert.Empty(map.GetOccurrences(2, 3));
         map.EnsureValid();
     }
 
     [Fact]
-    public void Map_AllowsCustomDefaultPaintLockAndReset()
+    public void Tile_CanContainThreeOrFourIndependentSeasons()
     {
-        var monsoon = CampaignSeasonCatalogTests.CreateCustom("monsoon");
-        var catalog = new CampaignSeasonCatalog([monsoon]);
-        var map = CreateMap(catalog, defaultSeasonId: "monsoon");
+        var map = CreateMap();
 
-        Assert.Equal(new CampaignSeasonTile("monsoon"), map.GetTile(2, 3));
-        Assert.True(map.Paint(2, 3, "winter", locked: true));
-        Assert.Equal(new CampaignSeasonTile("winter", Locked: true), map.GetTile(2, 3));
-        Assert.Equal(1, map.LockedTileCount);
-        Assert.True(map.ResetToDefault(2, 3));
-        Assert.Equal(new CampaignSeasonTile("monsoon"), map.GetTile(2, 3));
-        Assert.Equal(0, map.LockedTileCount);
+        map.Apply(
+        [
+            CampaignSeasonMutation.Upsert(2, 3, new("spring")),
+            CampaignSeasonMutation.Upsert(2, 3, new("summer")),
+            CampaignSeasonMutation.Upsert(2, 3, new("fall")),
+            CampaignSeasonMutation.Upsert(4, 5, new("spring")),
+            CampaignSeasonMutation.Upsert(4, 5, new("summer")),
+            CampaignSeasonMutation.Upsert(4, 5, new("fall")),
+            CampaignSeasonMutation.Upsert(4, 5, new("winter")),
+        ]);
+
+        Assert.Equal(["fall", "spring", "summer"],
+            map.GetOccurrences(2, 3).Select(static value => value.SeasonId));
+        Assert.Equal(["fall", "spring", "summer", "winter"],
+            map.GetOccurrences(4, 5).Select(static value => value.SeasonId));
+        Assert.Equal(7, map.OccurrenceCount);
+        Assert.Equal(2, map.MaterializedTileCount);
     }
 
     [Fact]
-    public void Map_NoOpDoesNotChangeRevisionAndLockOnlyEditDoes()
+    public void AddingAndRemovingSelectedSeason_DoesNotReplaceOtherSeasons()
     {
         var map = CreateMap();
+        map.Upsert(1, 1, new("spring"));
+        map.Upsert(1, 1, new("summer"));
+        map.Upsert(1, 1, new("fall"));
+
+        Assert.True(map.Upsert(1, 1, new("winter", Locked: true)));
+        Assert.Equal(4, map.GetOccurrences(1, 1).Count);
+
+        Assert.True(map.Remove(1, 1, "summer"));
+        Assert.Equal(["fall", "spring", "winter"],
+            map.GetOccurrences(1, 1).Select(static value => value.SeasonId));
+        Assert.True(map.TryGetOccurrence(1, 1, "winter", out var winter));
+        Assert.True(winter.Locked);
+    }
+
+    [Fact]
+    public void LocksArePerOccurrenceAndNoOpsPreserveRevision()
+    {
+        var map = CreateMap();
+        map.Upsert(1, 1, new("spring"));
+        map.Upsert(1, 1, new("winter"));
         var revision = map.Revision;
 
-        Assert.False(map.SetTile(1, 1, new CampaignSeasonTile("spring")));
+        Assert.False(map.Upsert(1, 1, new("spring")));
+        Assert.False(map.SetLocked(1, 1, "fall", locked: true));
         Assert.Equal(revision, map.Revision);
-        Assert.True(map.SetLocked(1, 1, locked: true));
+
+        Assert.True(map.SetLocked(1, 1, "winter", locked: true));
         Assert.Equal(revision + 1, map.Revision);
-        Assert.Equal(new CampaignSeasonTile("spring", Locked: true), map.GetTile(1, 1));
-        Assert.False(map.SetLocked(1, 1, locked: true));
-        Assert.Equal(revision + 1, map.Revision);
+        Assert.True(map.TryGetOccurrence(1, 1, "winter", out var winter));
+        Assert.True(winter.Locked);
+        Assert.True(map.TryGetOccurrence(1, 1, "spring", out var spring));
+        Assert.False(spring.Locked);
+        Assert.Equal(1, map.LockedOccurrenceCount);
     }
 
     [Fact]
-    public void Apply_ValidatesWholeBatchAndRejectsDuplicateCoordinates()
+    public void Apply_ValidatesWholeBatchAndIdentityUniqueness()
     {
         var map = CreateMap();
-        var invalid = new[]
-        {
-            new CampaignSeasonMutation(0, 0, new CampaignSeasonTile("winter")),
-            new CampaignSeasonMutation(1, 0, new CampaignSeasonTile("missing-season")),
-        };
 
-        Assert.Throws<ArgumentException>(() => map.Apply(invalid));
-        Assert.Equal(new CampaignSeasonTile("spring"), map.GetTile(0, 0));
+        Assert.Throws<ArgumentException>(() => map.Apply(
+        [
+            CampaignSeasonMutation.Upsert(0, 0, new("winter")),
+            CampaignSeasonMutation.Upsert(1, 0, new("missing-season")),
+        ]));
+        Assert.Empty(map.GetMaterializedOccurrences());
         Assert.Equal(0, map.Revision);
 
         Assert.Throws<ArgumentException>(() => map.Apply(
         [
-            new CampaignSeasonMutation(2, 2, new CampaignSeasonTile("winter")),
-            new CampaignSeasonMutation(2, 2, new CampaignSeasonTile("summer")),
+            CampaignSeasonMutation.Upsert(2, 2, new("winter")),
+            CampaignSeasonMutation.Remove(2, 2, "winter"),
         ]));
-        Assert.Equal(new CampaignSeasonTile("spring"), map.GetTile(2, 2));
-        Assert.Equal(0, map.Revision);
+
+        Assert.Equal(2, map.Apply(
+        [
+            CampaignSeasonMutation.Upsert(2, 2, new("winter")),
+            CampaignSeasonMutation.Upsert(2, 2, new("summer")),
+        ]));
+        Assert.Equal(2, map.GetOccurrences(2, 2).Count);
     }
 
     [Fact]
-    public void Entries_AreRowMajorAndAreaQueriesStayBounded()
+    public void Entries_AreRowMajorThenSeasonIdAndAreaQueriesStayBounded()
     {
         var map = CreateMap();
         map.Apply(
         [
-            new CampaignSeasonMutation(4, 3, new CampaignSeasonTile("winter", Locked: true)),
-            new CampaignSeasonMutation(1, 1, new CampaignSeasonTile("autumn")),
-            new CampaignSeasonMutation(0, 3, new CampaignSeasonTile("summer")),
+            CampaignSeasonMutation.Upsert(4, 3, new("winter", Locked: true)),
+            CampaignSeasonMutation.Upsert(1, 1, new("summer")),
+            CampaignSeasonMutation.Upsert(1, 1, new("fall")),
+            CampaignSeasonMutation.Upsert(0, 3, new("spring")),
         ]);
 
         Assert.Equal(
         [
-            (1, 1, "autumn"),
-            (0, 3, "summer"),
+            (1, 1, "fall"),
+            (1, 1, "summer"),
+            (0, 3, "spring"),
             (4, 3, "winter"),
-        ], map.GetAllTiles()
-            .Where(static entry => entry.Tile.SeasonId != "spring")
-            .Select(static entry => (entry.X, entry.Y, entry.Tile.SeasonId)));
+        ], map.GetMaterializedOccurrences()
+            .Select(static entry => (entry.X, entry.Y, entry.Occurrence.SeasonId)));
 
-        var area = map.GetTiles(new CampaignTileArea(0, 2, 4, 3));
-        Assert.Equal(10, area.Count);
-        Assert.Equal((0, 2), (area[0].X, area[0].Y));
-        Assert.Equal((4, 3), (area[^1].X, area[^1].Y));
-        Assert.DoesNotContain(area, static entry => entry.Y is < 2 or > 3);
+        var area = map.GetOccurrences(new CampaignTileArea(0, 2, 4, 3));
+        Assert.Equal([(0, 3, "spring"), (4, 3, "winter")],
+            area.Select(static entry => (entry.X, entry.Y, entry.Occurrence.SeasonId)));
+        Assert.Single(map.GetOccurrences(new CampaignTileArea(0, 0, 7, 7), "summer"));
     }
 
     [Fact]
-    public void UsageCountsUseOneDensePassAndValidateRequestedIds()
+    public void UsageCountsAreIndependentAndValidateRequestedIds()
     {
         var map = CreateMap();
         map.Apply(
         [
-            new CampaignSeasonMutation(0, 0, new CampaignSeasonTile("winter")),
-            new CampaignSeasonMutation(1, 0, new CampaignSeasonTile("winter")),
-            new CampaignSeasonMutation(2, 0, new CampaignSeasonTile("summer")),
+            CampaignSeasonMutation.Upsert(0, 0, new("winter")),
+            CampaignSeasonMutation.Upsert(1, 0, new("winter")),
+            CampaignSeasonMutation.Upsert(1, 0, new("summer")),
+            CampaignSeasonMutation.Upsert(2, 0, new("summer")),
         ]);
 
         var counts = map.GetUsageCounts(["winter", "spring", "summer"]);
 
         Assert.Equal(2, counts["winter"]);
-        Assert.Equal(1, counts["summer"]);
-        Assert.Equal(61, counts["spring"]);
+        Assert.Equal(2, counts["summer"]);
+        Assert.Equal(0, counts["spring"]);
         Assert.Equal(["spring", "summer", "winter"], counts.Keys);
         Assert.Throws<ArgumentException>(() => map.GetUsageCounts(["winter", "winter"]));
         Assert.Throws<ArgumentException>(() => map.GetUsageCounts(["unknown-season"]));
     }
 
     [Fact]
-    public void Map_RejectsUnknownDefaultAndOutOfBoundsCoordinates()
+    public void Map_RejectsUnknownIdsAndOutOfBoundsCoordinates()
     {
-        Assert.Throws<ArgumentException>(() => CreateMap(defaultSeasonId: "missing"));
         var map = CreateMap();
-        Assert.Throws<ArgumentOutOfRangeException>(() => map.GetTile(8, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => map.GetTiles(new CampaignTileArea(0, 0, 8, 1)));
+
+        Assert.Throws<ArgumentException>(() => map.Upsert(0, 0, new("missing")));
+        Assert.Throws<ArgumentOutOfRangeException>(() => map.GetOccurrences(8, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            map.SetTile(-1, 0, new CampaignSeasonTile("winter")));
+            map.GetOccurrences(new CampaignTileArea(0, 0, 8, 1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            map.Upsert(-1, 0, new("winter")));
     }
 
     [Fact]
-    public void Map_SupportsTheCurrentMaximumGeneratedGridAsDenseAuthority()
+    public void MaximumGeneratedGrid_RemainsSparseUntilOccurrencesAreAdded()
     {
         var definition = CampaignWorldDefinition.Create(
             worldWidthMeters: 10_000_000,
@@ -145,13 +184,13 @@ public sealed class CampaignSeasonMapTests
         var map = new CampaignSeasonMap(definition);
 
         Assert.Equal(250_000, map.TileCount);
-        Assert.Equal(250_000, map.GetUsageCount("spring"));
-        Assert.Equal(new CampaignSeasonTile("spring"), map.GetTile(499, 499));
+        Assert.Equal(0, map.OccurrenceCount);
+        Assert.Empty(map.GetOccurrences(499, 499));
+        map.Upsert(499, 499, new("winter"));
+        Assert.Single(map.GetOccurrences(499, 499));
     }
 
-    internal static CampaignSeasonMap CreateMap(
-        CampaignSeasonCatalog? catalog = null,
-        string defaultSeasonId = CampaignSeasonCatalog.SpringId) =>
+    internal static CampaignSeasonMap CreateMap(CampaignSeasonCatalog? catalog = null) =>
         new(
             CampaignWorldDefinition.Create(
                 worldWidthMeters: 8_000,
@@ -160,6 +199,5 @@ public sealed class CampaignSeasonMapTests
                 seaLevelMeters: 0,
                 minimumHeightMeters: -1_000,
                 maximumHeightMeters: 6_000),
-            catalog,
-            defaultSeasonId);
+            catalog);
 }

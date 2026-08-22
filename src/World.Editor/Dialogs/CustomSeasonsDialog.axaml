@@ -8,17 +8,17 @@
   <Grid RowDefinitions="Auto,*,Auto">
     <Border Grid.Row="0" Background="{StaticResource Win98ActiveTitleBrush}" Padding="10,7">
       <StackPanel Spacing="2">
-        <TextBlock Text="SEASON CATALOG AND PRIORITY" Foreground="White" FontWeight="Bold" />
-        <TextBlock Text="Built-in identity is protected. Project tint, effects, rules, enabled state, and priority are editable."
+        <TextBlock Text="SEASON CATALOG" Foreground="White" FontWeight="Bold" />
+        <TextBlock Text="Each definition is an independent Season Occurrence type. Built-in identity is protected; display, rules, and generated state are editable."
                    Foreground="White" FontSize="11" TextWrapping="Wrap" />
       </StackPanel>
     </Border>
 
     <Grid Grid.Row="1" Margin="12" ColumnDefinitions="310,12,*">
       <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="8">
-        <TextBlock Text="FIRST MATCH WINS" Classes="section-title" />
+        <TextBlock Text="INDEPENDENT SEASONS" Classes="section-title" />
         <ListBox x:Name="DefinitionsList" Grid.Row="1" MinHeight="320"
-                 AutomationProperties.Name="Season definitions and priority order">
+                 AutomationProperties.Name="Season definitions">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="dialogs:SeasonDefinitionEditorItem">
               <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="7" Margin="2">
@@ -39,10 +39,8 @@
           </ListBox.ItemTemplate>
         </ListBox>
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="7">
-          <Button Content="Move up" Classes="quiet" Click="MoveUp_OnClick" />
-          <Button Grid.Column="1" Content="Move down" Classes="quiet" Click="MoveDown_OnClick" />
-        </Grid>
+        <TextBlock Grid.Row="2" Text="List order is display-only. Every matching generated season can coexist on a tile."
+                   FontSize="10" Foreground="{StaticResource EditorMutedTextBrush}" TextWrapping="Wrap" />
         <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="7">
           <Button Content="Add custom" Classes="quiet" Click="Add_OnClick" />
           <Button Grid.Column="1" Content="Duplicate" Classes="quiet" Click="Duplicate_OnClick" />
@@ -54,7 +52,7 @@
                       AutomationProperties.Name="Replacement for used deleted season" />
             <Button x:Name="DeleteButton" Content="Delete selected" Classes="quiet"
                     Click="Delete_OnClick" />
-            <TextBlock Text="A referenced custom season needs a replacement. Tile assignments keep their lock state; default and priority references are updated atomically."
+            <TextBlock Text="A custom season with occurrences needs a replacement. Occurrences keep their coordinates and lock state."
                        FontSize="10" Foreground="{StaticResource EditorMutedTextBrush}"
                        TextWrapping="Wrap" />
           </StackPanel>
@@ -105,7 +103,7 @@
                 </StackPanel>
               </Grid>
               <CheckBox x:Name="GenerationEnabledInput" Content="Enabled for generation" />
-              <TextBlock Text="New custom seasons start manual-only. Enabled definitions are evaluated top to bottom; the last enabled definition is always the catch-all, while its rule is retained if moved upward."
+              <TextBlock Text="New custom seasons start manual-only. Every enabled definition evaluates independently, so all matching seasons can coexist on a tile."
                          FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}"
                          TextWrapping="Wrap" />
             </StackPanel>
@@ -116,16 +114,18 @@
               <TextBlock Text="RULE RANGES" Classes="section-title" />
               <TextBlock Text="Enter min..max; leave blank for no limit. Values are inclusive."
                          FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}" />
-              <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+              <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
                 <StackPanel Spacing="3"><TextBlock Text="Latitude (degrees)" /><TextBox x:Name="LatitudeInput" /></StackPanel>
                 <StackPanel Grid.Column="2" Spacing="3"><TextBlock Text="Elevation (m)" /><TextBox x:Name="ElevationInput" /></StackPanel>
                 <StackPanel Grid.Row="1" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Temperature (°C)" /><TextBox x:Name="TemperatureInput" /></StackPanel>
                 <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Moisture (0..1)" /><TextBox x:Name="MoistureInput" /></StackPanel>
-                <StackPanel Grid.Row="2" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Seasonal intensity (-1..1)" /><TextBox x:Name="IntensityInput" /></StackPanel>
-                <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Seasonal tendency (-1..1)" /><TextBox x:Name="TendencyInput" /></StackPanel>
-                <StackPanel Grid.Row="3" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Sea distance (km)" /><TextBox x:Name="SeaDistanceInput" /></StackPanel>
-                <StackPanel Grid.Row="3" Grid.Column="2" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Lake distance (km)" /><TextBox x:Name="LakeDistanceInput" /></StackPanel>
-                <StackPanel Grid.Row="4" Margin="0,7,0,0" Spacing="3"><TextBlock Text="River distance (km)" /><TextBox x:Name="RiverDistanceInput" /></StackPanel>
+                <StackPanel Grid.Row="2" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Warm-season temperature (°C)" /><TextBox x:Name="WarmTemperatureInput" /></StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Cold-season temperature (°C)" /><TextBox x:Name="ColdTemperatureInput" /></StackPanel>
+                <StackPanel Grid.Row="3" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Annual temperature range (°C)" /><TextBox x:Name="AnnualRangeInput" /></StackPanel>
+                <StackPanel Grid.Row="3" Grid.Column="2" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Seasonality (0..1)" /><TextBox x:Name="SeasonalityInput" /></StackPanel>
+                <StackPanel Grid.Row="4" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Sea distance (km)" /><TextBox x:Name="SeaDistanceInput" /></StackPanel>
+                <StackPanel Grid.Row="4" Grid.Column="2" Margin="0,7,0,0" Spacing="3"><TextBlock Text="Lake distance (km)" /><TextBox x:Name="LakeDistanceInput" /></StackPanel>
+                <StackPanel Grid.Row="5" Margin="0,7,0,0" Spacing="3"><TextBlock Text="River distance (km)" /><TextBox x:Name="RiverDistanceInput" /></StackPanel>
               </Grid>
             </StackPanel>
           </Border>
@@ -155,7 +155,7 @@
     <Border Grid.Row="2" BorderBrush="{StaticResource Win98ShadowBrush}"
             BorderThickness="0,1,0,0" Padding="10,8">
       <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-        <TextBlock Text="Applying definition or priority changes is atomic and clears Undo/Redo only when authority changes."
+        <TextBlock Text="Applying definition or generated-selection changes is atomic and clears Undo/Redo only when authority changes."
                    FontSize="11" Foreground="{StaticResource EditorMutedTextBrush}"
                    VerticalAlignment="Center" TextWrapping="Wrap" />
         <Button Grid.Column="1" Content="Cancel" Classes="quiet" Click="Cancel_OnClick" />

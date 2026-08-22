@@ -6,7 +6,7 @@ Each tile can store:
 
 - one terrain type and one whole-metre centre height;
 - zero or more resource occurrences with potential and authoring locks;
-- exactly one static Tile Season with an authoring lock.
+- zero or more Season Occurrences, each identified by a stable Season ID and protected by its own authoring lock.
 
 Neighbouring centre heights are blended into a continuous surface automatically. Generated terrain, resources, and seasons remain fully editable after you accept their previews.
 
@@ -62,7 +62,7 @@ The editor never creates partial edge tiles. The supported maximum generated gri
 |---|---|---|
 | Terrain | One complete-tile type, optional custom-land ID, and centre height | Paint, Paint Area, rivers, automatic coasts, elevation helpers |
 | Resources | Zero or more stable resource IDs, each with potential `1..100` and a lock | Add/update, erase, custom definitions, preview-first regeneration |
-| Seasons | Exactly one built-in/custom Tile Season ID and a lock | Paint, Reset, Lock/Unlock, custom definitions, preview-first generation |
+| Seasons | Zero or more built-in/custom Season IDs, each with its own lock | Add selected, erase selected, Lock/Unlock, custom definitions, preview-first generation |
 
 All three workspaces share the same pan, zoom, grid, hover position, pinned tile, and Undo/Redo history.
 
@@ -91,7 +91,7 @@ Terrain editing includes:
 - automatic 10%-deep Sea/Lake edges on cardinally adjacent non-water tiles;
 - connected River paths and a collision-safe split tool for two, three, or four branches.
 
-Regenerating an open world uses the same preview-first rule. If its grid changes, the preview reports resource and Season remaps, merges, lock conflicts, and out-of-bounds drops before acceptance.
+Regenerating an open world uses the same preview-first rule. If its grid changes, the preview reports resource and Season remaps, same-ID merges, and out-of-bounds locked occurrences before acceptance. Different Season IDs may coexist on the same target tile.
 
 ## Campaign resources
 
@@ -110,13 +110,13 @@ You can:
 
 Coverage is independent for each resource. It is not a combined 100% terrain ratio, and unsuitable geography may legitimately produce fewer occurrences than requested.
 
-## Static Tile Seasons
+## Season Occurrences
 
-Every tile—including water and Unassigned tiles—has exactly one Tile Season.
+Every tile—including water and Unassigned tiles—has a Season Set containing zero or more Season Occurrences. For example, one tile may contain Spring, Summer, and Fall while another contains all four built-ins.
 
-Built-ins are Spring, Summer, Autumn, and Winter. Projects may add custom definitions such as Monsoon, Wet Season, or Dry Season with a portable built-in fallback.
+Built-ins are Spring, Summer, Fall, and Winter. Projects may add custom definitions such as Monsoon, Wet Season, or Dry Season with a portable built-in fallback.
 
-Tile Seasons are static classifications. There are no months, calendar, automatic progression, or weather simulation.
+Season Occurrences describe which seasons exist on a tile. They are not a current season or a calendar: there are no months, automatic progression, or weather simulation.
 
 Season generation uses:
 
@@ -126,9 +126,9 @@ Season generation uses:
 - elevation cooling;
 - Sea/Lake moderation;
 - moisture, water distance, wind, and rain-shadow support;
-- an explicit top-to-bottom first-match priority with a final Catch-all.
+- independent evaluation of every enabled Season Definition, so every environmental match can coexist on the tile.
 
-The generation dialog compares **Current — unchanged** with **Candidate — not applied**. Locked tiles and tiles outside a selected rectangle remain exact. Changing generation inputs keeps the previous image visible but disables **Use seasons** until a fresh candidate is generated.
+The generation dialog compares **Current — unchanged** with **Candidate — not applied**. Locked occurrences and occurrences outside a selected rectangle remain exact. Changing generation inputs keeps the previous image visible but disables **Use seasons** until a fresh candidate is generated.
 
 ## Essential controls
 
@@ -168,7 +168,7 @@ MyWorld/
 
 Save stages terrain, resources, and seasons together before replacing the existing project files. A failed save does not silently install a partial project.
 
-Older projects without Season sidecars open as a clean, unlocked Spring layer. Version-1 sample/chunk projects can be imported without modifying their source folders.
+Older projects without Season sidecars open with a clean, empty Season Occurrence layer. Version-1 sample/chunk projects can be imported without modifying their source folders.
 
 ## Runtime export
 
@@ -180,7 +180,8 @@ It contains:
 tiles.bin
 resource-index.bin
 resource-records.bin
-season-tiles.bin
+season-index.bin
+season-records.bin
 manifest.json
 ```
 
@@ -200,7 +201,7 @@ dotnet publish src/World.Editor/World.Editor.csproj `
   --self-contained true `
   --no-restore `
   -p:PublishSingleFile=true `
-  -o artifacts/publish/seasons
+  -o artifacts/publish/season-occurrences
 ```
 
 Then run:
@@ -209,7 +210,7 @@ Then run:
 Launch Tile Editor.cmd
 ```
 
-The launcher targets `artifacts/publish/seasons/World.Editor.exe`.
+The launcher targets `artifacts/publish/season-occurrences/World.Editor.exe`.
 
 ## Architecture
 

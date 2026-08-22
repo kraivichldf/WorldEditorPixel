@@ -9,7 +9,7 @@ public sealed record NewWorldDialogResult(
     CampaignWorld World,
     CampaignMapGenerationResult GenerationResult,
     CampaignSeasonMap SeasonMap,
-    IReadOnlyList<string> SeasonPriorityIds,
+    IReadOnlyList<string> SeasonEnabledIds,
     CampaignSeasonSavedGeneration? SeasonSavedGeneration,
     CampaignSeasonSupportFields? SeasonSupportFields,
     CampaignResourceWorldRegenerationResult? ResourceRegenerationResult = null,

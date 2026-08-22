@@ -11,7 +11,7 @@ public sealed class CampaignEditorSeasonProjectLoadResult
         CampaignResourceMap resourceMap,
         CampaignResourceGenerationSettings? resourceGenerationSettings,
         CampaignSeasonMap seasonMap,
-        IEnumerable<string> seasonPriorityIds,
+        IEnumerable<string> seasonEnabledIds,
         CampaignSeasonSavedGeneration? seasonSavedGeneration,
         bool wasConvertedFromLegacy,
         string sourceProjectDirectory,
@@ -22,8 +22,8 @@ public sealed class CampaignEditorSeasonProjectLoadResult
         ResourceMap = resourceMap ?? throw new ArgumentNullException(nameof(resourceMap));
         ResourceGenerationSettings = resourceGenerationSettings;
         SeasonMap = seasonMap ?? throw new ArgumentNullException(nameof(seasonMap));
-        ArgumentNullException.ThrowIfNull(seasonPriorityIds);
-        SeasonPriorityIds = Array.AsReadOnly(seasonPriorityIds.ToArray());
+        ArgumentNullException.ThrowIfNull(seasonEnabledIds);
+        SeasonEnabledIds = Array.AsReadOnly(seasonEnabledIds.Order(StringComparer.Ordinal).ToArray());
         SeasonSavedGeneration = seasonSavedGeneration;
         WasConvertedFromLegacy = wasConvertedFromLegacy;
         SourceProjectDirectory = sourceProjectDirectory ??
@@ -40,7 +40,7 @@ public sealed class CampaignEditorSeasonProjectLoadResult
 
     public CampaignSeasonMap SeasonMap { get; }
 
-    public IReadOnlyList<string> SeasonPriorityIds { get; }
+    public IReadOnlyList<string> SeasonEnabledIds { get; }
 
     public CampaignSeasonSavedGeneration? SeasonSavedGeneration { get; }
 

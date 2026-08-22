@@ -2,20 +2,19 @@ namespace Kingdom.World.Core.Campaign.Seasons;
 
 public sealed record CampaignSeasonGenerationReport(
     string SeasonId,
-    bool GenerationEnabled,
+    bool Selected,
     int ScopeTileCount,
-    int CurrentTileCount,
-    int CandidateTileCount,
+    int CurrentOccurrenceCount,
     int EnvironmentalMatchCount,
-    int PriorityWinCount,
-    int GeneratedTileCount,
-    int ShadowedMatchCount,
+    int AddedOccurrenceCount,
+    int RemovedOccurrenceCount,
+    int RetainedUnlockedCount,
     int PreservedLockCount,
-    int LockedOverrideCount,
-    int ChangedToSeasonCount,
+    int CandidateOccurrenceCount,
     double CandidateCoveragePercent,
     string? ZeroReason,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings)
+;
 
 public sealed class CampaignSeasonGenerationResult
 {
@@ -25,7 +24,7 @@ public sealed class CampaignSeasonGenerationResult
         CampaignSeasonGenerationScope scope,
         CampaignSeasonSupportFields supportFields,
         IEnumerable<CampaignSeasonGenerationReport> reports,
-        int changedTileCount,
+        int changedIdentityCount,
         long sourceTerrainRevision,
         long sourceSeasonRevision)
     {
@@ -43,9 +42,9 @@ public sealed class CampaignSeasonGenerationResult
                 nameof(supportFields));
         }
 
-        if (changedTileCount is < 0 || changedTileCount > candidateMap.TileCount)
+        if (changedIdentityCount < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(changedTileCount));
+            throw new ArgumentOutOfRangeException(nameof(changedIdentityCount));
         }
 
         var reportCopy = (reports ?? throw new ArgumentNullException(nameof(reports)))
@@ -73,7 +72,7 @@ public sealed class CampaignSeasonGenerationResult
         }
 
         Reports = Array.AsReadOnly(reportCopy);
-        ChangedTileCount = changedTileCount;
+        ChangedIdentityCount = changedIdentityCount;
         SourceTerrainRevision = sourceTerrainRevision;
         SourceSeasonRevision = sourceSeasonRevision;
         CandidateSeasonRevision = candidateMap.Revision;
@@ -89,7 +88,7 @@ public sealed class CampaignSeasonGenerationResult
 
     public IReadOnlyList<CampaignSeasonGenerationReport> Reports { get; }
 
-    public int ChangedTileCount { get; }
+    public int ChangedIdentityCount { get; }
 
     public long SourceTerrainRevision { get; }
 

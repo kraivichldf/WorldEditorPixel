@@ -43,15 +43,13 @@ public sealed class CampaignSeasonGenerationSource
     private CampaignSeasonGenerationSource(
         CampaignSeasonTerrainSnapshot terrain,
         CampaignSeasonCatalog catalog,
-        string defaultSeasonId,
         long seasonRevision,
-        CampaignSeasonTile[] currentTiles)
+        CampaignSeasonEntry[] currentEntries)
     {
         Terrain = terrain;
         Catalog = catalog;
-        DefaultSeasonId = defaultSeasonId;
         SeasonRevision = seasonRevision;
-        CurrentTiles = Array.AsReadOnly(currentTiles);
+        CurrentEntries = Array.AsReadOnly(currentEntries);
     }
 
     public CampaignSeasonTerrainSnapshot Terrain { get; }
@@ -60,13 +58,11 @@ public sealed class CampaignSeasonGenerationSource
 
     public CampaignSeasonCatalog Catalog { get; }
 
-    public string DefaultSeasonId { get; }
-
     public long TerrainRevision => Terrain.Revision;
 
     public long SeasonRevision { get; }
 
-    public IReadOnlyList<CampaignSeasonTile> CurrentTiles { get; }
+    public IReadOnlyList<CampaignSeasonEntry> CurrentEntries { get; }
 
     public static CampaignSeasonGenerationSource Capture(
         ICampaignSeasonTerrainQuery terrainQuery,
@@ -101,12 +97,11 @@ public sealed class CampaignSeasonGenerationSource
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var currentEntries = seasonMap.GetAllTiles();
-        var currentTiles = new CampaignSeasonTile[currentEntries.Count];
-        for (var index = 0; index < currentEntries.Count; index++)
+        var currentEntries = seasonMap.GetMaterializedOccurrences().ToArray();
+        for (var index = 0; index < currentEntries.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            currentTiles[index] = currentEntries[index].Tile;
+            currentEntries[index].Occurrence.EnsureValid();
         }
 
         var terrainRevisionAfter = terrainQuery.Revision;
@@ -121,8 +116,7 @@ public sealed class CampaignSeasonGenerationSource
         return new CampaignSeasonGenerationSource(
             new CampaignSeasonTerrainSnapshot(definition, terrainRevisionBefore, samples),
             seasonMap.Catalog,
-            seasonMap.DefaultSeasonId,
             seasonRevisionBefore,
-            currentTiles);
+            currentEntries);
     }
 }

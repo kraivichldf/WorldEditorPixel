@@ -11,20 +11,23 @@ public sealed class WorldCanvasSeasonTests
 {
     [Theory]
     [InlineData(CampaignSeasonPaintTool.Paint)]
-    [InlineData(CampaignSeasonPaintTool.ResetToDefault)]
+    [InlineData(CampaignSeasonPaintTool.Erase)]
     [InlineData(CampaignSeasonPaintTool.Lock)]
     [InlineData(CampaignSeasonPaintTool.Unlock)]
-    public void ApplySeasonToolToArea_RoutesWholeTileToolsAndClipsAtWorldEdge(
+    public void ApplySeasonToolToArea_ChangesOnlySelectedOccurrenceAndClipsAtEdge(
         CampaignSeasonPaintTool tool)
     {
         var seasons = new CampaignSeasonMap(CreateDefinition(3, 3));
-        if (tool is CampaignSeasonPaintTool.ResetToDefault or CampaignSeasonPaintTool.Unlock)
+        for (var y = 0; y < 3; y++)
         {
-            seasons.Apply(seasons.GetAllTiles().Select(entry =>
-                new CampaignSeasonMutation(
-                    entry.X,
-                    entry.Y,
-                    new CampaignSeasonTile("winter", Locked: true))));
+            for (var x = 0; x < 3; x++)
+            {
+                seasons.Upsert(x, y, new("spring"));
+                if (tool != CampaignSeasonPaintTool.Paint)
+                {
+                    seasons.Upsert(x, y, new("winter", Locked: tool == CampaignSeasonPaintTool.Unlock));
+                }
+            }
         }
 
         var stroke = new CampaignSeasonStrokeBuilder(seasons);
@@ -47,30 +50,35 @@ public sealed class WorldCanvasSeasonTests
                      new CampaignTileCoordinate(1, 1),
                  })
         {
-            var tile = seasons.GetTile(coordinate.X, coordinate.Y);
-            var expected = tool switch
+            Assert.True(seasons.TryGetOccurrence(coordinate.X, coordinate.Y, "spring", out _));
+            if (tool == CampaignSeasonPaintTool.Erase)
             {
-                CampaignSeasonPaintTool.Paint => new CampaignSeasonTile("winter", Locked: true),
-                CampaignSeasonPaintTool.ResetToDefault => new CampaignSeasonTile("spring", Locked: false),
-                CampaignSeasonPaintTool.Lock => new CampaignSeasonTile("spring", Locked: true),
-                CampaignSeasonPaintTool.Unlock => new CampaignSeasonTile("winter", Locked: false),
-                _ => throw new InvalidOperationException(),
-            };
-            Assert.Equal(expected, tile);
+                Assert.False(seasons.TryGetOccurrence(coordinate.X, coordinate.Y, "winter", out _));
+            }
+            else
+            {
+                Assert.True(seasons.TryGetOccurrence(coordinate.X, coordinate.Y, "winter", out var winter));
+                Assert.Equal(
+                    tool is CampaignSeasonPaintTool.Paint or CampaignSeasonPaintTool.Lock,
+                    winter.Locked);
+            }
         }
 
-        var outside = seasons.GetTile(2, 2);
-        Assert.Equal(
-            tool is CampaignSeasonPaintTool.ResetToDefault or CampaignSeasonPaintTool.Unlock
-                ? new CampaignSeasonTile("winter", Locked: true)
-                : new CampaignSeasonTile("spring", Locked: false),
-            outside);
+        Assert.True(seasons.TryGetOccurrence(2, 2, "spring", out _));
+        Assert.Equal(tool != CampaignSeasonPaintTool.Paint,
+            seasons.TryGetOccurrence(2, 2, "winter", out var outside));
+        if (tool != CampaignSeasonPaintTool.Paint)
+        {
+            Assert.Equal(tool == CampaignSeasonPaintTool.Unlock, outside.Locked);
+        }
     }
 
     [Fact]
     public void ApplySeasonToolToArea_InvalidInputDoesNotMutateAuthority()
     {
         var seasons = new CampaignSeasonMap(CreateDefinition(3, 3));
+        seasons.Upsert(0, 0, new("spring"));
+        var initial = seasons.GetMaterializedOccurrences();
         var initialRevision = seasons.Revision;
 
         Assert.Throws<ArgumentException>(() => WorldCanvas.ApplySeasonToolToArea(
@@ -87,12 +95,11 @@ public sealed class WorldCanvasSeasonTests
             new CampaignTileCoordinate(1, 1),
             paintAreaRadius: 13,
             CampaignSeasonPaintTool.Lock,
-            selectedSeasonId: null,
+            selectedSeasonId: "spring",
             lockPaintedTiles: false));
 
         Assert.Equal(initialRevision, seasons.Revision);
-        Assert.All(seasons.GetAllTiles(), entry =>
-            Assert.Equal(new CampaignSeasonTile("spring"), entry.Tile));
+        Assert.Equal(initial, seasons.GetMaterializedOccurrences());
     }
 
     private static CampaignWorldDefinition CreateDefinition(int tilesX, int tilesY) =>

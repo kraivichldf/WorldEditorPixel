@@ -14,7 +14,7 @@ public sealed class CampaignSeasonCatalogTests
         [
             "spring",
             "summer",
-            "autumn",
+            "fall",
             "winter",
         ], catalog.Definitions.Select(static value => value.Id));
         Assert.Equal(
@@ -22,16 +22,16 @@ public sealed class CampaignSeasonCatalogTests
             catalog.Get(CampaignSeasonCatalog.SpringId).Fallback);
         Assert.Equal(
             new CampaignSeasonRange(-273.15, 5),
-            catalog.Get(CampaignSeasonCatalog.WinterId).Rule.TemperatureCelsius);
+            catalog.Get(CampaignSeasonCatalog.WinterId).Rule.ColdSeasonTemperatureCelsius);
         Assert.Equal(
-            new CampaignSeasonRange(0.05, 1),
-            catalog.Get(CampaignSeasonCatalog.SpringId).Rule.SeasonalTendency);
+            new CampaignSeasonRange(0.12, 1),
+            catalog.Get(CampaignSeasonCatalog.SpringId).Rule.Seasonality);
         Assert.Equal(
-            new CampaignSeasonRange(-1, -0.05),
-            catalog.Get(CampaignSeasonCatalog.AutumnId).Rule.SeasonalTendency);
-        Assert.Same(
-            CampaignSeasonRule.Unrestricted,
-            catalog.Get(CampaignSeasonCatalog.SummerId).Rule);
+            new CampaignSeasonRange(0.12, 1),
+            catalog.Get(CampaignSeasonCatalog.FallId).Rule.Seasonality);
+        Assert.Equal(
+            new CampaignSeasonRange(10, 100),
+            catalog.Get(CampaignSeasonCatalog.SummerId).Rule.WarmSeasonTemperatureCelsius);
         Assert.All(catalog.Definitions, static definition => definition.EnsureValid());
     }
 
@@ -39,14 +39,14 @@ public sealed class CampaignSeasonCatalogTests
     public void Catalog_AddsCustomDefinitionsInStableOrderAndRejectsBuiltInConflict()
     {
         var wet = CreateCustom("wet-season", CampaignBuiltInSeason.Summer);
-        var monsoon = CreateCustom("monsoon", CampaignBuiltInSeason.Autumn);
+        var monsoon = CreateCustom("monsoon", CampaignBuiltInSeason.Fall);
         var catalog = new CampaignSeasonCatalog([wet, monsoon]);
 
         Assert.Equal(
         [
             "spring",
             "summer",
-            "autumn",
+            "fall",
             "winter",
             "monsoon",
             "wet-season",
@@ -151,7 +151,7 @@ public sealed class CampaignSeasonCatalogTests
         Assert.Throws<ArgumentException>(() => new CampaignSeasonRule(
             moisture: new CampaignSeasonRange(0.8, 0.2)));
         Assert.Throws<ArgumentOutOfRangeException>(() => new CampaignSeasonRule(
-            seasonalIntensity: new CampaignSeasonRange(-1.1, 0.5)));
+            seasonality: new CampaignSeasonRange(-0.1, 0.5)));
         Assert.Throws<ArgumentOutOfRangeException>(() => new CampaignSeasonRule(
             seaDistanceKilometers: new CampaignSeasonRange(-1, 2)));
         Assert.Throws<ArgumentOutOfRangeException>(() => new CampaignSeasonRule(

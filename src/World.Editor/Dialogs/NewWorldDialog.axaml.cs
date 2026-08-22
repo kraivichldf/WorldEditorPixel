@@ -117,21 +117,19 @@ public sealed partial class NewWorldDialog : Window
     private readonly Border _layerImpactDivider;
     private readonly TextBlock _resourceImpactSummary;
     private readonly TextBlock _resourceImpactWarning;
-    private readonly ComboBox _defaultSeason;
     private readonly Button _manageSeasonsButton;
     private readonly TextBlock _seasonSettingsSummary;
     private readonly Button _terrainPreviewButton;
     private readonly Button _seasonPreviewButton;
     private readonly TextBlock _seasonImpactSummary;
     private readonly TextBlock _seasonImpactWarning;
-    private readonly Button _resolveSeasonLocksButton;
+    private readonly Button _reviewSeasonDropsButton;
     private readonly IReadOnlyList<Choice<CampaignMapGenerationPreset>> _availablePresetChoices;
     private readonly CampaignResourceWorldRegenerationSource? _resourceRegenerationSource;
     private readonly CampaignSeasonWorldRegenerationSource? _seasonRegenerationSource;
     private readonly List<CampaignCustomTerrainDefinition> _customTerrainDefinitions = [];
     private CampaignSeasonCatalog _seasonCatalog;
-    private IReadOnlyList<string> _seasonPriorityIds;
-    private string _defaultSeasonId;
+    private IReadOnlyList<string> _seasonEnabledIds;
     private CampaignWorld? _previewWorld;
     private CampaignMapGenerationResult? _previewGenerationResult;
     private CampaignResourceWorldRegenerationResult? _previewResourceRegenerationResult;
@@ -140,7 +138,6 @@ public sealed partial class NewWorldDialog : Window
     private WriteableBitmap? _previewBitmap;
     private WriteableBitmap? _seasonPreviewBitmap;
     private CancellationTokenSource? _generationCancellation;
-    private IReadOnlyList<CampaignSeasonLockResolution> _seasonLockResolutions = [];
     private bool _permitLockedSeasonDrops;
     private bool _showingSeasonPreview;
     private bool _previewMatchesSettings;
@@ -153,7 +150,7 @@ public sealed partial class NewWorldDialog : Window
             currentResources: null,
             resourceSettings: null,
             currentSeasons: null,
-            seasonPriorityIds: null,
+            seasonEnabledIds: null,
             seasonSavedGeneration: null,
             initialOptions: null,
             isRegeneration: false)
@@ -169,7 +166,7 @@ public sealed partial class NewWorldDialog : Window
                 throw new ArgumentNullException(nameof(currentWorld))),
             resourceSettings: null,
             new CampaignSeasonMap(currentWorld.Definition),
-            CampaignSeasonGenerationSettings.DefaultPriority,
+            CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds,
             seasonSavedGeneration: null,
             initialOptions,
             isRegeneration: true)
@@ -187,7 +184,7 @@ public sealed partial class NewWorldDialog : Window
             resourceSettings,
             new CampaignSeasonMap(currentWorld?.Definition ??
                 throw new ArgumentNullException(nameof(currentWorld))),
-            CampaignSeasonGenerationSettings.DefaultPriority,
+            CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds,
             seasonSavedGeneration: null,
             initialOptions,
             isRegeneration: true)
@@ -199,7 +196,7 @@ public sealed partial class NewWorldDialog : Window
         CampaignResourceMap currentResources,
         CampaignResourceGenerationSettings? resourceSettings,
         CampaignSeasonMap currentSeasons,
-        IReadOnlyList<string> seasonPriorityIds,
+        IReadOnlyList<string> seasonEnabledIds,
         CampaignSeasonSavedGeneration? seasonSavedGeneration,
         CampaignMapGenerationOptions? initialOptions)
         : this(
@@ -207,7 +204,7 @@ public sealed partial class NewWorldDialog : Window
             currentResources,
             resourceSettings,
             currentSeasons,
-            seasonPriorityIds,
+            seasonEnabledIds,
             seasonSavedGeneration,
             initialOptions,
             isRegeneration: true)
@@ -219,7 +216,7 @@ public sealed partial class NewWorldDialog : Window
         CampaignResourceMap? currentResources,
         CampaignResourceGenerationSettings? resourceSettings,
         CampaignSeasonMap? currentSeasons,
-        IReadOnlyList<string>? seasonPriorityIds,
+        IReadOnlyList<string>? seasonEnabledIds,
         CampaignSeasonSavedGeneration? seasonSavedGeneration,
         CampaignMapGenerationOptions? initialOptions,
         bool isRegeneration)
@@ -239,13 +236,12 @@ public sealed partial class NewWorldDialog : Window
             ? CampaignSeasonWorldRegenerationSource.Capture(
                 currentWorld!,
                 currentSeasons ?? throw new ArgumentNullException(nameof(currentSeasons)),
-                seasonPriorityIds ?? throw new ArgumentNullException(nameof(seasonPriorityIds)),
+                seasonEnabledIds ?? throw new ArgumentNullException(nameof(seasonEnabledIds)),
                 seasonSavedGeneration)
             : null;
         _seasonCatalog = currentSeasons?.Catalog ?? new CampaignSeasonCatalog();
-        _seasonPriorityIds = Array.AsReadOnly(
-            (seasonPriorityIds ?? CampaignSeasonGenerationSettings.DefaultPriority).ToArray());
-        _defaultSeasonId = currentSeasons?.DefaultSeasonId ?? CampaignSeasonCatalog.SpringId;
+        _seasonEnabledIds = Array.AsReadOnly(
+            (seasonEnabledIds ?? CampaignSeasonGenerationSettings.DefaultEnabledSeasonIds).ToArray());
         _availablePresetChoices = isRegeneration ? PresetChoices[1..] : PresetChoices;
         AvaloniaXamlLoader.Load(this);
         _worldWidth = FindRequired<NumericUpDown>("WorldWidthInput");
@@ -299,14 +295,13 @@ public sealed partial class NewWorldDialog : Window
         _layerImpactDivider = FindRequired<Border>("LayerImpactDivider");
         _resourceImpactSummary = FindRequired<TextBlock>("ResourceImpactSummaryText");
         _resourceImpactWarning = FindRequired<TextBlock>("ResourceImpactWarningText");
-        _defaultSeason = FindRequired<ComboBox>("DefaultSeasonInput");
         _manageSeasonsButton = FindRequired<Button>("ManageSeasonsButton");
         _seasonSettingsSummary = FindRequired<TextBlock>("SeasonSettingsSummaryText");
         _terrainPreviewButton = FindRequired<Button>("TerrainPreviewButton");
         _seasonPreviewButton = FindRequired<Button>("SeasonPreviewButton");
         _seasonImpactSummary = FindRequired<TextBlock>("SeasonImpactSummaryText");
         _seasonImpactWarning = FindRequired<TextBlock>("SeasonImpactWarningText");
-        _resolveSeasonLocksButton = FindRequired<Button>("ResolveSeasonLocksButton");
+        _reviewSeasonDropsButton = FindRequired<Button>("ReviewSeasonDropsButton");
 
         _generationPreset.ItemsSource = _availablePresetChoices.Select(choice => choice.Label).ToArray();
         _generationPreset.SelectedIndex = 0;
@@ -327,8 +322,6 @@ public sealed partial class NewWorldDialog : Window
         _desertRatio.Value = defaultLandMix.DesertPercent;
         _hillsRatio.Value = defaultLandMix.HillsPercent;
         _mountainRatio.Value = defaultLandMix.MountainPercent;
-        RefreshSeasonChoices();
-        _defaultSeason.IsEnabled = !isRegeneration;
         _manageSeasonsButton.IsEnabled = !isRegeneration;
 
         if (isRegeneration)
@@ -355,7 +348,6 @@ public sealed partial class NewWorldDialog : Window
         _coastlineStyle.SelectionChanged += (_, _) => GenerationSettingChanged();
         _customLandMix.IsCheckedChanged += (_, _) => GenerationSettingChanged();
         _generationSeed.ValueChanged += (_, _) => MarkPreviewStale();
-        _defaultSeason.SelectionChanged += (_, _) => DefaultSeasonChanged();
         foreach (var ratioInput in GetLandMixInputs())
         {
             ratioInput.ValueChanged += (_, _) =>
@@ -509,15 +501,12 @@ public sealed partial class NewWorldDialog : Window
             {
                 var generationResult = CampaignMapGenerator.Generate(definition, generationOptions);
                 var world = new CampaignWorld(definition, generationResult.CustomTerrainDefinitions);
-                var seasons = new CampaignSeasonMap(
-                    definition,
-                    _seasonCatalog,
-                    _defaultSeasonId);
+                var seasons = new CampaignSeasonMap(definition, _seasonCatalog);
                 Close(new NewWorldDialogResult(
                     world,
                     generationResult,
                     seasons,
-                    _seasonPriorityIds,
+                    _seasonEnabledIds,
                     SeasonSavedGeneration: null,
                     SeasonSupportFields: null));
                 return;
@@ -560,7 +549,7 @@ public sealed partial class NewWorldDialog : Window
             _previewWorld,
             _previewGenerationResult,
             seasonMap,
-            _seasonPriorityIds,
+            _seasonEnabledIds,
             seasonSavedGeneration,
             seasonSupportFields,
             _previewResourceRegenerationResult,
@@ -576,7 +565,6 @@ public sealed partial class NewWorldDialog : Window
         _generationCancellation?.Dispose();
         var cancellation = new CancellationTokenSource();
         _generationCancellation = cancellation;
-        _seasonLockResolutions = [];
         _permitLockedSeasonDrops = false;
         SetGenerationBusy(true);
 
@@ -611,7 +599,6 @@ public sealed partial class NewWorldDialog : Window
                     newSeasonResult = seasonRegenerator.GenerateNewWorld(
                         world,
                         _seasonCatalog,
-                        _defaultSeasonId,
                         seasonSettings,
                         cancellation.Token);
                 }
@@ -635,7 +622,7 @@ public sealed partial class NewWorldDialog : Window
                     world,
                     generationResult,
                     seasonMap,
-                    _seasonPriorityIds,
+                    _seasonEnabledIds,
                     savedGeneration,
                     supportFields,
                     resourceRegenerationResult,
@@ -653,11 +640,7 @@ public sealed partial class NewWorldDialog : Window
             _previewBitmap?.Dispose();
             _previewBitmap = CampaignWorldPreviewRenderer.Render(preview.World);
             _seasonPreviewBitmap?.Dispose();
-            _seasonPreviewBitmap = CampaignWorldPreviewRenderer.RenderSeasons(
-                preview.SeasonMap,
-                preview.SeasonRegenerationResult?.Report.Conflicts
-                    .Where(static value => !value.IsResolved)
-                    .Select(static value => new CampaignTileCoordinate(value.TargetX, value.TargetY)));
+            _seasonPreviewBitmap = CampaignWorldPreviewRenderer.RenderSeasons(preview.SeasonMap);
             UpdateDisplayedPreview();
             _generationPreviewImage.IsVisible = true;
             _generationPreviewPlaceholder.IsVisible = false;
@@ -701,36 +684,7 @@ public sealed partial class NewWorldDialog : Window
         return new CampaignSeasonGenerationSettings(
             CampaignSeasonSeed.FromTerrainSeed(terrainResult.Seed),
             seedDerivedFromTerrain: true,
-            priorityIds: _seasonPriorityIds);
-    }
-
-    private void RefreshSeasonChoices()
-    {
-        var choices = _seasonCatalog.Definitions
-            .Select(definition => new SeasonChoice(definition.Id, definition.Name))
-            .ToArray();
-        _defaultSeason.ItemsSource = choices;
-        _defaultSeason.SelectedIndex = Array.FindIndex(
-            choices,
-            choice => string.Equals(choice.Id, _defaultSeasonId, StringComparison.Ordinal));
-        if (_defaultSeason.SelectedIndex < 0 && choices.Length > 0)
-        {
-            _defaultSeason.SelectedIndex = 0;
-            _defaultSeasonId = choices[0].Id;
-        }
-    }
-
-    private void DefaultSeasonChanged()
-    {
-        if (_defaultSeason.SelectedItem is not SeasonChoice choice ||
-            string.Equals(choice.Id, _defaultSeasonId, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        _defaultSeasonId = choice.Id;
-        MarkPreviewStale();
-        UpdateSeasonSettingsSummary();
+            enabledSeasonIds: _seasonEnabledIds);
     }
 
     private async void ManageSeasons_OnClick(object? sender, RoutedEventArgs e)
@@ -746,9 +700,8 @@ public sealed partial class NewWorldDialog : Window
             StringComparer.Ordinal);
         var result = await new CustomSeasonsDialog(
                 _seasonCatalog,
-                _seasonPriorityIds,
-                usageCounts,
-                _defaultSeasonId)
+                _seasonEnabledIds,
+                usageCounts)
             .ShowDialog<CustomSeasonsDialogResult?>(this);
         if (result is null)
         {
@@ -760,22 +713,9 @@ public sealed partial class NewWorldDialog : Window
             var nextCatalog = new CampaignSeasonCatalog(
                 result.CustomDefinitions,
                 result.BuiltInDefinitions);
-            if (!nextCatalog.Contains(_defaultSeasonId))
-            {
-                if (!result.DeletedSeasonReplacements.TryGetValue(
-                        _defaultSeasonId,
-                        out var replacementId))
-                {
-                    throw new InvalidOperationException(
-                        "Deleting the default tile season requires an explicit replacement.");
-                }
-
-                _defaultSeasonId = replacementId;
-            }
-
             _seasonCatalog = nextCatalog;
-            _seasonPriorityIds = Array.AsReadOnly(result.PriorityIds.ToArray());
-            RefreshSeasonChoices();
+            _seasonEnabledIds = Array.AsReadOnly(
+                result.EnabledSeasonIds.Order(StringComparer.Ordinal).ToArray());
             MarkPreviewStale();
             UpdateSeasonSettingsSummary();
         }
@@ -787,13 +727,11 @@ public sealed partial class NewWorldDialog : Window
 
     private void UpdateSeasonSettingsSummary()
     {
-        var defaultName = _seasonCatalog.Get(_defaultSeasonId).Name;
         _seasonSettingsSummary.Text = _seasonRegenerationSource is null
-            ? $"Blank fills all tiles with {defaultName} and saves no generation recipe. " +
-              $"Generated worlds derive an Earth-like Season seed from the terrain seed; " +
-              $"{_seasonPriorityIds.Count:N0} enabled definition(s) compete in listed order."
-            : $"Current default: {defaultName}. Catalog and priority stay fixed while this preview is open. " +
-              "Same-grid regeneration preserves every assignment and lock; changed grids remap locks and regenerate unlocked tiles.";
+            ? "Blank worlds start with no Season Occurrences. Generated worlds derive annual Earth-like climate from the terrain seed; " +
+              $"{_seasonEnabledIds.Count:N0} enabled definition(s) evaluate independently."
+            : "The Season Catalog and generated selection stay fixed while this preview is open. " +
+              "Same-grid regeneration preserves every occurrence and lock; changed grids remap locked occurrences and regenerate unlocked ones.";
     }
 
     private void TerrainPreview_OnClick(object? sender, RoutedEventArgs e)
@@ -1052,14 +990,14 @@ public sealed partial class NewWorldDialog : Window
         var stalePrefix = _previewMatchesSettings
             ? string.Empty
             : "Previous Season impact — settings changed. ";
-        _resolveSeasonLocksButton.IsVisible = false;
+        _reviewSeasonDropsButton.IsVisible = false;
         if (_seasonRegenerationSource is null)
         {
             if (_previewNewSeasonGenerationResult is null)
             {
                 _seasonImpactSummary.Text =
-                    "Generated worlds create a complete Earth-like Season Layer after terrain. " +
-                    "Blank worlds use the selected default directly.";
+                    "Generated worlds create independent Earth-like Season Occurrences after terrain. " +
+                    "Blank worlds start with an empty Season Layer.";
                 _seasonImpactWarning.Text =
                     "Terrain and seasons are accepted together; a failure or cancellation applies neither.";
                 return;
@@ -1070,18 +1008,18 @@ public sealed partial class NewWorldDialog : Window
                 $"Complete candidate · seed {result.SavedGeneration.Settings.SeasonSeed:N0} · " +
                 GetSeasonDistribution(result.CandidateMap);
             _seasonImpactWarning.Text =
-                "No Season locks exist in a newly generated world. Every generated tile remains editable.";
+                "No Season locks exist in a newly generated world. Every generated occurrence remains editable.";
             return;
         }
 
         if (_previewSeasonRegenerationResult is null)
         {
             _seasonImpactSummary.Text =
-                $"Current Season Layer: {_seasonRegenerationSource.Entries.Count:N0} complete tile(s), " +
-                $"{_seasonRegenerationSource.Entries.Count(static value => value.Tile.Locked):N0} locked. " +
+                $"Current Season Layer: {_seasonRegenerationSource.Entries.Count:N0} occurrence(s), " +
+                $"{_seasonRegenerationSource.Entries.Count(static value => value.Occurrence.Locked):N0} locked. " +
                 "Generate a terrain preview to review exact Season impact.";
             _seasonImpactWarning.Text =
-                "Same grids preserve exact authority. Changed grids use physical overlap for locks and regenerate unlocked tiles.";
+                "Same grids preserve exact authority. Changed grids remap locked occurrences by physical centre and regenerate unlocked occurrences.";
             return;
         }
 
@@ -1089,78 +1027,47 @@ public sealed partial class NewWorldDialog : Window
         _seasonImpactSummary.Text = report.Mode switch
         {
             CampaignSeasonLatticeRemapMode.PreserveSameLattice =>
-                $"{stalePrefix}Same grid · all {_previewSeasonRegenerationResult.CandidateMap.TileCount:N0} assignments " +
-                $"and {report.FinalLockedTileCount:N0} lock(s) are preserved exactly.",
+                $"{stalePrefix}Same grid · all {_previewSeasonRegenerationResult.CandidateMap.OccurrenceCount:N0} occurrences " +
+                $"and {report.FinalLockedOccurrenceCount:N0} lock(s) are preserved exactly.",
             CampaignSeasonLatticeRemapMode.RemapLocksAndRegenerateUnlocked =>
-                $"{stalePrefix}Changed grid · {report.SourceLockedTileCount:N0} source lock(s) → " +
-                $"{report.FinalLockedTileCount:N0} target lock(s) · {report.MovedLockedTileCount:N0} moved · " +
-                $"{report.MergedLockedTileCount:N0} merged · {report.DisplacedLockedTileCount:N0} displaced. " +
-                GetSeasonDistribution(
-                    _previewSeasonRegenerationResult.CandidateMap,
-                    report.Conflicts
-                        .Where(static value => !value.IsResolved)
-                        .Select(static value => new CampaignTileCoordinate(value.TargetX, value.TargetY))),
+                $"{stalePrefix}Changed grid · {report.SourceLockedOccurrenceCount:N0} source lock(s) → " +
+                $"{report.FinalLockedOccurrenceCount:N0} target lock(s) · {report.MovedLockedOccurrenceCount:N0} moved · " +
+                $"{report.MergedLockedOccurrenceCount:N0} same-ID merge(s). " +
+                GetSeasonDistribution(_previewSeasonRegenerationResult.CandidateMap),
             _ => throw new ArgumentOutOfRangeException(nameof(report.Mode)),
         };
 
         var warnings = new List<string>();
-        if (report.UnresolvedConflictCount > 0)
-        {
-            warnings.Add(
-                $"BLOCKED: {report.UnresolvedConflictCount:N0} target tile(s) have equal-overlap locks with different Season IDs. " +
-                "They are shown in magenta and excluded from the distribution until resolved.");
-        }
-
         if (report.LockedDrops.Count > 0)
         {
             warnings.Add(report.DropsPermitted
-                ? $"Reviewed: {report.LockedDrops.Count:N0} locked source tile(s) outside the new world will be dropped."
-                : $"BLOCKED: {report.LockedDrops.Count:N0} locked source tile(s) have no overlap with the new world.");
-        }
-
-        if (report.Conflicts.Any(static value => value.IsResolved))
-        {
-            warnings.Add(
-                $"{report.Conflicts.Count(static value => value.IsResolved):N0} equal-overlap conflict(s) have an explicit winner.");
+                ? $"Reviewed: {report.LockedDrops.Count:N0} locked source occurrence(s) outside the new world will be dropped."
+                : $"BLOCKED: {report.LockedDrops.Count:N0} locked source occurrence(s) have no target inside the new world.");
         }
 
         if (warnings.Count == 0)
         {
             warnings.Add(report.SameLattice
                 ? "No lock remap is required."
-                : "No unresolved lock conflict or unpermitted locked drop remains.");
+                : "Different Season Occurrences coexist on each tile; only out-of-bounds locked occurrences require review.");
         }
 
         _seasonImpactWarning.Text = string.Join(" ", warnings);
-        _resolveSeasonLocksButton.IsVisible =
-            report.Conflicts.Count > 0 || report.LockedDrops.Count > 0;
-        _resolveSeasonLocksButton.IsEnabled = _previewMatchesSettings && !_isGenerating;
-        _resolveSeasonLocksButton.Content = report.CanAccept
-            ? "Review locked Season decisions…"
-            : "Resolve locked Season blockers…";
+        _reviewSeasonDropsButton.IsVisible =
+            report.LockedDrops.Count > 0;
+        _reviewSeasonDropsButton.IsEnabled = _previewMatchesSettings && !_isGenerating;
+        _reviewSeasonDropsButton.Content = report.CanAccept
+            ? "Review locked Season drops…"
+            : "Review locked Season drops…";
     }
 
     private string GetSeasonDistribution(
         CampaignSeasonMap seasons,
         IEnumerable<CampaignTileCoordinate>? excludedCoordinates = null)
     {
-        var excluded = excludedCoordinates?.ToHashSet() ?? [];
-        var counts = seasons.Catalog.Definitions.ToDictionary(
-            static definition => definition.Id,
-            static _ => 0,
-            StringComparer.Ordinal);
-        for (var y = 0; y < seasons.Definition.TilesY; y++)
-        {
-            for (var x = 0; x < seasons.Definition.TilesX; x++)
-            {
-                if (!excluded.Contains(new CampaignTileCoordinate(x, y)))
-                {
-                    counts[seasons.GetTile(x, y).SeasonId]++;
-                }
-            }
-        }
-
-        var countedTileCount = seasons.TileCount - excluded.Count;
+        var counts = seasons.GetUsageCounts(
+            seasons.Catalog.Definitions.Select(static definition => definition.Id));
+        var countedTileCount = seasons.Definition.TileCount;
         var populated = seasons.Catalog.Definitions
             .Select(definition => new
             {
@@ -1176,12 +1083,10 @@ public sealed partial class NewWorldDialog : Window
             populated.Take(6).Select(value =>
                 $"{value.Name} {value.Count * 100d / Math.Max(1, countedTileCount):0.#}%"));
         var distribution = populated.Length > 6 ? shown + ", others" : shown;
-        return excluded.Count == 0
-            ? distribution
-            : $"{distribution} · {excluded.Count:N0} unresolved excluded";
+        return distribution.Length == 0 ? "no occurrences" : distribution;
     }
 
-    private async void ResolveSeasonLocks_OnClick(object? sender, RoutedEventArgs e)
+    private async void ReviewSeasonDrops_OnClick(object? sender, RoutedEventArgs e)
     {
         if (_isGenerating ||
             !_previewMatchesSettings ||
@@ -1192,19 +1097,20 @@ public sealed partial class NewWorldDialog : Window
             return;
         }
 
-        var decision = await new SeasonLockResolutionDialog(
-                current.Report,
-                _seasonCatalog,
-                _seasonLockResolutions,
-                _permitLockedSeasonDrops)
-            .ShowDialog<SeasonLockResolutionDialogResult?>(this);
-        if (decision is null)
+        var decision = await new ChoiceDialog(
+                "Locked Season Occurrences",
+                "Permit locked occurrences outside the new world to be dropped?",
+                $"{current.Report.LockedDrops.Count:N0} locked Season Occurrence(s) have no target inside the replacement world. " +
+                "Accepting this loss affects only those out-of-bounds identities; all remaining Season IDs may coexist on their target tiles.",
+                "Permit drops",
+                cancelText: "Keep blocked")
+            .ShowDialog<DialogChoice>(this);
+        if (decision != DialogChoice.Primary)
         {
             return;
         }
 
-        _seasonLockResolutions = decision.Resolutions;
-        _permitLockedSeasonDrops = decision.PermitLockedDrops;
+        _permitLockedSeasonDrops = true;
         await RegenerateSeasonCandidateAsync();
     }
 
@@ -1229,18 +1135,13 @@ public sealed partial class NewWorldDialog : Window
                     _seasonRegenerationSource,
                     world,
                     ResolveSeasonSettings(terrainResult),
-                    _seasonLockResolutions,
-                    _permitLockedSeasonDrops,
-                    cancellation.Token),
+                    permitLockedDrops: _permitLockedSeasonDrops,
+                    cancellationToken: cancellation.Token),
                 cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             _previewSeasonRegenerationResult = result;
             _seasonPreviewBitmap?.Dispose();
-            _seasonPreviewBitmap = CampaignWorldPreviewRenderer.RenderSeasons(
-                result.CandidateMap,
-                result.Report.Conflicts
-                    .Where(static value => !value.IsResolved)
-                    .Select(static value => new CampaignTileCoordinate(value.TargetX, value.TargetY)));
+            _seasonPreviewBitmap = CampaignWorldPreviewRenderer.RenderSeasons(result.CandidateMap);
             UpdateDisplayedPreview();
             _validationPanel.IsVisible = false;
             UpdateSeasonImpact();

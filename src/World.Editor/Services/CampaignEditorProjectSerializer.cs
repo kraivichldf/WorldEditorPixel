@@ -118,7 +118,8 @@ public static class CampaignEditorProjectSerializer
             project.ResourceMap,
             project.ResourceGenerationSettings,
             seasons.SeasonMap,
-            seasons.PriorityIds,
+            seasons.SavedGeneration?.Settings.EnabledSeasonIds ??
+                seasons.SeasonMap.Catalog.Definitions.Select(static definition => definition.Id).ToArray(),
             seasons.SavedGeneration,
             project.WasConvertedFromLegacy,
             project.SourceProjectDirectory,
@@ -137,7 +138,7 @@ public static class CampaignEditorProjectSerializer
             resourceMap,
             resourceGenerationSettings,
             seasonMap: null,
-            seasonPriorityIds: null,
+            seasonEnabledIds: null,
             seasonSavedGeneration: null,
             projectDirectory,
             cancellationToken);
@@ -147,7 +148,7 @@ public static class CampaignEditorProjectSerializer
         CampaignResourceMap resourceMap,
         CampaignResourceGenerationSettings? resourceGenerationSettings,
         CampaignSeasonMap seasonMap,
-        IEnumerable<string> seasonPriorityIds,
+        IEnumerable<string> seasonEnabledIds,
         CampaignSeasonSavedGeneration? seasonSavedGeneration,
         string projectDirectory,
         CancellationToken cancellationToken = default) =>
@@ -156,7 +157,7 @@ public static class CampaignEditorProjectSerializer
             resourceMap,
             resourceGenerationSettings,
             seasonMap,
-            seasonPriorityIds,
+            seasonEnabledIds,
             seasonSavedGeneration,
             projectDirectory,
             cancellationToken);
@@ -166,7 +167,7 @@ public static class CampaignEditorProjectSerializer
         CampaignResourceMap resourceMap,
         CampaignResourceGenerationSettings? resourceGenerationSettings,
         CampaignSeasonMap? seasonMap,
-        IEnumerable<string>? seasonPriorityIds,
+        IEnumerable<string>? seasonEnabledIds,
         CampaignSeasonSavedGeneration? seasonSavedGeneration,
         string projectDirectory,
         CancellationToken cancellationToken)
@@ -183,7 +184,7 @@ public static class CampaignEditorProjectSerializer
 
         resourceMap.EnsureValid();
         resourceGenerationSettings?.EnsureValid(resourceMap.Catalog);
-        string[]? seasonPriority = null;
+        string[]? seasonEnabled = null;
         if (seasonMap is not null)
         {
             if (world.Definition != seasonMap.Definition)
@@ -193,30 +194,30 @@ public static class CampaignEditorProjectSerializer
                     nameof(seasonMap));
             }
 
-            ArgumentNullException.ThrowIfNull(seasonPriorityIds);
+            ArgumentNullException.ThrowIfNull(seasonEnabledIds);
             seasonMap.EnsureValid();
-            seasonPriority = seasonPriorityIds.ToArray();
-            new CampaignSeasonGenerationSettings(0, priorityIds: seasonPriority)
+            seasonEnabled = seasonEnabledIds.Order(StringComparer.Ordinal).ToArray();
+            new CampaignSeasonGenerationSettings(0, enabledSeasonIds: seasonEnabled)
                 .EnsureValid(seasonMap.Catalog, seasonMap.Definition);
             if (seasonSavedGeneration is not null)
             {
                 seasonSavedGeneration.Settings.EnsureValid(
                     seasonMap.Catalog,
                     seasonMap.Definition);
-                if (!seasonPriority.SequenceEqual(
-                        seasonSavedGeneration.Settings.PriorityIds,
+                if (!seasonEnabled.SequenceEqual(
+                        seasonSavedGeneration.Settings.EnabledSeasonIds,
                         StringComparer.Ordinal))
                 {
                     throw new ArgumentException(
-                        "Saved season generation settings must use the editor season priority.",
+                        "Saved season generation settings must use the editor enabled-season selection.",
                         nameof(seasonSavedGeneration));
                 }
             }
         }
-        else if (seasonPriorityIds is not null || seasonSavedGeneration is not null)
+        else if (seasonEnabledIds is not null || seasonSavedGeneration is not null)
         {
             throw new ArgumentException(
-                "Season priority or generation settings cannot be saved without a season map.",
+                "Season selection or generation settings cannot be saved without a season map.",
                 nameof(seasonMap));
         }
 
@@ -253,7 +254,6 @@ public static class CampaignEditorProjectSerializer
             {
                 await CampaignSeasonProjectSerializer.SaveAsync(
                     seasonMap,
-                    seasonPriority!,
                     seasonSavedGeneration,
                     stagingDirectory,
                     cancellationToken).ConfigureAwait(false);

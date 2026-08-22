@@ -54,13 +54,10 @@ internal static class CampaignWorldPreviewRenderer
         return bitmap;
     }
 
-    public static unsafe WriteableBitmap RenderSeasons(
-        CampaignSeasonMap seasons,
-        IEnumerable<CampaignTileCoordinate>? unresolvedConflicts = null)
+    public static unsafe WriteableBitmap RenderSeasons(CampaignSeasonMap seasons)
     {
         ArgumentNullException.ThrowIfNull(seasons);
         seasons.EnsureValid();
-        var conflictTiles = unresolvedConflicts?.ToHashSet() ?? [];
         var tilesX = seasons.Definition.TilesX;
         var tilesY = seasons.Definition.TilesY;
         var scale = Math.Min(
@@ -83,10 +80,8 @@ internal static class CampaignWorldPreviewRenderer
             for (var pixelX = 0; pixelX < rasterWidth; pixelX++)
             {
                 var tileX = Math.Min(tilesX - 1, (int)((long)pixelX * tilesX / rasterWidth));
-                var tile = seasons.GetTile(tileX, tileY);
-                var color = conflictTiles.Contains(new CampaignTileCoordinate(tileX, tileY))
-                    ? new RgbColor(255, 0, 255)
-                    : ParseColor(seasons.Catalog.Get(tile.SeasonId).ColorHex);
+                var occurrences = seasons.GetOccurrences(tileX, tileY);
+                var color = BlendSeasonColors(seasons, occurrences);
                 var offset = pixelX * 4;
                 row[offset] = color.Blue;
                 row[offset + 1] = color.Green;
@@ -96,6 +91,32 @@ internal static class CampaignWorldPreviewRenderer
         }
 
         return bitmap;
+    }
+
+    private static RgbColor BlendSeasonColors(
+        CampaignSeasonMap seasons,
+        IReadOnlyList<CampaignSeasonOccurrence> occurrences)
+    {
+        if (occurrences.Count == 0)
+        {
+            return new RgbColor(58, 65, 69);
+        }
+
+        var red = 0;
+        var green = 0;
+        var blue = 0;
+        foreach (var occurrence in occurrences)
+        {
+            var color = ParseColor(seasons.Catalog.Get(occurrence.SeasonId).ColorHex);
+            red += color.Red;
+            green += color.Green;
+            blue += color.Blue;
+        }
+
+        return new RgbColor(
+            (byte)(red / occurrences.Count),
+            (byte)(green / occurrences.Count),
+            (byte)(blue / occurrences.Count));
     }
 
     private static RgbColor GetTerrainColor(CampaignWorld world, CampaignTileData tile)

@@ -8,7 +8,7 @@ public sealed class CampaignSeasonCatalog
 
     public const string SummerId = "summer";
 
-    public const string AutumnId = "autumn";
+    public const string FallId = "fall";
 
     public const string WinterId = "winter";
 
@@ -16,7 +16,7 @@ public sealed class CampaignSeasonCatalog
     [
         SpringId,
         SummerId,
-        AutumnId,
+        FallId,
         WinterId,
     ];
 
@@ -124,7 +124,7 @@ public sealed class CampaignSeasonCatalog
     {
         CampaignBuiltInSeason.Spring => SpringId,
         CampaignBuiltInSeason.Summer => SummerId,
-        CampaignBuiltInSeason.Autumn => AutumnId,
+        CampaignBuiltInSeason.Fall => FallId,
         CampaignBuiltInSeason.Winter => WinterId,
         _ => throw new ArgumentOutOfRangeException(nameof(season), season, "Unknown built-in season."),
     };
@@ -190,25 +190,27 @@ public sealed class CampaignSeasonCatalog
                 tintStrengthPercent: 45,
                 effectIntensityPercent: 40,
                 new CampaignSeasonRule(
-                    temperatureCelsius: new CampaignSeasonRange(-5, 22),
-                    seasonalTendency: new CampaignSeasonRange(0.05, 1))),
+                    warmSeasonTemperatureCelsius: new CampaignSeasonRange(5, 100),
+                    seasonality: new CampaignSeasonRange(0.12, 1))),
             new(
                 SummerId,
                 "Summer",
                 CampaignBuiltInSeason.Summer,
                 "#E8C85A",
                 tintStrengthPercent: 30,
-                effectIntensityPercent: 25),
+                effectIntensityPercent: 25,
+                new CampaignSeasonRule(
+                    warmSeasonTemperatureCelsius: new CampaignSeasonRange(10, 100))),
             new(
-                AutumnId,
-                "Autumn",
-                CampaignBuiltInSeason.Autumn,
+                FallId,
+                "Fall",
+                CampaignBuiltInSeason.Fall,
                 "#C9783D",
                 tintStrengthPercent: 55,
                 effectIntensityPercent: 45,
                 new CampaignSeasonRule(
-                    temperatureCelsius: new CampaignSeasonRange(-5, 22),
-                    seasonalTendency: new CampaignSeasonRange(-1, -0.05))),
+                    warmSeasonTemperatureCelsius: new CampaignSeasonRange(5, 100),
+                    seasonality: new CampaignSeasonRange(0.12, 1))),
             new(
                 WinterId,
                 "Winter",
@@ -217,6 +219,7 @@ public sealed class CampaignSeasonCatalog
                 tintStrengthPercent: 70,
                 effectIntensityPercent: 70,
                 new CampaignSeasonRule(
-                    temperatureCelsius: new CampaignSeasonRange(-273.15, 5))),
+                    coldSeasonTemperatureCelsius: new CampaignSeasonRange(-273.15, 5),
+                    seasonality: new CampaignSeasonRange(0.12, 1))),
         ]);
 }

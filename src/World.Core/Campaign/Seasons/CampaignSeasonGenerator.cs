@@ -4,6 +4,8 @@ namespace Kingdom.World.Core.Campaign.Seasons;
 
 public static class CampaignSeasonGenerator
 {
+    public const int MaximumCandidateOccurrenceCount = 2_000_000;
+
     public static CampaignSeasonGenerationResult Generate(
         CampaignSeasonGenerationSource source,
         CampaignSeasonCatalog catalog,
@@ -19,180 +21,160 @@ public static class CampaignSeasonGenerator
         ValidateSource(source, catalog);
         settings.EnsureValid(catalog, source.Definition);
         scope.EnsureValid(source.Definition);
-
-        var support = CampaignSeasonSupportFields.Build(source.Terrain, settings, cancellationToken);
-        var enabled = settings.GetPriorityDefinitions(catalog).ToArray();
-        var enabledIndexById = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (var index = 0; index < enabled.Length; index++)
+        if (source.CurrentEntries.Count > MaximumCandidateOccurrenceCount)
         {
-            enabledIndexById.Add(enabled[index].Id, index);
+            throw new InvalidOperationException(
+                $"The current Season layer contains {source.CurrentEntries.Count:N0} occurrences; " +
+                $"generation supports at most {MaximumCandidateOccurrenceCount:N0}.");
         }
 
-        var environmentalMatches = new int[enabled.Length];
-        var priorityWins = new int[enabled.Length];
-        var generatedCounts = new int[enabled.Length];
-        var shadowedMatches = new int[enabled.Length];
-        var lockedOverrides = new int[enabled.Length];
-        var changedToSeason = new int[enabled.Length];
-        var preservedLocksByCatalogIndex = new int[catalog.Definitions.Count];
-        var currentCountsByCatalogIndex = new int[catalog.Definitions.Count];
-        var candidateCountsByCatalogIndex = new int[catalog.Definitions.Count];
-        var candidateTiles = source.CurrentTiles.ToArray();
+        var support = CampaignSeasonSupportFields.Build(source.Terrain, settings, cancellationToken);
+        var enabled = settings.GetEnabledDefinitions(catalog).ToArray();
+        var enabledIds = enabled.Select(static definition => definition.Id)
+            .ToHashSet(StringComparer.Ordinal);
         var definition = source.Definition;
-        var width = definition.TilesX;
-        var scopeTileCount = 0;
-        var changedTileCount = 0;
+        var scopeTileCount = CountScopeTiles(definition, scope);
+        var currentCounts = CountInScope(source.CurrentEntries, scope, catalog);
+        var candidate = CampaignSeasonMap.CreateSnapshot(definition, catalog, source.CurrentEntries);
+        var workingReports = catalog.Definitions.ToDictionary(
+            static value => value.Id,
+            value => new MutableReport(
+                value.Id,
+                enabledIds.Contains(value.Id),
+                scopeTileCount,
+                currentCounts[catalog.GetIndex(value.Id)]),
+            StringComparer.Ordinal);
+        var changedIdentityCount = 0;
 
-        for (var y = 0; y < definition.TilesY; y++)
+        foreach (var season in enabled)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            for (var x = 0; x < width; x++)
+            var report = workingReports[season.Id];
+            for (var y = 0; y < definition.TilesY; y++)
             {
-                if (!scope.Includes(x, y))
+                cancellationToken.ThrowIfCancellationRequested();
+                for (var x = 0; x < definition.TilesX; x++)
                 {
-                    continue;
-                }
-
-                scopeTileCount++;
-                var flatIndex = (y * width) + x;
-                var current = source.CurrentTiles[flatIndex];
-                currentCountsByCatalogIndex[catalog.GetIndex(current.SeasonId)]++;
-                var terrain = source.Terrain.GetSample(x, y);
-                var supportSample = support.GetSample(x, y);
-                var firstMatch = -1;
-                for (var priorityIndex = 0; priorityIndex < enabled.Length; priorityIndex++)
-                {
-                    if ((priorityIndex & 31) == 0)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                    }
-
-                    var matches = priorityIndex == enabled.Length - 1 ||
-                        CampaignSeasonRuleEvaluator.MatchesValidated(
-                            enabled[priorityIndex].Rule,
-                            terrain,
-                            supportSample);
-                    if (!matches)
+                    if (!scope.Includes(x, y))
                     {
                         continue;
                     }
 
-                    environmentalMatches[priorityIndex]++;
-                    if (firstMatch < 0)
+                    var matches = CampaignSeasonRuleEvaluator.MatchesValidated(
+                        season.Rule,
+                        source.Terrain.GetSample(x, y),
+                        support.GetSample(x, y));
+                    if (matches)
                     {
-                        firstMatch = priorityIndex;
-                    }
-                    else
-                    {
-                        shadowedMatches[priorityIndex]++;
-                    }
-                }
-
-                if (firstMatch < 0)
-                {
-                    throw new InvalidOperationException(
-                        "The validated season priority did not produce its required final catch-all match.");
-                }
-
-                priorityWins[firstMatch]++;
-                var winningId = enabled[firstMatch].Id;
-                if (current.Locked)
-                {
-                    preservedLocksByCatalogIndex[catalog.GetIndex(current.SeasonId)]++;
-                    if (!string.Equals(current.SeasonId, winningId, StringComparison.Ordinal))
-                    {
-                        lockedOverrides[firstMatch]++;
+                        report.EnvironmentalMatchCount++;
                     }
 
-                    continue;
-                }
+                    var hasCurrent = candidate.TryGetOccurrence(x, y, season.Id, out var occurrence);
+                    if (hasCurrent && occurrence.Locked)
+                    {
+                        report.PreservedLockCount++;
+                        if (!matches)
+                        {
+                            report.LockedOutsideRuleCount++;
+                        }
 
-                generatedCounts[firstMatch]++;
-                if (!string.Equals(current.SeasonId, winningId, StringComparison.Ordinal))
-                {
-                    candidateTiles[flatIndex] = new CampaignSeasonTile(winningId, Locked: false);
-                    changedToSeason[firstMatch]++;
-                    changedTileCount++;
+                        continue;
+                    }
+
+                    if (matches)
+                    {
+                        if (hasCurrent)
+                        {
+                            report.RetainedUnlockedCount++;
+                            continue;
+                        }
+
+                        if (candidate.OccurrenceCount >= MaximumCandidateOccurrenceCount)
+                        {
+                            throw new InvalidOperationException(
+                                $"Season generation would exceed {MaximumCandidateOccurrenceCount:N0} occurrences. " +
+                                "Regenerate fewer definitions or use a smaller spatial scope.");
+                        }
+
+                        candidate.Upsert(x, y, new CampaignSeasonOccurrence(season.Id));
+                        report.AddedOccurrenceCount++;
+                        changedIdentityCount++;
+                    }
+                    else if (hasCurrent)
+                    {
+                        candidate.Remove(x, y, season.Id);
+                        report.RemovedOccurrenceCount++;
+                        changedIdentityCount++;
+                    }
                 }
             }
         }
 
-        for (var y = 0; y < definition.TilesY; y++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            for (var x = 0; x < width; x++)
-            {
-                if (!scope.Includes(x, y))
-                {
-                    continue;
-                }
-
-                var tile = candidateTiles[(y * width) + x];
-                candidateCountsByCatalogIndex[catalog.GetIndex(tile.SeasonId)]++;
-            }
-        }
-
+        var candidateCounts = CountInScope(candidate.GetMaterializedOccurrences(), scope, catalog);
         var reports = new CampaignSeasonGenerationReport[catalog.Definitions.Count];
         for (var catalogIndex = 0; catalogIndex < catalog.Definitions.Count; catalogIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var season = catalog.Definitions[catalogIndex];
+            var working = workingReports[season.Id];
+            var candidateCount = candidateCounts[catalogIndex];
             var warnings = new List<string>();
-            var generationEnabled = enabledIndexById.TryGetValue(season.Id, out var priorityIndex);
-            var environmental = generationEnabled ? environmentalMatches[priorityIndex] : 0;
-            var wins = generationEnabled ? priorityWins[priorityIndex] : 0;
-            var generated = generationEnabled ? generatedCounts[priorityIndex] : 0;
-            var shadowed = generationEnabled ? shadowedMatches[priorityIndex] : 0;
-            var lockedOverride = generationEnabled ? lockedOverrides[priorityIndex] : 0;
-            var changedTo = generationEnabled ? changedToSeason[priorityIndex] : 0;
-            if (lockedOverride > 0)
+            if (working.LockedOutsideRuleCount > 0)
             {
                 warnings.Add(
-                    $"{lockedOverride:N0} tile(s) would select {season.Name}, but a different locked season was preserved.");
+                    $"{working.LockedOutsideRuleCount:N0} locked occurrence(s) remain even though {season.Name}'s current rule does not match.");
             }
 
-            var candidateCount = candidateCountsByCatalogIndex[catalogIndex];
             reports[catalogIndex] = new CampaignSeasonGenerationReport(
                 season.Id,
-                generationEnabled,
+                working.Selected,
                 scopeTileCount,
-                currentCountsByCatalogIndex[catalogIndex],
+                working.CurrentOccurrenceCount,
+                working.EnvironmentalMatchCount,
+                working.AddedOccurrenceCount,
+                working.RemovedOccurrenceCount,
+                working.RetainedUnlockedCount,
+                working.PreservedLockCount,
                 candidateCount,
-                environmental,
-                wins,
-                generated,
-                shadowed,
-                preservedLocksByCatalogIndex[catalogIndex],
-                lockedOverride,
-                changedTo,
                 scopeTileCount == 0 ? 0 : candidateCount * 100d / scopeTileCount,
-                GetZeroReason(
-                    season,
-                    generationEnabled,
-                    candidateCount,
-                    environmental,
-                    wins,
-                    generated,
-                    shadowed,
-                    lockedOverride),
+                GetZeroReason(season, working, candidateCount),
                 Array.AsReadOnly(warnings.ToArray()));
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var candidate = CampaignSeasonMap.CreateSnapshot(
-            definition,
-            catalog,
-            source.DefaultSeasonId,
-            candidateTiles);
         return new CampaignSeasonGenerationResult(
             candidate,
             settings,
             scope,
             support,
             reports,
-            changedTileCount,
+            changedIdentityCount,
             source.TerrainRevision,
             source.SeasonRevision);
+    }
+
+    private static int CountScopeTiles(
+        CampaignWorldDefinition definition,
+        CampaignSeasonGenerationScope scope) =>
+        scope.Kind == CampaignSeasonGenerationScopeKind.All
+            ? checked((int)definition.TileCount)
+            : checked(scope.Area!.Value.Width * scope.Area.Value.Height);
+
+    private static int[] CountInScope(
+        IEnumerable<CampaignSeasonEntry> entries,
+        CampaignSeasonGenerationScope scope,
+        CampaignSeasonCatalog catalog)
+    {
+        var counts = new int[catalog.Definitions.Count];
+        foreach (var entry in entries)
+        {
+            if (scope.Includes(entry.X, entry.Y))
+            {
+                counts[catalog.GetIndex(entry.Occurrence.SeasonId)]++;
+            }
+        }
+
+        return counts;
     }
 
     private static void ValidateSource(
@@ -207,61 +189,81 @@ public static class CampaignSeasonGenerator
                 nameof(catalog));
         }
 
-        if (!catalog.Contains(source.DefaultSeasonId))
+        var seen = new HashSet<(int X, int Y, string SeasonId)>();
+        foreach (var entry in source.CurrentEntries)
         {
-            throw new ArgumentException(
-                $"Season source default '{source.DefaultSeasonId}' is absent from its catalog.",
-                nameof(source));
-        }
+            if ((uint)entry.X >= (uint)source.Definition.TilesX ||
+                (uint)entry.Y >= (uint)source.Definition.TilesY)
+            {
+                throw new ArgumentException(
+                    $"Season source coordinate ({entry.X}, {entry.Y}) is outside the campaign grid.",
+                    nameof(source));
+            }
 
-        if (source.CurrentTiles.Count != source.Definition.TileCount)
-        {
-            throw new ArgumentException(
-                "Season source does not contain one authoritative season value per tile.",
-                nameof(source));
-        }
+            entry.Occurrence.EnsureValid();
+            if (!catalog.Contains(entry.Occurrence.SeasonId))
+            {
+                throw new ArgumentException(
+                    $"Season source references unknown season '{entry.Occurrence.SeasonId}'.",
+                    nameof(source));
+            }
 
-        foreach (var tile in source.CurrentTiles)
-        {
-            tile.EnsureValid(catalog);
+            if (!seen.Add((entry.X, entry.Y, entry.Occurrence.SeasonId)))
+            {
+                throw new ArgumentException(
+                    $"Season source repeats '{entry.Occurrence.SeasonId}' at ({entry.X}, {entry.Y}).",
+                    nameof(source));
+            }
         }
     }
 
     private static string? GetZeroReason(
         CampaignSeasonDefinition season,
-        bool generationEnabled,
-        int candidateCount,
-        int environmentalMatches,
-        int priorityWins,
-        int generatedCount,
-        int shadowedMatches,
-        int lockedOverrideCount)
+        MutableReport report,
+        int candidateCount)
     {
-        if (!generationEnabled)
-        {
-            return "Manual-paint-only: this season is not in the enabled priority list.";
-        }
-
         if (candidateCount > 0)
         {
             return null;
         }
 
-        if (environmentalMatches == 0)
+        if (!report.Selected)
+        {
+            return "Excluded — existing occurrences were kept unchanged.";
+        }
+
+        if (report.EnvironmentalMatchCount == 0)
         {
             return $"No tile passed the environmental rule for {season.Name}.";
         }
 
-        if (priorityWins == 0 && shadowedMatches > 0)
-        {
-            return $"Matching tiles were captured by higher-priority seasons before {season.Name}.";
-        }
+        return $"{season.Name} produced no occurrence in the selected scope.";
+    }
 
-        if (generatedCount == 0 && lockedOverrideCount > 0)
-        {
-            return $"Every winning tile retained a different locked season instead of {season.Name}.";
-        }
+    private sealed class MutableReport(
+        string seasonId,
+        bool selected,
+        int scopeTileCount,
+        int currentOccurrenceCount)
+    {
+        public string SeasonId { get; } = seasonId;
 
-        return $"{season.Name} produced no tile in the selected scope.";
+        public bool Selected { get; } = selected;
+
+        public int ScopeTileCount { get; } = scopeTileCount;
+
+        public int CurrentOccurrenceCount { get; } = currentOccurrenceCount;
+
+        public int EnvironmentalMatchCount { get; set; }
+
+        public int AddedOccurrenceCount { get; set; }
+
+        public int RemovedOccurrenceCount { get; set; }
+
+        public int RetainedUnlockedCount { get; set; }
+
+        public int PreservedLockCount { get; set; }
+
+        public int LockedOutsideRuleCount { get; set; }
     }
 }

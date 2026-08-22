@@ -166,8 +166,8 @@ public sealed partial class MainWindow : Window
     private void SeasonPaintTool_OnClick(object? sender, RoutedEventArgs e) =>
         _viewModel.SelectSeasonPaintTool();
 
-    private void SeasonResetTool_OnClick(object? sender, RoutedEventArgs e) =>
-        _viewModel.SelectSeasonResetTool();
+    private void SeasonEraseTool_OnClick(object? sender, RoutedEventArgs e) =>
+        _viewModel.SelectSeasonEraseTool();
 
     private void SeasonLockTool_OnClick(object? sender, RoutedEventArgs e) =>
         _viewModel.SelectSeasonLockTool();
@@ -262,7 +262,7 @@ public sealed partial class MainWindow : Window
             result.World,
             result.GenerationResult,
             result.SeasonMap,
-            result.SeasonPriorityIds,
+            result.SeasonEnabledIds,
             result.SeasonSavedGeneration,
             result.SeasonSupportFields);
         _worldCanvas.ZoomToFit();
@@ -284,7 +284,7 @@ public sealed partial class MainWindow : Window
                 currentResources,
                 _viewModel.ResourceGenerationSettings,
                 currentSeasons,
-                _viewModel.SeasonPriorityIds,
+                _viewModel.SeasonEnabledIds,
                 _viewModel.SeasonSavedGeneration,
                 _viewModel.LastGenerationOptions)
             .ShowDialog<NewWorldDialogResult?>(this);
@@ -459,7 +459,7 @@ public sealed partial class MainWindow : Window
                 result.ResourceMap,
                 result.ResourceGenerationSettings,
                 result.SeasonMap,
-                result.SeasonPriorityIds,
+                result.SeasonEnabledIds,
                 result.SeasonSavedGeneration,
                 result.WasConvertedFromLegacy ? null : result.SourceProjectDirectory,
                 result.WasConvertedFromLegacy,
@@ -577,9 +577,8 @@ public sealed partial class MainWindow : Window
             seasons.Catalog.Definitions.Select(static definition => definition.Id));
         var result = await new CustomSeasonsDialog(
                 seasons.Catalog,
-                _viewModel.SeasonPriorityIds,
-                usageCounts,
-                seasons.DefaultSeasonId)
+                _viewModel.SeasonEnabledIds,
+                usageCounts)
             .ShowDialog<CustomSeasonsDialogResult?>(this);
         if (result is null)
         {
@@ -591,7 +590,7 @@ public sealed partial class MainWindow : Window
             if (_viewModel.UpdateSeasons(
                     result.BuiltInDefinitions,
                     result.CustomDefinitions,
-                    result.PriorityIds,
+                    result.EnabledSeasonIds,
                     result.DeletedSeasonReplacements,
                     result.SelectedSeasonId))
             {
@@ -662,7 +661,7 @@ public sealed partial class MainWindow : Window
                 _viewModel.ResourceMap ?? throw new InvalidOperationException("The resource layer is unavailable."),
                 _viewModel.ResourceGenerationSettings,
                 _viewModel.SeasonMap ?? throw new InvalidOperationException("The season layer is unavailable."),
-                _viewModel.SeasonPriorityIds,
+                _viewModel.SeasonEnabledIds,
                 _viewModel.SeasonSavedGeneration,
                 projectDirectory);
             _viewModel.MarkSaved(projectDirectory);
@@ -752,7 +751,7 @@ public sealed partial class MainWindow : Window
             _viewModel.StatusMessage =
                 $"Exported {Path.GetFileName(packagePath)} · {world.Definition.TileCount:N0} terrain records + " +
                 $"{resources.OccurrenceCount:N0} resource occurrence(s) + " +
-                $"{seasons.TileCount:N0} season records in runtime package v3.";
+                $"{seasons.OccurrenceCount:N0} season occurrence record(s) in runtime package v3.";
         }
         catch (Exception exception) when (
             exception is ArgumentException or IOException or UnauthorizedAccessException or

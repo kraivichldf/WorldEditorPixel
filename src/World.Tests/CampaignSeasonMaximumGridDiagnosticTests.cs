@@ -50,7 +50,7 @@ public sealed class CampaignSeasonMaximumGridDiagnosticTests
         var catalog = new CampaignSeasonCatalog(customDefinitions);
         var settings = new CampaignSeasonGenerationSettings(
             17_029,
-            priorityIds: customDefinitions.Select(static definition => definition.Id));
+            enabledSeasonIds: customDefinitions.Select(static definition => definition.Id));
         var map = new CampaignSeasonMap(definition, catalog);
         var query = new UniformTerrainQuery(
             definition,
@@ -71,27 +71,27 @@ public sealed class CampaignSeasonMaximumGridDiagnosticTests
             CampaignSeasonGenerationScope.All);
         timer.Stop();
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-        var catchAllId = customDefinitions[^1].Id;
+        var matchingId = customDefinitions[^1].Id;
 
         _output.WriteLine(
             "Maximum-grid diagnostic: {0:N0} tiles, {1:N0} enabled definitions, " +
             "capture {2:F3}s, total {3:F3}s, current-thread allocations {4:F1} MiB.",
             definition.TileCount,
-            settings.PriorityIds.Count,
+            settings.EnabledSeasonIds.Count,
             captureElapsed.TotalSeconds,
             timer.Elapsed.TotalSeconds,
             allocatedBytes / 1024d / 1024d);
 
         Assert.Equal(MaximumTileCount, result.CandidateMap.TileCount);
-        Assert.Equal(MaximumTileCount, result.CandidateMap.GetUsageCount(catchAllId));
-        Assert.Equal(catchAllId, result.CandidateMap.GetTile(0, 0).SeasonId);
-        Assert.Equal(catchAllId, result.CandidateMap.GetTile(499, 499).SeasonId);
+        Assert.Equal(MaximumTileCount, result.CandidateMap.GetUsageCount(matchingId));
+        Assert.True(result.CandidateMap.TryGetOccurrence(0, 0, matchingId, out _));
+        Assert.True(result.CandidateMap.TryGetOccurrence(499, 499, matchingId, out _));
         Assert.Equal(
             MaximumTileCount,
             result.Reports
-                .Where(static report => report.GenerationEnabled)
-                .Sum(static report => report.CandidateTileCount));
-        Assert.Equal(EnabledDefinitionCount, result.Reports.Count(static report => report.GenerationEnabled));
+                .Where(static report => report.Selected)
+                .Sum(static report => report.CandidateOccurrenceCount));
+        Assert.Equal(EnabledDefinitionCount, result.Reports.Count(static report => report.Selected));
         Assert.Empty(result.CandidateMap.Validate());
 
         // These broad regression ceilings catch accidental tile-by-definition retention or runaway work.

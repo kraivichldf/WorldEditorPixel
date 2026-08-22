@@ -8,7 +8,7 @@ To run the current branch, build and start the Avalonia editor from the project 
 dotnet run --project src/World.Editor/World.Editor.csproj -c Release
 ```
 
-For the verified self-contained Windows build, double-click `Launch Tile Editor.cmd`. It targets `artifacts\publish\seasons\World.Editor.exe`; the executable does not require a separately installed .NET runtime. Use the source command above while developing.
+For the verified self-contained Windows build, double-click `Launch Tile Editor.cmd`. It targets `artifacts\publish\season-occurrences\World.Editor.exe`; the executable does not require a separately installed .NET runtime. Use the source command above while developing.
 
 ## Create an exact campaign grid
 
@@ -56,9 +56,9 @@ Enable **Adjust inland tile ratios** when you want a specific land mix. Set whol
 
 Use **Custom tile types…** in the same Starting world section when you want named land variants such as Farmland, Volcanic Hills, or Ancient Forest. Add a name, choose its safe base terrain, enter a `#RRGGBB` color, and set its **Terrain mix**. A share of `0%` makes it available only for manual painting. A positive share is its own portion of the generated eligible-land mix: for example, `30%` Farmland means 30% of eligible land, with the default ratios set to the remaining 70%. Its safe base is a portable texture/data fallback, not the percentage it replaces. Custom types cannot be Sea, Lake, River, Large River, Beach, or Cliff, so water and river rules remain unchanged. When custom land touches water, its inner material/color remains visible and only the outer 10% becomes matching water.
 
-Select **Generate preview**. Directional Coast generation first chooses its seeded land/water balance and shapes the selected coastline character, then applies tectonic relief, optional sea-connected tidal-inlet carving, deterministic erosion, basin drainage, and hierarchical River routing. The dialog then derives a Season Seed from that terrain seed and generates a complete Earth-like Season Layer from the listed first-match priority. New World stays open and shows the resulting campaign silhouette, exact land/water percentages, terrain counts, Large River and confluence counts, tectonic province count, erosion-pass count, grid size, seed, and observed Season distribution. Use the compact **Terrain / Seasons** switch to inspect either candidate raster.
+Select **Generate preview**. Directional Coast generation first chooses its seeded land/water balance and shapes the selected coastline character, then applies tectonic relief, optional sea-connected tidal-inlet carving, deterministic erosion, basin drainage, and hierarchical River routing. The dialog then derives a Season Seed from that terrain seed and independently evaluates every enabled Season Definition against Earth-like annual climate support. Every match becomes an occurrence, so several Season IDs may coexist on a tile. New World stays open and shows the resulting campaign silhouette, exact land/water percentages, terrain counts, Large River and confluence counts, tectonic province count, erosion-pass count, grid size, seed, and per-definition Season coverage. Use the compact **Terrain / Seasons** switch to inspect either candidate raster.
 
-If the result is not satisfactory, change the seed or any other setting and choose **Regenerate preview**. The previous terrain and Season candidate remains visible for comparison but is labeled stale, and **Use this world** stays disabled until both stages finish. When satisfied, choose **Use this world**. The editor transfers that exact reviewed terrain-and-Season result to the normal campaign canvas without generating either layer again. Every tile can immediately be clicked, dragged, undone, saved, and reopened like a hand-painted tile. The preview is temporary dialog state, not a lock. Blank worlds still use **Create blank world** directly; all Season cells receive **Default tile season**, and no Season generation recipe is invented.
+If the result is not satisfactory, change the seed or any other setting and choose **Regenerate preview**. The previous terrain and Season candidate remains visible for comparison but is labeled stale, and **Use this world** stays disabled until both stages finish. When satisfied, choose **Use this world**. The editor transfers that exact reviewed terrain-and-Season result to the normal campaign canvas without generating either layer again. Every occurrence can immediately be added, erased, locked, unlocked, undone, saved, and reopened like manual data. The preview is temporary dialog state, not a lock. Blank worlds still use **Create blank world** directly and begin with an empty Season Occurrence layer and no invented recipe.
 
 Generated worlds need at least `8 × 8` campaign tiles and support at most `250,000` tiles. Blank worlds are not subject to this generation limit.
 
@@ -80,13 +80,13 @@ Choose **Generate preview** and keep adjusting until satisfied. The open definit
 
 Its Seasons section reports:
 
-- With the same width, height, and campaign tile size, every Season ID and lock stays exact. The terrain may change underneath that independent authority.
-- With a changed lattice, only locked source assignments are remapped. The editor intersects each old tile rectangle with target cells in physical metres and chooses the target with greatest overlap. Unlocked target tiles are regenerated from the reviewed candidate terrain and current saved Season recipe; when no recipe exists, settings derive reproducibly from the candidate terrain seed.
-- Same-ID locks may merge. A strictly greater different-ID overlap wins and the smaller claim is reported displaced. Equal greatest-overlap claims from different IDs block acceptance until **Resolve locked Season blockers…** chooses the winner for that target.
-- A locked source rectangle with no overlap is named and blocks acceptance until the same review dialog explicitly permits the drop. This permission is separate from conflict winners and applies only to the shown candidate definition. Until an equal-overlap conflict has a winner, its target cell is rendered magenta and omitted from the observed Season percentages; the preview never presents one claimant as a silent winner.
-- After decisions, the dialog rebuilds only the Season candidate against the unchanged terrain preview. Any terrain input change stales both impact reports and requires a complete fresh preview.
+- With the same width, height, and campaign tile size, every Season Occurrence and lock stays exact. The terrain may change underneath that independent authority.
+- With a changed lattice, only locked source occurrences are remapped. The editor maps each old tile centre in physical metres into the replacement grid. Unlocked occurrences are regenerated from the reviewed candidate terrain and current saved Season recipe; when no recipe exists, settings derive reproducibly from the candidate terrain seed.
+- Same-ID occurrences that land on the same target merge into one locked identity. Different Season IDs coexist on that target and never compete for a winner.
+- A locked source occurrence whose physical centre falls outside the replacement world is named and blocks acceptance until **Review locked Season drops…** explicitly permits the drop for that candidate.
+- After a drop decision, the dialog rebuilds only the Season candidate against the unchanged terrain preview. Any terrain input change stales both impact reports and requires a complete fresh preview.
 
-**Use this world** installs the exact reviewed terrain, resource, and Season candidates together, keeps the current project folder/import safety boundary, clears the shared undo/redo history, and marks the document modified. It remains disabled for stale candidates, unresolved Season conflicts, or unpermitted locked Season drops. **Cancel** leaves the current world exactly as it was. Physical positions are not normalized or stretched when world dimensions change.
+**Use this world** installs the exact reviewed terrain, resource, and Season candidates together, keeps the current project folder/import safety boundary, clears the shared undo/redo history, and marks the document modified. It remains disabled for stale candidates or unpermitted locked Season drops. **Cancel** leaves the current world exactly as it was. Physical positions are not normalized or stretched when world dimensions change.
 
 Regeneration does not create a saved generated mode or lock the result. Every accepted built-in or custom tile is immediately paintable and saves through the normal version-2 project files. See [[../Decisions/ADR-0015 - Preview-First Current World Regeneration|ADR-0015]].
 
@@ -192,42 +192,42 @@ The generator never invents unsuitable fallback cells. A report can still show z
 
 Resource-only regeneration still uses the current lattice and never changes terrain. Changed dimensions or campaign tile size belong to **Regenerate world...**, whose combined preview remaps locks and either regenerates saved unlocked resources or preserves manual-only occurrences as described above. See [[../Decisions/ADR-0021 - Reviewed Changed-Lattice Resource Remapping|ADR-0021]].
 
-## Paint tile seasons
+## Paint Season Occurrences
 
-Choose **Seasons** in the workspace strip or **Seasons → Seasons workspace**. The canvas keeps the same terrain, pan, zoom, grid, hover coordinate, and pinned tile. Seasons are static classifications: every logical tile has exactly one ID, but there is no month, date, clock, or automatic progression.
+Choose **Seasons** in the workspace strip or **Seasons → Seasons workspace**. The canvas keeps the same terrain, pan, zoom, grid, hover coordinate, and pinned tile. Every tile has a Season Set containing zero or more IDs; there is no month, date, clock, current season, or automatic progression.
 
-1. Search by name or stable ID, then choose Spring, Summer, Autumn, Winter, or a custom definition. The selector states Built-in/Custom and Generated/Manual-only.
-2. Choose **Paint** to assign the selected ID, **Reset** to restore the project default (initially Spring), or **Lock/Unlock** to change only regeneration protection while preserving the assigned ID.
-3. Leave **Lock manual edits** enabled when painted IDs must survive future Season regeneration. Reset always returns the tile to the default unlocked.
+1. Search by name or stable ID, then choose Spring, Summer, Fall, Winter, or a custom definition. The selector states Built-in/Custom and Generated/Manual-only.
+2. Choose **Add selected** to add that ID without replacing other seasons, **Erase selected** to remove only that ID, or **Lock/Unlock** to change regeneration protection for only that occurrence.
+3. Leave **Lock manual edits** enabled when added occurrences must survive future Season regeneration. A lock belongs to the exact `(tile, seasonId)` identity, not the whole tile.
 4. Set the independent Season **Paint Area**: expansion `0` is `1 × 1`, through `12` for `25 × 25` complete tiles. The footprint clips at world edges.
 5. Left-click or drag. One drag is one entry in the same Undo/Redo history as terrain and Resources; `Escape` restores an in-progress stroke.
 
-Season color fills each complete tile over the unchanged terrain presentation. **Blend boundaries** mixes only the displayed edge colors; the saved ID and exported index stay exact. At `28 px/tile` or closer, **Season labels** shows an outlined abbreviation and appends `L` for a lock. Right-click to pin a tile and inspect exact name/ID, built-in/custom fallback, lock, terrain/elevation context, retained rule summary, and accepted-recipe availability. Pinned **Lock** and **Unlock** are ordinary undoable edits.
+Season colors are composited for all occurrences on each complete tile over the unchanged terrain presentation. **Blend boundaries** mixes only displayed edge colors; the saved Season Set and exported records stay exact. At `28 px/tile` or closer, **Season labels** shows the occurrence identities and their lock state. Right-click to pin a tile and inspect every exact name/ID, built-in/custom fallback, lock, terrain/elevation context, retained rule summary, and accepted-recipe availability. Pinned **Lock**, **Unlock**, and **Erase** act on the selected occurrence and are ordinary undoable edits.
 
-### Create and order custom seasons
+### Create custom seasons
 
 Choose **Seasons → Manage seasons...** or the left-rail button.
 
-1. Choose **Add custom** for a new manual-only definition, or **Duplicate** to start from an existing definition. Set name, portable stable ID, Spring/Summer/Autumn/Winter fallback, map color, tint, and effect intensity. A new draft ID is editable until **Apply seasons**; existing applied IDs are immutable.
+1. Choose **Add custom** for a new manual-only definition, or **Duplicate** to start from an existing definition. Set name, portable stable ID, Spring/Summer/Fall/Winter fallback, map color, tint, and effect intensity. A new draft ID is editable until **Apply seasons**; existing applied IDs are immutable.
 2. Enter optional inclusive ranges as `min..max` for latitude, elevation, temperature, moisture, seasonal intensity/tendency, and Sea/Lake/River distance. Terrain Include is a whitelist, Exclude wins, and custom terrain uses comma-separated stable IDs.
-3. Enable definitions that should participate in generation and use **Move up/Move down**. First match wins. The last enabled row is labelled **Catch-all** and always completes the map; its configured rule is retained for use if you later move it upward.
-4. Built-in IDs, names, and fallbacks are protected, but their project appearance, rule, enabled state, and priority are editable. New custom definitions begin manual-only.
-5. To delete a custom definition referenced by tiles, the project default, or priority, choose an explicit remaining replacement. Tile locks are preserved and the catalog/default/priority/map replacement applies atomically. An effective apply clears obsolete Undo/Redo; an equivalent apply is a no-op.
+3. Enable definitions that should participate in generation. List order is display-only; every enabled definition evaluates independently and every match may coexist.
+4. Built-in IDs, names, and fallbacks are protected, but their project appearance, rule, and enabled state are editable. New custom definitions begin manual-only.
+5. To delete a custom definition referenced by occurrences, choose an explicit remaining replacement. Coordinates and locks are preserved, duplicate replacement identities merge safely, and the catalog/enabled-set/map replacement applies atomically. An effective apply clears obsolete Undo/Redo; an equivalent apply is a no-op.
 
 ### Generate and review tile seasons
 
-Choose **Seasons -> Generate seasons...**, press `Ctrl+Shift+G`, or use the left-rail button. Generation uses the current terrain, Season catalog, and explicit first-match priority. It never reads resources and does not change terrain or resource authority.
+Choose **Seasons -> Generate seasons...**, press `Ctrl+Shift+G`, or use the left-rail button. Generation uses the current terrain, Season catalog, and enabled definition set. It never reads resources and does not change terrain or resource authority.
 
 1. Choose **All tiles** or **Rectangle**. For a rectangle, enter inclusive tile bounds or drag a rectangle directly on either read-only preview map.
 2. Keep **Derive from terrain** for a reproducible initial Season Seed, enter an explicit signed seed, or choose **Randomize**. The accepted Season Seed is saved independently from the terrain generator.
 3. Choose **Whole globe** for north-to-south planetary latitude or **Regional** and enter the region's centre latitude. Set axial tilt; open **Advanced climate** only when tuning the accepted physical support parameters.
-4. Review the read-only priority summary. First match wins and the final enabled definition is the unconditional Catch-all. Change rules or ordering through **Manage seasons...**, then reopen or regenerate the preview.
+4. Review the read-only enabled-definition summary. Every definition is independent; catalog order does not change results. Change rules or enabled state through **Manage seasons...**, then reopen or regenerate the preview.
 5. Press **Generate**. The current document stays unchanged while the Candidate is calculated. You can cancel the run or close the dialog without applying partial work.
-6. Compare synchronized **Current — unchanged** and **Candidate — not applied** maps. Choose a report Season to inspect coverage, environmental matches, wins, generated unlocked tiles, shadowed matches, locks, changed-to counts, zero-result reasons, and warnings.
-7. Pan, zoom, switch Current/Candidate at a narrow window, or toggle Grid, Labels, and Blend without invalidating the Candidate. Changing an in-dialog generation input or scope keeps the old preview visible as **Previous result — settings changed** and disables **Use seasons** until you generate again. The modal fixes catalog/priority and source authority for its lifetime; close it before **Manage seasons...**, which discards that dialog's Candidate. Unexpected source drift is rejected before acceptance.
-8. Choose **Use seasons** only after reviewing a current result. Acceptance installs that exact Candidate and recipe, marks the project modified, and clears shared Undo/Redo. Locked tiles and tiles outside a rectangle remain exact.
+6. Compare synchronized **Current — unchanged** and **Candidate — not applied** maps. Choose a report Season to inspect scope, environmental matches, current/added/removed/retained occurrence counts, locks, candidate coverage, zero-result reasons, and warnings.
+7. Pan, zoom, switch Current/Candidate at a narrow window, or toggle Grid, Labels, and Blend without invalidating the Candidate. Changing an in-dialog generation input or scope keeps the old preview visible as **Previous result — settings changed** and disables **Use seasons** until you generate again. The modal fixes catalog/enabled set and source authority for its lifetime; close it before **Manage seasons...**, which discards that dialog's Candidate. Unexpected source drift is rejected before acceptance.
+8. Choose **Use seasons** only after reviewing a current result. Acceptance installs that exact Candidate and recipe, marks the project modified, and clears shared Undo/Redo. Locked occurrences and occurrences outside a rectangle remain exact.
 
-After acceptance, right-click a tile in the Seasons workspace. The pinned inspector adds generated latitude, temperature, moisture, intensity/tendency, rain shadow, exact Sea/Lake/River distances, the current rules' winning, shadowed, and higher-priority matches, authority agreement, and source/input current-or-stale state. Reopening a project with a saved recipe rebuilds the immutable support/fingerprint cache and re-evaluates rules on demand; it does not regenerate or rewrite the Season map.
+After acceptance, right-click a tile in the Seasons workspace. The pinned inspector adds generated latitude, annual/warm/cold temperature, moisture, annual range/seasonality, rain shadow, exact Sea/Lake/River distances, each rule's independent match state, occurrence agreement, and source/input current-or-stale state. Reopening a project with a saved recipe rebuilds the immutable support/fingerprint cache and re-evaluates rules on demand; it does not regenerate or rewrite the Season map.
 
 This command regenerates only the existing lattice. New World handles atomic generated terrain-and-Season creation, while **Regenerate world...** owns reviewed changed-grid lock remapping as described above.
 

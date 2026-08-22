@@ -66,7 +66,7 @@ public sealed partial class SeasonGenerationDialog : Window
     private readonly NumericUpDown _regionalCenterInput;
     private readonly NumericUpDown _axialTiltInput;
     private readonly TextBlock _coverageHelpText;
-    private readonly TextBlock _prioritySummaryText;
+    private readonly TextBlock _enabledSummaryText;
     private readonly ItemsControl _climateInputList;
     private readonly Border _validationPanel;
     private readonly TextBlock _validationText;
@@ -151,7 +151,7 @@ public sealed partial class SeasonGenerationDialog : Window
         _regionalCenterInput = FindRequired<NumericUpDown>("RegionalCenterInput");
         _axialTiltInput = FindRequired<NumericUpDown>("AxialTiltInput");
         _coverageHelpText = FindRequired<TextBlock>("CoverageHelpText");
-        _prioritySummaryText = FindRequired<TextBlock>("PrioritySummaryText");
+        _enabledSummaryText = FindRequired<TextBlock>("EnabledSummaryText");
         _climateInputList = FindRequired<ItemsControl>("ClimateInputList");
         _validationPanel = FindRequired<Border>("ValidationPanel");
         _validationText = FindRequired<TextBlock>("ValidationText");
@@ -245,16 +245,15 @@ public sealed partial class SeasonGenerationDialog : Window
         _regionalCenterInput.Value = ToDecimal(_initialSettings.RegionalCenterLatitudeDegrees ?? 0);
         _axialTiltInput.Value = ToDecimal(_initialSettings.AxialTiltDegrees);
         _previewSeason = _seasonOptions.FirstOrDefault(option =>
-            string.Equals(option.Id, _initialSettings.CatchAllSeasonId, StringComparison.Ordinal)) ??
+            _initialSettings.EnabledSeasonIds.Contains(option.Id, StringComparer.Ordinal)) ??
             _seasonOptions.FirstOrDefault();
         _previewSeasonInput.SelectedItem = _previewSeason;
-        _prioritySummaryText.Text = string.Join(
+        _enabledSummaryText.Text = string.Join(
             Environment.NewLine,
-            _initialSettings.PriorityIds.Select((id, index) =>
+            _initialSettings.EnabledSeasonIds.Select(id =>
             {
                 var definition = _currentMap.Catalog.Get(id);
-                var suffix = index == _initialSettings.PriorityIds.Count - 1 ? " — Catch-all" : string.Empty;
-                return $"{index + 1:N0}. {definition.Name} ({id}){suffix}";
+                return $"• {definition.Name} ({id})";
             }));
     }
 
@@ -460,7 +459,7 @@ public sealed partial class SeasonGenerationDialog : Window
 
         _seedHelpText.Text = derived
             ? $"Use the reproducible terrain-derived seed. Resolved value: {ResolveDerivedSeed():N0}."
-            : "An explicit seed reproduces the same orbital phase when terrain, rules, scope, and climate settings match.";
+            : "An explicit seed reproduces the same annual climate fields when terrain, rules, scope, and climate settings match.";
     }
 
     private int ResolveDerivedSeed()
@@ -601,7 +600,7 @@ public sealed partial class SeasonGenerationDialog : Window
             regionalCenter,
             ToDouble(_axialTiltInput),
             BuildClimateSettings(),
-            _initialSettings.PriorityIds);
+            _initialSettings.EnabledSeasonIds);
     }
 
     private CampaignSeasonClimateSettings BuildClimateSettings() => new(
@@ -610,7 +609,6 @@ public sealed partial class SeasonGenerationDialog : Window
         GetClimate("sea-maritime-radius"),
         GetClimate("lake-maritime-strength"),
         GetClimate("lake-maritime-radius"),
-        GetClimate("phase-lag"),
         GetClimate("amplitude-reduction"),
         GetClimate("temperature-noise"),
         GetClimate("sea-moisture-strength"),
@@ -692,7 +690,7 @@ public sealed partial class SeasonGenerationDialog : Window
         else
         {
             _previewStateText.Text =
-                $"Candidate ready · {_candidateResult.ChangedTileCount:N0} changed tile(s) · " +
+                $"Candidate ready · {_candidateResult.ChangedIdentityCount:N0} changed occurrence(s) · " +
                 $"seed {_candidateResult.Settings.SeasonSeed:N0}.";
         }
     }
@@ -709,7 +707,7 @@ public sealed partial class SeasonGenerationDialog : Window
         }
 
         _currentCanvasSummaryText.Text =
-            $"{_previewSeason.Name} in current map: {_currentMap.GetUsageCount(_previewSeason.Id):N0} tile(s).";
+            $"{_previewSeason.Name} in current map: {_currentMap.GetUsageCount(_previewSeason.Id):N0} occurrence(s).";
         if (_candidateResult is null)
         {
             _candidateCanvasSummaryText.Text = "No candidate map yet.";
@@ -718,8 +716,8 @@ public sealed partial class SeasonGenerationDialog : Window
 
         var count = _candidateResult.CandidateMap.GetUsageCount(_previewSeason.Id);
         _candidateCanvasSummaryText.Text = _candidateMatchesInputs
-            ? $"{_previewSeason.Name} in candidate: {count:N0} tile(s)."
-            : $"{_previewSeason.Name} in stale candidate: {count:N0} tile(s).";
+            ? $"{_previewSeason.Name} in candidate: {count:N0} occurrence(s)."
+            : $"{_previewSeason.Name} in stale candidate: {count:N0} occurrence(s).";
     }
 
     private void UpdateGeneralSummary()
@@ -733,14 +731,13 @@ public sealed partial class SeasonGenerationDialog : Window
 
         var scopeCount = _candidateResult.Reports.FirstOrDefault()?.ScopeTileCount ?? 0;
         var preservedLocks = _candidateResult.Reports.Sum(static report => report.PreservedLockCount);
-        var lockedOverrides = _candidateResult.Reports.Sum(static report => report.LockedOverrideCount);
         var scope = _candidateResult.Scope.Kind == CampaignSeasonGenerationScopeKind.All
             ? "All tiles"
             : $"Rectangle {_candidateResult.Scope.Area!.Value.Width:N0} × " +
               $"{_candidateResult.Scope.Area.Value.Height:N0}";
         _previewGeneralSummaryText.Text =
-            $"{scope} · {scopeCount:N0} reviewed tile(s) · {_candidateResult.ChangedTileCount:N0} changed · " +
-            $"{preservedLocks:N0} locked tile(s) preserved · {lockedOverrides:N0} lock override warning(s).";
+            $"{scope} · {scopeCount:N0} reviewed tile(s) · {_candidateResult.ChangedIdentityCount:N0} occurrence change(s) · " +
+            $"{preservedLocks:N0} locked occurrence(s) preserved.";
     }
 
     private void UpdateSeasonSummary()
@@ -767,11 +764,11 @@ public sealed partial class SeasonGenerationDialog : Window
             ? string.Empty
             : " Warnings: " + string.Join(" ", report.Warnings);
         _previewSeasonSummaryText.Text =
-            $"{_previewSeason.Name} · current {report.CurrentTileCount:N0} -> candidate {report.CandidateTileCount:N0} " +
+            $"{_previewSeason.Name} · current {report.CurrentOccurrenceCount:N0} -> candidate {report.CandidateOccurrenceCount:N0} " +
             $"({report.CandidateCoveragePercent:0.##}%) · environmental matches {report.EnvironmentalMatchCount:N0} · " +
-            $"priority wins {report.PriorityWinCount:N0} · generated unlocked {report.GeneratedTileCount:N0} · " +
-            $"shadowed matches {report.ShadowedMatchCount:N0} · preserved locks {report.PreservedLockCount:N0} · " +
-            $"changed to this season {report.ChangedToSeasonCount:N0}." + zero + warnings;
+            $"added {report.AddedOccurrenceCount:N0} · removed {report.RemovedOccurrenceCount:N0} · " +
+            $"retained unlocked {report.RetainedUnlockedCount:N0} · preserved locks {report.PreservedLockCount:N0}." +
+            zero + warnings;
     }
 
     private void RefreshDisplayOptions()
@@ -877,7 +874,6 @@ public sealed partial class SeasonGenerationDialog : Window
         AddClimate("sea-maritime-radius", "Sea maritime radius", climate.SeaMaritimeRadiusKilometers, 1, 20_000, 10, "km");
         AddClimate("lake-maritime-strength", "Lake maritime strength", climate.LakeMaritimeStrength, 0, 2, 0.05, string.Empty);
         AddClimate("lake-maritime-radius", "Lake maritime radius", climate.LakeMaritimeRadiusKilometers, 1, 20_000, 10, "km");
-        AddClimate("phase-lag", "Maximum phase lag", climate.MaximumPhaseLagOrbitFraction, 0, 0.25, 0.01, "orbit");
         AddClimate("amplitude-reduction", "Maritime amplitude reduction", climate.MaritimeAmplitudeReduction, 0, 1, 0.05, string.Empty);
         AddClimate("temperature-noise", "Temperature noise", climate.TemperatureNoiseCelsius, 0, 30, 0.25, "°C");
         AddClimate("sea-moisture-strength", "Sea moisture strength", climate.SeaMoistureStrength, 0, 1, 0.05, string.Empty);

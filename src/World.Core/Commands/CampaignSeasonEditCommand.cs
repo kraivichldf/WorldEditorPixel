@@ -24,6 +24,7 @@ public sealed class CampaignSeasonEditCommand : IWorldCommand
             .Where(static change => change.Before != change.After)
             .OrderBy(static change => change.Y)
             .ThenBy(static change => change.X)
+            .ThenBy(static change => change.SeasonId, StringComparer.Ordinal)
             .ToArray();
         _readOnlyChanges = Array.AsReadOnly(_changes);
     }
@@ -38,15 +39,22 @@ public sealed class CampaignSeasonEditCommand : IWorldCommand
 
     public void Undo() => Apply(static change => change.Before);
 
-    private void Apply(Func<CampaignSeasonChange, CampaignSeasonTile> selectValue) =>
+    private void Apply(Func<CampaignSeasonChange, CampaignSeasonOccurrence?> selectValue) =>
         _seasons.Apply(_changes.Select(change =>
-            new CampaignSeasonMutation(change.X, change.Y, selectValue(change))));
+            ToMutation(change, selectValue(change))));
+
+    private static CampaignSeasonMutation ToMutation(
+        CampaignSeasonChange change,
+        CampaignSeasonOccurrence? value) =>
+        value is { } occurrence
+            ? CampaignSeasonMutation.Upsert(change.X, change.Y, occurrence)
+            : CampaignSeasonMutation.Remove(change.X, change.Y, change.SeasonId);
 
     private static void ValidateChanges(
         CampaignSeasonMap seasons,
         IReadOnlyList<CampaignSeasonChange> changes)
     {
-        var seen = new HashSet<(int X, int Y)>();
+        var seen = new HashSet<(int X, int Y, string SeasonId)>();
         foreach (var change in changes)
         {
             if (!seasons.IsValidCoordinate(change.X, change.Y))
@@ -56,14 +64,42 @@ public sealed class CampaignSeasonEditCommand : IWorldCommand
                     $"Campaign season coordinate ({change.X}, {change.Y}) is outside the campaign grid.");
             }
 
-            change.Before.EnsureValid(seasons.Catalog);
-            change.After.EnsureValid(seasons.Catalog);
-            if (!seen.Add((change.X, change.Y)))
+            if (!CampaignSeasonDefinition.IsValidIdentifier(change.SeasonId) ||
+                !seasons.Catalog.Contains(change.SeasonId))
             {
                 throw new ArgumentException(
-                    $"Season tile ({change.X}, {change.Y}) appears more than once in one command.",
+                    $"Campaign season change references unknown season '{change.SeasonId}'.",
                     nameof(changes));
             }
+
+            ValidateValue(change, change.Before, "Before", changes);
+            ValidateValue(change, change.After, "After", changes);
+            if (!seen.Add((change.X, change.Y, change.SeasonId)))
+            {
+                throw new ArgumentException(
+                    $"Season '{change.SeasonId}' at ({change.X}, {change.Y}) appears more than once in one command.",
+                    nameof(changes));
+            }
+        }
+    }
+
+    private static void ValidateValue(
+        CampaignSeasonChange change,
+        CampaignSeasonOccurrence? value,
+        string valueName,
+        IReadOnlyList<CampaignSeasonChange> changes)
+    {
+        if (value is not { } occurrence)
+        {
+            return;
+        }
+
+        occurrence.EnsureValid();
+        if (!string.Equals(occurrence.SeasonId, change.SeasonId, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"Campaign season change {valueName} value does not match season identity '{change.SeasonId}'.",
+                nameof(changes));
         }
     }
 }

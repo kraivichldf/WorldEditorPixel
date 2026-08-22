@@ -7,7 +7,7 @@ namespace Kingdom.World.Tests;
 public sealed class CampaignSeasonGenerationSettingsTests
 {
     [Fact]
-    public void Settings_UseAcceptedPriorityAndLeaveCustomDefinitionsManualOnly()
+    public void Settings_EnableFourBuiltInsAndLeaveCustomDefinitionsManualOnly()
     {
         var catalog = new CampaignSeasonCatalog(
             [CampaignSeasonCatalogTests.CreateCustom("monsoon")]);
@@ -17,12 +17,11 @@ public sealed class CampaignSeasonGenerationSettingsTests
 
         Assert.Equal(
         [
-            "winter",
+            "fall",
             "spring",
-            "autumn",
             "summer",
-        ], settings.PriorityIds);
-        Assert.Equal("summer", settings.CatchAllSeasonId);
+            "winter",
+        ], settings.EnabledSeasonIds);
         Assert.False(settings.IsGenerationEnabled("monsoon"));
         Assert.True(settings.IsGenerationEnabled("winter"));
         Assert.Equal(CampaignSeasonCoverageMode.WholeGlobe, settings.CoverageMode);
@@ -30,33 +29,33 @@ public sealed class CampaignSeasonGenerationSettingsTests
     }
 
     [Fact]
-    public void Settings_AllowCustomCatchAllAndExposePriorityDefinitions()
+    public void Settings_AllowCustomDefinitionsAndExposeEnabledDefinitions()
     {
         var monsoon = CampaignSeasonCatalogTests.CreateCustom("monsoon");
         var catalog = new CampaignSeasonCatalog([monsoon]);
         var settings = new CampaignSeasonGenerationSettings(
             seasonSeed: 4,
-            priorityIds: ["winter", "monsoon"]);
+            enabledSeasonIds: ["winter", "monsoon"]);
 
         settings.EnsureValid(catalog);
 
-        Assert.Equal("monsoon", settings.CatchAllSeasonId);
-        Assert.Same(monsoon, settings.GetPriorityDefinitions(catalog)[1]);
+        Assert.Equal(["monsoon", "winter"], settings.EnabledSeasonIds);
+        Assert.Same(monsoon, settings.GetEnabledDefinitions(catalog)[^1]);
     }
 
     [Fact]
-    public void Settings_RejectEmptyDuplicateUnknownAndMoreThan256PriorityEntries()
+    public void Settings_RejectEmptyDuplicateUnknownAndMoreThan256EnabledEntries()
     {
         Assert.Throws<ArgumentException>(() => new CampaignSeasonGenerationSettings(
             seasonSeed: 1,
-            priorityIds: []));
+            enabledSeasonIds: []));
         Assert.Throws<ArgumentException>(() => new CampaignSeasonGenerationSettings(
             seasonSeed: 1,
-            priorityIds: ["winter", "winter"]));
+            enabledSeasonIds: ["winter", "winter"]));
 
         var unknown = new CampaignSeasonGenerationSettings(
             seasonSeed: 1,
-            priorityIds: ["missing-season"]);
+            enabledSeasonIds: ["missing-season"]);
         Assert.Throws<ArgumentException>(() => unknown.EnsureValid(new CampaignSeasonCatalog()));
 
         var tooMany = Enumerable.Range(0, 257)
@@ -64,7 +63,7 @@ public sealed class CampaignSeasonGenerationSettingsTests
             .ToArray();
         Assert.Throws<ArgumentException>(() => new CampaignSeasonGenerationSettings(
             seasonSeed: 1,
-            priorityIds: tooMany));
+            enabledSeasonIds: tooMany));
     }
 
     [Fact]
@@ -78,16 +77,16 @@ public sealed class CampaignSeasonGenerationSettingsTests
         {
             "winter",
             "spring",
-            "autumn",
+            "fall",
             "summer",
         }.Concat(customs.Take(252).Select(static value => value.Id));
         var settings = new CampaignSeasonGenerationSettings(
             seasonSeed: 4,
-            priorityIds: enabled);
+            enabledSeasonIds: enabled);
 
         settings.EnsureValid(catalog);
 
-        Assert.Equal(256, settings.PriorityIds.Count);
+        Assert.Equal(256, settings.EnabledSeasonIds.Count);
         Assert.Equal(304, catalog.Definitions.Count);
         Assert.False(settings.IsGenerationEnabled(customs[^1].Id));
     }
