@@ -158,7 +158,9 @@ When it detects a version-1 manifest, it delegates strict loading to the legacy 
 
 `CampaignWorldRuntimeExporter` is a one-way engine-neutral handoff boundary. The editor calls its season-aware version-3 overload. It retains byte-compatible row-major four-byte `tiles.bin`, eight-byte per-tile `resource-index.bin`, and compact four-byte `resource-records.bin`, then adds eight-byte per-tile `season-index.bin` spans, compact two-byte `season-records.bin` occurrence identities, and the canonical Season catalog/fallback/appearance manifest. Terrain/resource/season authoring locks, rules, warnings, support fields, and generation settings do not enter runtime data. Bounded buffers, stable catalog/occurrence ordering, fixed ZIP timestamps, three-authority revision checks, and SHA-256 values make equal authority produce equal package bytes without mutation.
 
-The manifest explicitly records physical dimensions, axis orientation, binary field offsets, type mappings, custom identities, and version. A Unity/Unreal build importer can therefore validate and convert the package without referencing Avalonia or `World.Editor`. Export is atomic, does not mutate the world, and does not clear dirty state. See [[../Reference/Runtime World Package|Runtime World Package]] and [[../Decisions/ADR-0009 - Versioned Runtime World Package|ADR-0009]].
+`CampaignWorldJsonExporter` is the readable alternative. It streams one versioned UTF-8 document containing physical/grid metadata, stable catalogs, and one explicit row-major object per tile with terrain, centre height, Resources, and the complete Season Set. Bounded async flushes avoid constructing a second world-sized DTO or monopolizing the UI thread. Stable ordering, three-authority revision gates, and sibling-temporary replacement preserve deterministic, atomic behavior. Authoring-only data is omitted under the same runtime boundary.
+
+Both formats let a Unity/Unreal build importer validate and convert world authority without referencing Avalonia or `World.Editor`. Export does not mutate the world or clear dirty state. See [[../Reference/Runtime World Package|Runtime World Package]], [[../Decisions/ADR-0009 - Versioned Runtime World Package|ADR-0009]], and [[../Decisions/ADR-0031 - Single-File JSON Runtime Export|ADR-0031]].
 
 ## Performance model
 
@@ -172,7 +174,7 @@ The manifest explicitly records physical dimensions, axis orientation, binary fi
 - Selected-resource raster/label work scales with visible tiles and sparse occurrences in the visible area; resource revision does not invalidate the terrain raster.
 - Season raster/label work scales with the bounded visible logical area plus one neighbor-tile blending halo; season revision does not invalidate terrain or resource caches.
 - Generation is bounded to 250,000 tiles and performs its priority queues and sorting away from the UI thread.
-- Runtime export is streamed in bounded buffers; package size and traversal scale with the complete logical grid because game data must include implicit-default tiles.
+- Runtime export is streamed in bounded buffers; `.kworld` is compact while JSON repeats readable structure, and both size/traversal costs scale with the complete logical grid because game data must include implicit-default tiles.
 - Procedural textures require no bitmap assets, remain stable under pan, and fade out when insufficient pixels exist to represent them cleanly.
 - Grid drawing selects a screen-space stride rather than iterating every invisible line.
 - No UI control or separate object is allocated per logical tile.

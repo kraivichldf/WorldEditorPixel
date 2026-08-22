@@ -84,6 +84,10 @@ _Avoid_: Wrapped campaign topology, spherical terrain
 A Season Coverage centred on an explicit latitude whose north-south span follows the campaign map's physical height.
 _Avoid_: Full-globe map, normalized tile percentage
 
+**Runtime JSON Export**:
+A one-way, single-file UTF-8 representation of accepted terrain, Resource occurrences, and Season Occurrences for a game-engine importer. It is derived runtime data and never editable project authority.
+_Avoid_: Project save, raw heightmap, engine-native asset
+
 ## Flagged ambiguities
 
 **Season**:

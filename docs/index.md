@@ -35,6 +35,7 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 - [[Decisions/ADR-0028 - Resource Spawn Opportunity Calibration|ADR-0028: Resource spawn opportunity calibration]]
 - [[Decisions/ADR-0029 - Explicit Resource Generation Selection|ADR-0029: Explicit resource generation selection]]
 - [[Decisions/ADR-0030 - Preview-First Campaign Season Occurrences|ADR-0030: Preview-first Campaign Season Occurrences]]
+- [[Decisions/ADR-0031 - Single-File JSON Runtime Export|ADR-0031: Single-file JSON runtime export]]
 - [[Decisions/ADR-0002 - Delta-Based Terrain History|ADR-0002: Delta-based edit history]]
 - [[Testing/Verification|Verification]]
 
@@ -45,7 +46,7 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 
 ## Current milestone
 
-`Create exact tile grid -> optionally preview an editable seeded terrain start -> accept the exact result -> stamp textured base/custom type + centre height -> paint sparse Resources -> paint/reset/lock one static Season ID per complete tile -> inspect exact authority -> undo/redo all three layers in one history -> save/reopen the complete project -> export deterministic runtime package version 3`
+`Create exact tile grid -> optionally preview an editable seeded terrain start -> accept the exact result -> stamp textured base/custom type + centre height -> paint sparse Resources -> add/erase/lock zero or more Season IDs per complete tile -> inspect exact authority -> undo/redo all three layers in one history -> save/reopen the complete project -> export compact .kworld or readable .world.json runtime data`
 
 The campaign tile is the only authoring resolution. Sea/Lake water, original land/custom tiles with automatic 10% water-facing edges, full-tile Beach/Cliff, River/Large River paths, and three-exit River Junctions are current terrain classifications. Sparse campaign resources are a separate authority at the same coordinates: multiple different IDs may coexist, each with exact potential `1..100` and an authoring lock. Season Occurrences are another orthogonal sparse authority: every tile has a set containing zero or more built-in/custom Season IDs, each with its own lock, and no month or clock. The editor can preview-first regenerate Resources or Season Occurrences against accepted terrain, accepts generated terrain and its Season candidate atomically, and reviews changed-lattice Resource and Season impact before replacement. Gameplay, 3D rendering, engine integration, roads, detailed biomes, persistent weather, settlements, and advanced hydrology remain later explicit systems.
 
@@ -63,6 +64,6 @@ The campaign tile is the only authoring resolution. Sea/Lake water, original lan
 
 ## Source map
 
-- `src/World.Core`: active version-2 campaign world, resource authority/diagnostics/commands/persistence, interpolation, validation, the retained version-1 importer, the isolated `Campaign/V3` terrain Phase 1 domain, and campaign-season authority/generator/sidecars/runtime-v3 exporter.
-- `src/World.Editor`: Avalonia Terrain/Resources/Seasons shell, shared canvas/history, custom terrain/resource/season managers, preview-first terrain/resource workflows, and the season-aware staged load/save/runtime-v3 export boundary.
+- `src/World.Core`: active version-2 campaign world, resource authority/diagnostics/commands/persistence, interpolation, validation, the retained version-1 importer, the isolated `Campaign/V3` terrain Phase 1 domain, campaign-season authority/generator/sidecars, compact runtime-v3 package export, and streamed runtime JSON export.
+- `src/World.Editor`: Avalonia Terrain/Resources/Seasons shell, shared canvas/history, custom terrain/resource/season managers, preview-first terrain/resource workflows, and the season-aware staged load/save plus `.kworld`/JSON export boundaries.
 - `src/World.Tests`: executable version-1/version-2 contracts, hierarchical Continental-world ADR-0023, maximum-size directional Coast ADR-0024, built-in Steppe ADR-0025 coverage, terrain-taxonomy version-3 and campaign-resource ADR-0016 through ADR-0029 coverage, plus campaign-season ADR-0030 Slices 1-7 including headless native dialogs and the `250,000 x 256` diagnostic.

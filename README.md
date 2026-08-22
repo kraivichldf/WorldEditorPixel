@@ -38,7 +38,7 @@ dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 3. Adjust the seed or settings until the result is satisfactory.
 4. Choose **Use this world** to accept that exact candidate.
 5. Paint terrain, resources, and static seasons on the shared map.
-6. Save the editable project or export a deterministic `.kworld` game-data package.
+6. Save the editable project, export a compact `.kworld` package, or export one readable `.world.json` game-data file.
 
 Nothing generated becomes authoritative until you explicitly accept its preview.
 
@@ -172,7 +172,14 @@ Older projects without Season sidecars open with a clean, empty Season Occurrenc
 
 ## Runtime export
 
-**Export Runtime Data** creates a deterministic `.kworld` version-3 ZIP package for a Unity importer, Unreal importer, or build pipeline.
+WorldEditorPixel offers two one-file game-development exports:
+
+- **Export Runtime Data** (`Ctrl+E`) creates a compact deterministic `.kworld` version-3 ZIP package.
+- **Export JSON Data** (`Ctrl+Shift+E`) creates one readable UTF-8 `*.world.json` document.
+
+The JSON document includes world scale, grid orientation, catalogs, and every row-major tile with its terrain/custom identity, centre height, Resource ID/potential pairs, and complete Season ID set. It deliberately omits authoring locks, generator recipes, diagnostics, and preview state. A game importer should require `format: "world-editor-pixel-runtime-json"` and `version: 1`, validate the declared counts and IDs, then convert the data into native engine assets.
+
+The `.kworld` package contains:
 
 It contains:
 
@@ -187,7 +194,7 @@ manifest.json
 
 The manifest describes grid scale, coordinate orientation, binary layouts, stable terrain/resource/Season mappings, custom fallbacks, and SHA-256 values. Authoring locks, generation settings, diagnostics, and preview data are intentionally excluded.
 
-The package is a game-development interchange format, not another editable project. Convert it into native engine assets during import instead of decompressing it repeatedly during gameplay.
+Both files are game-development interchange formats, not editable projects. JSON is easiest to inspect and integrate; `.kworld` is smaller and faster for large production worlds. Convert either one into native engine assets during import instead of parsing it repeatedly during gameplay.
 
 ## Self-contained Windows build
 
@@ -224,7 +231,8 @@ World.Core
   commands, validation, persistence, and runtime export
         │
         ├── editable project folder
-        └── deterministic .kworld package
+        ├── deterministic .kworld package
+        └── readable .world.json file
 ```
 
 `World.Core` does not depend on Avalonia or a game engine. This keeps world authority, validation, generation, persistence, and export reusable by future tools and engine importers.

@@ -357,6 +357,19 @@ public static class CampaignEditorProjectSerializer
             packagePath,
             cancellationToken);
 
+    public static Task ExportJsonWithSeasonsAsync(
+        CampaignWorld world,
+        CampaignResourceMap resourceMap,
+        CampaignSeasonMap seasonMap,
+        string jsonPath,
+        CancellationToken cancellationToken = default) =>
+        CampaignWorldJsonExporter.ExportAsync(
+            world,
+            resourceMap,
+            seasonMap,
+            jsonPath,
+            cancellationToken);
+
     private static string NormalizeProjectDirectory(string projectDirectory)
     {
         var fullPath = Path.GetFullPath(projectDirectory);
