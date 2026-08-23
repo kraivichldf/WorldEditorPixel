@@ -1,2 +1,2 @@
 @echo off
-start "" "%~dp0artifacts\publish\season-occurrences\World.Editor.exe"
+start "" "%~dp0artifacts\publish\1.0\WorldEditorPixel.exe"
