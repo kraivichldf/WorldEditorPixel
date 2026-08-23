@@ -273,6 +273,23 @@ public static class CampaignWorldProjectSerializer
         string projectDirectory,
         CancellationToken cancellationToken)
     {
+        CampaignWorldDefinition definition;
+        try
+        {
+            var legacyDefinition = await WorldProjectSerializer.LoadDefinitionAsync(
+                manifestPath,
+                cancellationToken).ConfigureAwait(false);
+            definition = CreateLegacyCampaignDefinition(legacyDefinition);
+        }
+        catch (WorldFormatException)
+        {
+            throw;
+        }
+        catch (WorldValidationException exception)
+        {
+            throw new WorldFormatException($"Legacy world cannot be converted: {exception.Message}", exception);
+        }
+
         WorldTerrain legacy;
         try
         {
@@ -285,31 +302,6 @@ public static class CampaignWorldProjectSerializer
         catch (Exception exception) when (exception is IOException or WorldValidationException)
         {
             throw new WorldFormatException($"Legacy world could not be imported: {exception.Message}", exception);
-        }
-
-        var old = legacy.Definition;
-        if (old.WorldWidthMeters % old.CampaignTileSizeMeters != 0 ||
-            old.WorldHeightMeters % old.CampaignTileSizeMeters != 0)
-        {
-            throw new WorldFormatException(
-                "Legacy world dimensions must divide exactly by campaign tile size before they can be imported.");
-        }
-
-        CampaignWorldDefinition definition;
-        try
-        {
-            definition = CampaignWorldDefinition.Create(
-                old.WorldWidthMeters,
-                old.WorldHeightMeters,
-                old.CampaignTileSizeMeters,
-                old.SeaLevelMeters,
-                old.MinimumElevationMeters,
-                old.MaximumElevationMeters,
-                old.InitialElevationMeters);
-        }
-        catch (WorldValidationException exception)
-        {
-            throw new WorldFormatException($"Legacy world cannot be converted: {exception.Message}", exception);
         }
 
         var world = new CampaignWorld(definition);
@@ -332,6 +324,25 @@ public static class CampaignWorldProjectSerializer
         }
 
         return new CampaignWorldLoadResult(world, true, projectDirectory, normalizedCoastalTileCount);
+    }
+
+    private static CampaignWorldDefinition CreateLegacyCampaignDefinition(WorldDefinition old)
+    {
+        if (old.WorldWidthMeters % old.CampaignTileSizeMeters != 0 ||
+            old.WorldHeightMeters % old.CampaignTileSizeMeters != 0)
+        {
+            throw new WorldFormatException(
+                "Legacy world dimensions must divide exactly by campaign tile size before they can be imported.");
+        }
+
+        return CampaignWorldDefinition.Create(
+            old.WorldWidthMeters,
+            old.WorldHeightMeters,
+            old.CampaignTileSizeMeters,
+            old.SeaLevelMeters,
+            old.MinimumElevationMeters,
+            old.MaximumElevationMeters,
+            old.InitialElevationMeters);
     }
 
     private static short GetLegacyTileAverage(WorldTerrain legacy, int tileX, int tileY)

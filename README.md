@@ -1,10 +1,10 @@
 # WorldEditorPixel
 
-WorldEditorPixel a standalone Windows app for building large campaign worlds from exact square tiles.
+WorldEditorPixel is a standalone Windows app for building large campaign worlds from exact square tiles.
 
-## Download version 1.0
+## Download version 1.0.1
 
-Download the self-contained Windows x64 executable and checksum from [WorldEditorPixel 1.0](https://github.com/kraivichldf/WorldEditorPixel/releases/tag/v1.0.0). It runs on Windows 10 or 11 without a separately installed .NET runtime. Windows may show a SmartScreen warning because this first public build is not code-signed.
+Download the self-contained Windows x64 executable and checksum from [WorldEditorPixel 1.0.1](https://github.com/kraivichldf/WorldEditorPixel/releases/tag/v1.0.1). It runs on Windows 10 or 11 without a separately installed .NET runtime. Windows may show a SmartScreen warning because the build is not code-signed.
 
 Each tile can store:
 
@@ -58,7 +58,7 @@ Tile:  5 × 5 km
 Grid:  140 × 140 = 19,600 complete tiles
 ```
 
-The editor never creates partial edge tiles. The supported maximum generated grid is `500 × 500 = 250,000` tiles.
+The editor never creates partial edge tiles. Every Blank, generated, opened, imported, saved, rendered, and exported world is limited to `250,000` editable tiles; `500 × 500` is the square maximum example.
 
 ## The three editable layers
 
@@ -144,14 +144,15 @@ The generation dialog compares **Current — unchanged** with **Candidate — no
 | Regenerate world | `Ctrl+R` |
 | Regenerate resources | `Ctrl+Shift+R` |
 | Generate Tile Seasons | `Ctrl+Shift+G` |
-| Paint | Left-click or left-drag |
-| Pin and inspect a tile | Right-click |
+| Move the keyboard tile cursor | Focus the canvas, then use arrow keys |
+| Paint with the active Terrain/Resource/Season tool | `Enter` on the focused canvas, or left-click/drag |
+| Pin and inspect a tile | `Space` on the focused canvas, or right-click |
 | Pan | Middle-drag |
 | Zoom around pointer | Mouse wheel |
 | Fit world | `F` |
 | Cancel the active stroke | `Escape` |
 
-One drag creates one Undo entry. Pressing `Escape` during a stroke restores every tile touched by that unfinished drag.
+One drag creates one Undo entry; each keyboard `Enter` creates one equivalent complete-tile command. Pressing `Escape` during a pointer stroke restores every tile touched by that unfinished drag.
 
 ## Project files
 
@@ -212,7 +213,7 @@ dotnet publish src/World.Editor/World.Editor.csproj `
   --self-contained true `
   --no-restore `
   -p:PublishSingleFile=true `
-  -o artifacts/publish/1.0
+  -o artifacts/publish/1.0.1
 ```
 
 Then run:
@@ -221,7 +222,7 @@ Then run:
 Launch Tile Editor.cmd
 ```
 
-The launcher targets `artifacts/publish/1.0/WorldEditorPixel.exe`.
+The launcher targets `artifacts/publish/1.0.1/WorldEditorPixel.exe`.
 
 The project embeds a multi-resolution terrain-map icon in the executable and uses the same mark for the main window. The transparent source, shipping `.ico`, frame sizes, and verification method are documented in [Application Icon](docs/Reference/Application%20Icon.md).
 
@@ -258,7 +259,7 @@ src/World.Tests/   xUnit domain, integration, persistence, UI, and stress tests
 - Resource potential is authoring data, not inventory, production, or economy simulation.
 - River widths and junctions are campaign symbols; flow direction, discharge, bridges, deltas, and navigation are not yet modeled.
 - Automatic coasts use immediate cardinal water neighbours and do not create sub-tile shoreline geometry.
-- Map stamping and pinning remain mouse-led; standard menus and dialogs retain native keyboard behavior.
+- The focused canvas supports a visible keyboard tile cursor, arrow navigation with automatic viewport following, `Enter` stamping, and `Space` pin/inspect. Pointer drag painting, middle-drag free pan, and wheel-centered zoom remain available.
 - There is no autosave, collaboration, cloud storage, or crash-recovery journal.
 - Runtime package version 3 is documented and tested, but a Unity or Unreal importer is not included yet.
 - The experimental layered terrain model exists in `World.Core` only; the current editor and project terrain still use version 2.

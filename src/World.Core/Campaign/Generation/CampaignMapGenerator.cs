@@ -5,7 +5,7 @@ namespace Kingdom.World.Core.Campaign.Generation;
 public static class CampaignMapGenerator
 {
     public const int MinimumGeneratedTilesPerAxis = 8;
-    public const long MaximumGeneratedTileCount = 250_000;
+    public const long MaximumGeneratedTileCount = CampaignWorldDefinition.MaximumTileCount;
 
     private const int ArchipelagoOuterIslandCount = 7;
     private const int ContinentalMassCount = 5;

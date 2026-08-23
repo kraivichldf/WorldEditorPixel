@@ -31,7 +31,7 @@ Version-2 terrain project folder
 - exact derived `TilesX`, `TilesY`, and total tile count;
 - sea level, minimum and maximum height, and default tile height in whole metres.
 
-World dimensions must divide exactly by tile size. There are no partial edge cells. For example, `700 km / 5 km = 140` tiles per axis and `19,600` total tiles.
+World dimensions must divide exactly by tile size. There are no partial edge cells. For example, `700 km / 5 km = 140` tiles per axis and `19,600` total tiles. `CampaignWorldDefinition.EnsureValid` also enforces one `250,000`-tile maximum across Blank/generated creation, regeneration, version-2 open, preflighted version-1 import, save, rendering, and runtime export. See [[../Decisions/ADR-0032 - Shared Editable World Tile Limit|ADR-0032]].
 
 `CampaignTileMap` owns a sparse `CampaignTileData` value at integer `(x, y)`. The value contains:
 
@@ -105,6 +105,8 @@ The active stamp is one `CampaignTileData` value plus an optional bounded `Campa
 
 `CampaignTileStampBuilder` mutates tiles immediately for feedback and retains the first before-value plus latest after-value per coordinate, deduplicating overlapping area footprints in the same stroke. Pointer release records one already-applied `CampaignTileStampCommand`. Undo restores both fields; redo reapplies both fields. `Escape` restores the stroke without adding history.
 
+The canvas is a native Tab stop with a high-contrast keyboard cursor over the exact active footprint. Arrow keys move one complete tile and shift the viewport only when needed to keep that tile visible. `Enter` creates, applies, completes, and reports one Terrain, Resource, or Season stroke through the same builders and command events as pointer input; `Space` raises the same pin/inspect selection as right-click. See [[../Decisions/ADR-0033 - Keyboard-Accessible Campaign Canvas|ADR-0033]].
+
 The pinned-tile elevation helper only prepares that same active stamp. **Copy centre** reads the pinned tile's exact stored height. **Blend around** computes
 
 ```text
@@ -131,7 +133,7 @@ Stored elevation display is a separate transient overlay rather than terrain pix
 
 For each visible pixel inside the world, the canvas reads the containing tile's full-cell type, optional custom terrain identity, and derived interpolated height. It first resolves whether that position lies in an automatic Sea/Lake edge. Water wins only inside the outer 10%; otherwise the stored type selects material texture/base hue and a valid custom identity replaces only that hue, retaining its safe base texture. Stable world-space noise or wave functions create grass, dry Steppe grass, dune-and-stone, canopy, ridge, rock, water, and sand texture; texture strength fades to zero when the tile becomes too small on screen. Version-2 River uses a grass-textured presentation fallback because that format does not retain underlying land. Absolute height and the bilinear surface gradient jointly modulate brightness with bounded northwest hillshade. Height-only mode uses grayscale and deliberately bypasses material texture.
 
-A narrow three-tone bank-and-water ribbon is drawn through visible River tiles from each centre to every derived cardinal exit, with a visual mouth added when an endpoint touches Sea or Lake. Large River uses the broad style; River Junction inherits that broad style when any cardinal neighbour is Large River. `CampaignTileMap` maintains a River-only coordinate index alongside sparse tile storage, so overlay frames enumerate Rivers rather than every generated tile. Ribbon width is screen-readable symbology rather than physical River width. The world border and optional grid render above terrain and rivers; optional elevation numbers render next, followed by the amber pinned outline and cyan/red stamp cursor. A prohibited River stamp uses a red crossed cursor.
+A narrow three-tone bank-and-water ribbon is drawn through visible River tiles from each centre to every derived cardinal exit, with a visual mouth added when an endpoint touches Sea or Lake. Large River uses the broad style; River Junction inherits that broad style when any cardinal neighbour is Large River. `CampaignTileMap` maintains a River-only coordinate index alongside sparse tile storage, so overlay frames enumerate Rivers rather than every generated tile. Ribbon width is screen-readable symbology rather than physical River width. The world border and optional grid render above terrain and rivers; optional elevation numbers render next, followed by the amber pinned outline, cyan/red pointer stamp cursor, and gold keyboard focus cursor. A prohibited River stamp uses a red crossed cursor.
 
 The inspector deliberately separates:
 
@@ -152,7 +154,7 @@ Seasons mode adds a third independently keyed bounded visible raster over the un
 
 `CampaignResourceProjectSerializer` owns the optional custom-definition, generation-settings, and sparse occurrence sidecars. `CampaignSeasonProjectSerializer` owns the complete catalog, enabled-generation selection, optional accepted recipe, and sparse Season Occurrence stream encoded through dense tile spans. `CampaignEditorProjectSerializer` is the running lifecycle boundary: save serializes terrain, resources, and seasons into one unique sibling staging directory, reloads the complete candidate, verifies all three captured revisions, then commits the nine known managed files with backups and rollback for ordinary I/O failure. Stale optional sidecars are removed, post-commit staging cleanup is non-fatal, and `MarkSaved` runs only after success. Open similarly loads all authorities and replaces the visible document only when the complete candidate is valid. Missing resource sidecars produce the built-in catalog/null settings/empty map; missing all Season sidecars projects the built-in catalog and an empty occurrence map with no invented recipe; legacy imports attach neither sibling layer.
 
-When it detects a version-1 manifest, it delegates strict loading to the legacy serializer, then builds a new campaign world in memory. Existing types are copied and each tile's legacy samples are averaged into its centre height. The editor does not attach the source folder as a save target and rejects selecting that same folder, keeping the original files unchanged.
+When it detects a version-1 manifest, it first reads and validates only the legacy definition, derives the exact campaign grid, and applies the shared `250,000`-tile limit before any chunk payload is read. It then delegates strict loading to the legacy serializer and builds a new campaign world in memory. Existing types are copied and each tile's legacy samples are averaged into its centre height. The editor does not attach the source folder as a save target and rejects selecting that same folder, keeping the original files unchanged.
 
 ## Runtime export
 
@@ -173,7 +175,7 @@ Both formats let a Unity/Unreal build importer validate and convert world author
 - Elevation-label work scales with visible tiles only, is suppressed below `28 px/tile`, and reuses a bounded formatted-text cache; toggling it never rebuilds terrain pixels.
 - Selected-resource raster/label work scales with visible tiles and sparse occurrences in the visible area; resource revision does not invalidate the terrain raster.
 - Season raster/label work scales with the bounded visible logical area plus one neighbor-tile blending halo; season revision does not invalidate terrain or resource caches.
-- Generation is bounded to 250,000 tiles and performs its priority queues and sorting away from the UI thread.
+- Every editable/openable world is bounded to `250,000` tiles before dense canvas, resource, Season, save, or export work begins; generation performs its priority queues and sorting away from the UI thread.
 - Runtime export is streamed in bounded buffers; `.kworld` is compact while JSON repeats readable structure, and both size/traversal costs scale with the complete logical grid because game data must include implicit-default tiles.
 - Procedural textures require no bitmap assets, remain stable under pan, and fade out when insufficient pixels exist to represent them cleanly.
 - Grid drawing selects a screen-space stride rather than iterating every invisible line.

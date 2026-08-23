@@ -592,7 +592,8 @@
                               ShowCampaignGrid="{Binding ShowCampaignGrid}"
                               ShowElevationNumbers="{Binding ShowElevationNumbers}"
                               UseGrayscale="{Binding UseGrayscale}"
-                              AutomationProperties.Name="Campaign tile editing canvas" />
+                              AutomationProperties.Name="Campaign tile editing canvas"
+                              AutomationProperties.HelpText="Press Tab to focus the map. Arrow keys move the tile cursor, Enter applies the active tool, and Space pins the tile for inspection." />
 
         <Border IsVisible="{Binding ShowEmptyState}" HorizontalAlignment="Center" VerticalAlignment="Center"
                 MaxWidth="440" Padding="18" Background="{StaticResource EditorPanelBrush}"

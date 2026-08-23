@@ -27,6 +27,64 @@ public sealed class CampaignWorldSerializationTests
     }
 
     [Fact]
+    public async Task VersionTwoLoad_RejectsAProjectAboveTheSharedEditableTileLimit()
+    {
+        using var temporary = new TemporaryDirectory();
+        await File.WriteAllTextAsync(
+            Path.Combine(temporary.Path, CampaignWorldProjectSerializer.ManifestFileName),
+            """
+            {
+              "version": 2,
+              "worldWidthMeters": 501000,
+              "worldHeightMeters": 500000,
+              "campaignTileSizeMeters": 1000,
+              "seaLevelMeters": 0,
+              "minimumHeightMeters": -1000,
+              "maximumHeightMeters": 6000,
+              "defaultTileHeightMeters": 0
+            }
+            """);
+
+        var exception = await Assert.ThrowsAsync<WorldFormatException>(() =>
+            CampaignWorldProjectSerializer.LoadAsync(temporary.Path));
+
+        Assert.Contains("250,000 editable tiles", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LegacyImport_PreflightsTheSharedEditableTileLimitBeforeReadingChunks()
+    {
+        using var temporary = new TemporaryDirectory();
+        await File.WriteAllTextAsync(
+            Path.Combine(temporary.Path, CampaignWorldProjectSerializer.ManifestFileName),
+            """
+            {
+              "version": 1,
+              "worldWidthMeters": 501000,
+              "worldHeightMeters": 500000,
+              "heightSamplesX": 502,
+              "heightSamplesY": 501,
+              "heightSampleSpacingMeters": 1000,
+              "campaignTileSizeMeters": 1000,
+              "seaLevelMeters": 0,
+              "minimumElevationMeters": -1000,
+              "maximumElevationMeters": 6000,
+              "initialElevationMeters": 0,
+              "chunkSize": 256
+            }
+            """);
+        var chunks = Path.Combine(temporary.Path, WorldProjectSerializer.ChunkDirectoryName);
+        Directory.CreateDirectory(chunks);
+        await File.WriteAllBytesAsync(Path.Combine(chunks, "0_0.bin"), [0x00]);
+
+        var exception = await Assert.ThrowsAsync<WorldFormatException>(() =>
+            CampaignWorldProjectSerializer.LoadAsync(temporary.Path));
+
+        Assert.Contains("250,000 editable tiles", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Chunk 0_0.bin", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task VersionTwoRoundtrip_PreservesOriginalLandWaterShoreAndRiverTypes()
     {
         using var temporary = new TemporaryDirectory();

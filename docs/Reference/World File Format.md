@@ -197,6 +197,7 @@ The reader must reject the manifest unless:
 - width, height, and tile size are positive;
 - each world dimension is exactly divisible by tile size;
 - derived axis counts fit signed 32-bit coordinates;
+- the derived `tileCount` is at most `250,000` for every editable/openable world;
 - minimum height is lower than maximum height;
 - sea level and default height are inside the allowed range.
 
@@ -323,7 +324,7 @@ The converter requires the legacy world dimensions to divide exactly by its camp
 4. rounds midpoint values away from zero into the configured `Int16` range;
 5. uses bilinear legacy height at the tile centre only if an unusually small tile owns no sample.
 
-Opening performs no write. The desktop editor requires the converted result to be saved outside the source directory, so the version-1 manifest, `campaign-tiles.json`, and `chunks` remain unchanged.
+Opening performs no write. Before reading version-1 chunk payloads, the campaign importer validates the legacy manifest, derives the exact divisible campaign grid, and rejects it when that grid exceeds the same `250,000`-tile limit. The desktop editor requires the converted result to be saved outside the source directory, so the version-1 manifest, `campaign-tiles.json`, and `chunks` remain unchanged.
 
 Historical version-1 details are represented by [[../Decisions/ADR-0001 - Unique Chunk Ownership|ADR-0001]] and [[../Decisions/ADR-0003 - Sparse Campaign Tile Types|ADR-0003]].
 

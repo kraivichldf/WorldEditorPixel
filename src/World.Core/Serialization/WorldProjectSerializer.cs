@@ -95,23 +95,7 @@ public static class WorldProjectSerializer
             throw new WorldFormatException($"World manifest was not found: {manifestPath}");
         }
 
-        WorldDefinition definition;
-        try
-        {
-            await using var stream = File.OpenRead(manifestPath);
-            definition = await JsonSerializer.DeserializeAsync<WorldDefinition>(stream, JsonOptions, cancellationToken)
-                .ConfigureAwait(false)
-                ?? throw new WorldFormatException("World manifest is empty.");
-            WorldDefinitionValidator.EnsureValid(definition);
-        }
-        catch (WorldFormatException)
-        {
-            throw;
-        }
-        catch (Exception exception) when (exception is JsonException or IOException or WorldValidationException)
-        {
-            throw new WorldFormatException($"World manifest is invalid: {exception.Message}", exception);
-        }
+        var definition = await LoadDefinitionAsync(manifestPath, cancellationToken).ConfigureAwait(false);
 
         var terrain = new WorldTerrain(definition);
         var chunkDirectory = Path.Combine(projectDirectory, ChunkDirectoryName);
@@ -165,6 +149,30 @@ public static class WorldProjectSerializer
         await LoadCampaignTilesAsync(terrain.CampaignTiles, projectDirectory, cancellationToken).ConfigureAwait(false);
 
         return terrain;
+    }
+
+    internal static async Task<WorldDefinition> LoadDefinitionAsync(
+        string manifestPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
+        try
+        {
+            await using var stream = File.OpenRead(manifestPath);
+            var definition = await JsonSerializer.DeserializeAsync<WorldDefinition>(stream, JsonOptions, cancellationToken)
+                .ConfigureAwait(false)
+                ?? throw new WorldFormatException("World manifest is empty.");
+            WorldDefinitionValidator.EnsureValid(definition);
+            return definition;
+        }
+        catch (WorldFormatException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or WorldValidationException)
+        {
+            throw new WorldFormatException($"World manifest is invalid: {exception.Message}", exception);
+        }
     }
 
     public static string GetProjectDirectory(string projectPath)
