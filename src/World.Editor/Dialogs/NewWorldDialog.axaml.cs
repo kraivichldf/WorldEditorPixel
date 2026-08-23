@@ -141,6 +141,7 @@ public sealed partial class NewWorldDialog : Window
     private bool _permitLockedSeasonDrops;
     private bool _showingSeasonPreview;
     private bool _previewMatchesSettings;
+    private bool _definitionWithinTileLimit = true;
     private bool _isGenerating;
     private bool _isClosed;
 
@@ -816,7 +817,6 @@ public sealed partial class NewWorldDialog : Window
     {
         _isGenerating = isBusy;
         _settingsScrollViewer.IsEnabled = !isBusy;
-        _generateButton.IsEnabled = !isBusy;
         _generationPreviewProgress.IsVisible = isBusy;
         UpdatePreviewState();
         UpdateSeasonImpact();
@@ -834,6 +834,7 @@ public sealed partial class NewWorldDialog : Window
                 ? _previewNewSeasonGenerationResult is not null
                 : _previewSeasonRegenerationResult?.Report.CanAccept == true);
         _usePreviewButton.IsEnabled = canUsePreview;
+        _generateButton.IsEnabled = !_isGenerating && _definitionWithinTileLimit;
         _generateButton.IsDefault = !canUsePreview;
         _usePreviewButton.IsDefault = canUsePreview;
         SetButtonClass(_generateButton, "primary", !canUsePreview);
@@ -1227,6 +1228,7 @@ public sealed partial class NewWorldDialog : Window
 
     private void UpdatePreview()
     {
+        _definitionWithinTileLimit = false;
         try
         {
             var widthKilometers = ReadWholeKilometers(_worldWidth);
@@ -1248,13 +1250,21 @@ public sealed partial class NewWorldDialog : Window
             var tilesX = widthKilometers / tileKilometers;
             var tilesY = heightKilometers / tileKilometers;
             var tileCount = checked(tilesX * tilesY);
+            _definitionWithinTileLimit = tileCount <= CampaignWorldDefinition.MaximumTileCount;
             _tileGridPreview.Text = $"{tilesX:N0} × {tilesY:N0} campaign tiles";
             _tileCountPreview.Text =
                 $"{tileCount:N0} total · each stamp fills one {tileKilometers:N0} × {tileKilometers:N0} km tile.";
             var preset = GetChoice(_availablePresetChoices, _generationPreset.SelectedIndex).Value;
-            if (preset == CampaignMapGenerationPreset.Blank)
+            if (tileCount > CampaignWorldDefinition.MaximumTileCount)
             {
-                _generationConstraint.Text = "Blank creates no tile overrides; generation limits do not apply.";
+                _generationConstraint.Text =
+                    $"The editor supports up to {CampaignWorldDefinition.MaximumTileCount:N0} tiles; " +
+                    "increase tile size or reduce the world dimensions.";
+            }
+            else if (preset == CampaignMapGenerationPreset.Blank)
+            {
+                _generationConstraint.Text =
+                    $"Blank creates no tile overrides; all {tileCount:N0} tiles remain inside the shared editor limit.";
             }
             else if (tilesX < CampaignMapGenerator.MinimumGeneratedTilesPerAxis ||
                      tilesY < CampaignMapGenerator.MinimumGeneratedTilesPerAxis)
@@ -1262,12 +1272,6 @@ public sealed partial class NewWorldDialog : Window
                 _generationConstraint.Text =
                     $"Generation needs at least {CampaignMapGenerator.MinimumGeneratedTilesPerAxis} × " +
                     $"{CampaignMapGenerator.MinimumGeneratedTilesPerAxis} tiles.";
-            }
-            else if (tileCount > CampaignMapGenerator.MaximumGeneratedTileCount)
-            {
-                _generationConstraint.Text =
-                    $"Generation supports up to {CampaignMapGenerator.MaximumGeneratedTileCount:N0} tiles; " +
-                    "increase tile size or choose Blank.";
             }
             else if (preset == CampaignMapGenerationPreset.LandOnly)
             {
@@ -1300,6 +1304,10 @@ public sealed partial class NewWorldDialog : Window
             _tileGridPreview.Text = "Preview unavailable";
             _tileCountPreview.Text = exception.Message;
             _generationConstraint.Text = string.Empty;
+        }
+        finally
+        {
+            UpdatePreviewState();
         }
     }
 

@@ -92,6 +92,21 @@ public sealed class CampaignSeasonNativeUiTests
                 "previous result",
                 FindRequired<TextBlock>(dialog, "GenerationPreviewStateText").Text,
                 StringComparison.OrdinalIgnoreCase);
+
+            FindRequired<ComboBox>(dialog, "GenerationPresetInput").SelectedIndex = 0;
+            FindRequired<NumericUpDown>(dialog, "WorldWidthInput").Value = 501;
+            FindRequired<NumericUpDown>(dialog, "WorldHeightInput").Value = 500;
+            FindRequired<NumericUpDown>(dialog, "CampaignTileInput").Value = 1;
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(generate.IsEnabled);
+            Assert.Contains(
+                "250,000",
+                FindRequired<TextBlock>(dialog, "GenerationConstraintText").Text,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "limits do not apply",
+                FindRequired<TextBlock>(dialog, "GenerationConstraintText").Text,
+                StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

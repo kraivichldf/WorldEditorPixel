@@ -20,7 +20,7 @@ The confirmed workflow is for a strategy/FPS game developer or world designer au
 
 Create, optionally generate, inspect, stamp, save, and reopen deterministic campaign tiles. Each tile owns one base terrain type, an optional safe custom-land identity, one centre height, zero or more orthogonal resource occurrences, and zero or more Season Occurrences keyed by stable Season ID; every resource or Season Occurrence carries its own authoring lock. Adjacent centre heights automatically form a continuous surface. Generated terrain, Resources, and Seasons become the same editable authority as manual stamps after explicit preview acceptance. The editor succeeds when terrain identity, centre height, resource potential/lock authority, the complete Tile Season Set, and the interpolation contract survive a save/load roundtrip unchanged.
 
-The first stable public desktop release is **WorldEditorPixel 1.0** (`v1.0.0`), distributed as one self-contained Windows x64 executable plus a SHA-256 checksum.
+The current stable public desktop release is **WorldEditorPixel 1.0.1** (`v1.0.1`), distributed as one self-contained Windows x64 executable plus a SHA-256 checksum.
 
 ## Positioning
 
@@ -28,11 +28,12 @@ The campaign tile is the only authoring resolution. This removes the mismatch wh
 
 ## Operating Context
 
-Users work in long desktop sessions with a central world canvas, persistent stamp and inspector rails, mouse-centred zoom, middle-button pan, full-cell drag editing, and keyboard undo/redo. Projects are local folders containing version-2 terrain plus optional Resource and complete Season sidecars.
+Users work in long desktop sessions with a central world canvas, persistent stamp and inspector rails, mouse-centred zoom, middle-button pan, full-cell drag editing, keyboard tile navigation/stamping/pinning, and keyboard undo/redo. Projects are local folders containing version-2 terrain plus optional Resource and complete Season sidecars.
 
 ## Capabilities and Constraints
 
 - World width, world height, and campaign tile size are authored in whole kilometres and stored in metres.
+- Every Blank, generated, opened, legacy-imported, saved, rendered, and exported world shares one `250,000`-tile safety limit. Version-2 and version-1 manifests are rejected before tile or chunk payload loading when their derived campaign grid exceeds it.
 - New World offers Blank plus Continental World, Island, Archipelago, four directional Coast, Sea in Center, and Land Only presets with deterministic seed, terrain style, Mountain-system, hydrology, directional coast character, optional tidal-inlet amount, and optional inland tile-ratio controls. Continental World builds a hierarchy of five unequal multi-lobe masses, broad ocean basins, regional bays/peninsulas, and two minor island arcs; sparse ocean anchors allow cropped edge geography without claiming planar left/right wrapping. For directional Coast worlds, only the named Sea edge is forced; the seed varies the broad mainland advance/retreat and may open another map boundary to connected Sea, so neither the land/water ratio nor the opposite edge is locked to one silhouette.
 - Generated starts remain inside New World as a read-only campaign preview. Designers may adjust any input and regenerate repeatedly; changing an input marks the displayed result stale, and only **Use this world** commits the exact reviewed tiles to the editable document. Blank still creates directly.
 - An open world can be regenerated through the same preview-first contract. **Regenerate world…** starts from the current dimensions, tile size, sea/default height, and height limits but allows every definition value to change; carries the current custom-land catalog into the generator; restores the last generator settings when they still exist in the current editor session; and leaves the editable document untouched until **Use this world**. The preview also shows the exact resource result. Same-lattice replacements preserve every occurrence; changed lattices remap physical tile centres, merge same-ID targets by highest potential while retaining any lock, name locked out-of-bounds drops, and regenerate unlocked occurrences only when saved resource settings exist. Acceptance installs the exact reviewed terrain/resource candidate, clears obsolete undo history, keeps the current project identity/import safety boundary, and marks the document modified. Terrain-generator settings remain transient and are not added to the project format.
@@ -89,7 +90,7 @@ The supplied implementation brief and the user's confirmed tile-only rework are 
 
 ## Accessibility & Inclusion
 
-Use keyboard-accessible standard desktop controls, visible focus, sufficient contrast, text labels alongside terrain/resource/Season colors, high-contrast outlined elevation, resource-potential, and Season-identity labels, an outlined pinned selection, and direct validation/recovery messages. Resource and Season lock/suitability/staleness states must include text rather than depend on color. Map stamping remains mouse-led in this milestone; keyboard tile navigation and stamping are future accessibility work.
+Use keyboard-accessible standard desktop controls, visible focus, sufficient contrast, text labels alongside terrain/resource/Season colors, high-contrast outlined elevation, resource-potential, and Season-identity labels, an outlined pinned selection, and direct validation/recovery messages. Resource and Season lock/suitability/staleness states must include text rather than depend on color. The canvas is a Tab stop with a high-contrast tile/paint-area cursor: arrows move it and automatically follow the viewport, `Enter` applies the active Terrain/Resource/Season tool as one command, and `Space` pins that tile for inspection.
 
 ## Accepted Next Architecture — Core Implemented, Product Integration Pending
 

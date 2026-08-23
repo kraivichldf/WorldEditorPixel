@@ -6,6 +6,7 @@ using Kingdom.World.Core.Campaign;
 using Kingdom.World.Core.Campaign.Resources;
 using Kingdom.World.Core.Models;
 using Kingdom.World.Core.Serialization;
+using Kingdom.World.Core.Validation;
 
 namespace Kingdom.World.Tests;
 
@@ -461,24 +462,20 @@ public sealed class CampaignWorldRuntimeExporterTests
     }
 
     [Fact]
-    public async Task ExportWithResources_CheckedByteLengthsRejectOverflowBeforeWriting()
+    public void ExportWithResources_OversizedDefinitionIsRejectedBeforeExporterAllocation()
     {
         using var temporary = new TemporaryDirectory();
-        var definition = CampaignWorldDefinition.Create(
+        var packagePath = Path.Combine(temporary.Path, "overflow.kworld");
+
+        var exception = Assert.Throws<WorldValidationException>(() => CampaignWorldDefinition.Create(
             worldWidthMeters: int.MaxValue,
             worldHeightMeters: int.MaxValue,
             campaignTileSizeMeters: 1,
             seaLevelMeters: 0,
             minimumHeightMeters: -1_000,
-            maximumHeightMeters: 6_000);
-        var packagePath = Path.Combine(temporary.Path, "overflow.kworld");
+            maximumHeightMeters: 6_000));
 
-        await Assert.ThrowsAsync<OverflowException>(() =>
-            CampaignWorldRuntimeExporter.ExportAsync(
-                new CampaignWorld(definition),
-                new CampaignResourceMap(definition),
-                packagePath));
-
+        Assert.Contains("250,000 editable tiles", exception.Message, StringComparison.Ordinal);
         Assert.False(File.Exists(packagePath));
         Assert.Empty(Directory.EnumerateFiles(temporary.Path));
     }

@@ -13,6 +13,7 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 - [[Reference/Campaign Season Occurrence Layer Plan|Campaign Season Occurrence Layer accepted implementation plan]]
 - [[Reference/Application Icon|Application icon source, build integration, and verification]]
 - [[Releases/1.0|WorldEditorPixel 1.0 release notes]]
+- [[Releases/1.0.1|WorldEditorPixel 1.0.1 release notes]]
 - [[Decisions/ADR-0004 - Tile-Authoritative Campaign Surface|ADR-0004: Tile-authoritative campaign surface]]
 - [[Decisions/ADR-0005 - Water and River Tile Topology|ADR-0005: Water and river tile topology]]
 - [[Decisions/ADR-0006 - Procedural Materials and Directional Coasts|ADR-0006: Procedural materials and directional coasts]]
@@ -38,6 +39,8 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 - [[Decisions/ADR-0029 - Explicit Resource Generation Selection|ADR-0029: Explicit resource generation selection]]
 - [[Decisions/ADR-0030 - Preview-First Campaign Season Occurrences|ADR-0030: Preview-first Campaign Season Occurrences]]
 - [[Decisions/ADR-0031 - Single-File JSON Runtime Export|ADR-0031: Single-file JSON runtime export]]
+- [[Decisions/ADR-0032 - Shared Editable World Tile Limit|ADR-0032: Shared editable world tile limit]]
+- [[Decisions/ADR-0033 - Keyboard-Accessible Campaign Canvas|ADR-0033: Keyboard-accessible campaign canvas]]
 - [[Decisions/ADR-0002 - Delta-Based Terrain History|ADR-0002: Delta-based edit history]]
 - [[Testing/Verification|Verification]]
 

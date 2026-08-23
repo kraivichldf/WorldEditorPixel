@@ -36,6 +36,35 @@ public sealed class CampaignWorldTests
     }
 
     [Fact]
+    public void Definition_AcceptsTheSharedMaximumEditableGrid()
+    {
+        var definition = CampaignWorldDefinition.Create(
+            worldWidthMeters: 500_000,
+            worldHeightMeters: 500_000,
+            campaignTileSizeMeters: 1_000,
+            seaLevelMeters: 0,
+            minimumHeightMeters: -1_000,
+            maximumHeightMeters: 6_000);
+
+        Assert.Equal(CampaignWorldDefinition.MaximumTileCount, definition.TileCount);
+    }
+
+    [Fact]
+    public void Definition_RejectsMoreThanTheSharedMaximumEditableGrid()
+    {
+        var exception = Assert.Throws<WorldValidationException>(() => CampaignWorldDefinition.Create(
+            worldWidthMeters: 501_000,
+            worldHeightMeters: 500_000,
+            campaignTileSizeMeters: 1_000,
+            seaLevelMeters: 0,
+            minimumHeightMeters: -1_000,
+            maximumHeightMeters: 6_000));
+
+        Assert.Contains("250,000 editable tiles", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("250,500", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TileData_IsSparseAndResettingBothFieldsRestoresImplicitDefault()
     {
         var world = CreateWorld(2, 2, defaultHeight: 25);

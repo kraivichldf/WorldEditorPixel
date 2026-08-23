@@ -1393,14 +1393,12 @@ public sealed class CampaignMapGeneratorTests
     }
 
     [Fact]
-    public void Generation_RejectsTooSmallAndTooLargeGrids()
+    public void Generation_RejectsTooSmallGeneratedGridsButBlankRemainsValid()
     {
         var tooSmall = CreateDefinition(tilesX: 7, tilesY: 8);
-        var tooLarge = CreateDefinition(tilesX: 501, tilesY: 500);
         var options = new CampaignMapGenerationOptions(CampaignMapGenerationPreset.Island, 1);
 
         Assert.Throws<ArgumentException>(() => CampaignMapGenerator.Generate(tooSmall, options));
-        Assert.Throws<ArgumentException>(() => CampaignMapGenerator.Generate(tooLarge, options));
         CampaignMapGenerator.Generate(tooSmall, CampaignMapGenerationOptions.Blank);
     }
 

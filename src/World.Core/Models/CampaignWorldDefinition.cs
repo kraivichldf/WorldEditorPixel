@@ -6,6 +6,7 @@ namespace Kingdom.World.Core.Models;
 public sealed record CampaignWorldDefinition
 {
     public const int CurrentVersion = 2;
+    public const long MaximumTileCount = 250_000;
 
     [JsonRequired]
     public int Version { get; init; } = CurrentVersion;
@@ -94,6 +95,18 @@ public sealed record CampaignWorldDefinition
                      definition.WorldHeightMeters / definition.CampaignTileSizeMeters > int.MaxValue)
             {
                 errors.Add("Campaign grid dimensions exceed the supported 32-bit tile coordinate range.");
+            }
+            else
+            {
+                var tilesX = definition.WorldWidthMeters / definition.CampaignTileSizeMeters;
+                var tilesY = definition.WorldHeightMeters / definition.CampaignTileSizeMeters;
+                var tileCount = checked(tilesX * tilesY);
+                if (tileCount > MaximumTileCount)
+                {
+                    errors.Add(
+                        $"Campaign worlds support up to {MaximumTileCount:N0} editable tiles; " +
+                        $"this definition has {tileCount:N0}. Increase the campaign tile size or reduce the world dimensions.");
+                }
             }
         }
 

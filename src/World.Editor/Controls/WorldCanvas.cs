@@ -1,8 +1,10 @@
 using System.Buffers;
 using System.Globalization;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Media.Imaging;
@@ -118,6 +120,9 @@ public sealed class WorldCanvas : Control
     private static readonly IPen TileCursorPen = new ImmutablePen(
         Color.Parse("#72D4DC").ToUInt32(),
         2);
+    private static readonly IPen KeyboardCursorPen = new ImmutablePen(
+        Color.Parse("#FFF27A").ToUInt32(),
+        2.4);
     private static readonly IPen BlockedTileCursorPen = new ImmutablePen(
         Color.Parse("#FF6B6B").ToUInt32(),
         2.2);
@@ -184,6 +189,7 @@ public sealed class WorldCanvas : Control
     private Point _lastPointerPosition;
     private CampaignTilePointerInfo? _hover;
     private CampaignTileCoordinate? _selectedCoordinate;
+    private CampaignTileCoordinate? _keyboardCoordinate;
     private CampaignTileCoordinate? _areaSelectionStart;
     private CampaignTileArea? _areaSelectionBeforeDrag;
     private CampaignTileCoordinate? _lastStampCoordinate;
@@ -244,7 +250,22 @@ public sealed class WorldCanvas : Control
     public WorldCanvas()
     {
         Focusable = true;
+        IsTabStop = true;
         ClipToBounds = true;
+        AutomationProperties.SetName(this, "Campaign tile editing canvas");
+        AutomationProperties.SetHelpText(
+            this,
+            "Arrow keys move the tile cursor. Enter applies the active tool. Space pins the current tile for inspection.");
+        GotFocus += (_, _) =>
+        {
+            if (World is { } world)
+            {
+                EnsureKeyboardCoordinate(world, raiseHover: true);
+            }
+
+            InvalidateVisual();
+        };
+        LostFocus += (_, _) => InvalidateVisual();
     }
 
     public event EventHandler<CampaignTilePointerEventArgs>? TileHovered;
@@ -265,6 +286,8 @@ public sealed class WorldCanvas : Control
 
     public bool HasActiveStroke =>
         _stroke is not null || _resourceStroke is not null || _seasonStroke is not null;
+
+    internal CampaignTileCoordinate? KeyboardCoordinate => _keyboardCoordinate;
 
     public CampaignWorld? World
     {
@@ -530,6 +553,7 @@ public sealed class WorldCanvas : Control
             DrawStampCursor(context);
         }
 
+        DrawKeyboardCursor(context);
         DrawSelection(context);
     }
 
@@ -556,6 +580,7 @@ public sealed class WorldCanvas : Control
             _fitRequested = true;
             _hover = null;
             _selectedCoordinate = null;
+            _keyboardCoordinate = null;
             SelectedArea = null;
             _isSelectingArea = false;
             _areaSelectionStart = null;
@@ -599,8 +624,7 @@ public sealed class WorldCanvas : Control
         var pointer = ToPointerInfo(current.Position);
         if (current.Properties.IsRightButtonPressed && pointer is { } selection)
         {
-            _selectedCoordinate = selection.Coordinate;
-            TileSelected?.Invoke(this, new CampaignTilePointerEventArgs(selection));
+            SelectCoordinate(selection);
             InvalidateVisual();
             e.Handled = true;
             return;
@@ -631,41 +655,28 @@ public sealed class WorldCanvas : Control
 
         _lastStampCoordinate = null;
         _blockedRiverCoordinates.Clear();
+        _keyboardCoordinate = pointer.Value.Coordinate;
         if (IsSeasonWorkspace)
         {
-            if (!TryGetActiveSeason(World, out var seasons))
+            if (!BeginSeasonStroke(World, out _))
             {
                 return;
             }
 
-            _seasonStroke = new CampaignSeasonStrokeBuilder(seasons);
-            _strokeSeasonId = SelectedSeasonId;
-            _strokeSeasonTool = SeasonPaintTool;
-            _strokeLocksSeason = LockManualSeasonEdits;
-            _strokeSeasonPaintAreaRadius = EffectiveSeasonPaintAreaRadius;
             ApplySeasonAt(pointer.Value.Coordinate);
         }
         else if (IsResourceWorkspace)
         {
-            if (!TryGetActiveResource(World, out var resources, out var definition))
+            if (!BeginResourceStroke(World, out _, out _))
             {
                 return;
             }
 
-            _resourceStroke = new CampaignResourceStrokeBuilder(resources);
-            _strokeResourceId = definition.Id;
-            _strokeResourcePotential = (byte)Math.Clamp(
-                ResourcePotential,
-                CampaignResourceOccurrence.MinimumPotential,
-                CampaignResourceOccurrence.MaximumPotential);
-            _strokeLocksResource = LockManualResourceEdits;
-            _strokeErasesResource = EraseSelectedResource;
-            _strokeResourcePaintAreaRadius = EffectiveResourcePaintAreaRadius;
             ApplyResourceAt(pointer.Value.Coordinate);
         }
         else
         {
-            _stroke = new CampaignTileStampBuilder(World.Tiles);
+            BeginTerrainStroke(World);
             ApplyTileAt(pointer.Value.Coordinate);
         }
 
@@ -694,6 +705,11 @@ public sealed class WorldCanvas : Control
         if (_hover != pointer)
         {
             _hover = pointer;
+            if (pointer is { } currentPointer)
+            {
+                _keyboardCoordinate = currentPointer.Coordinate;
+            }
+
             TileHovered?.Invoke(this, new CampaignTilePointerEventArgs(pointer));
         }
 
@@ -848,13 +864,42 @@ public sealed class WorldCanvas : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key != Key.Escape || (!HasActiveStroke && !_isSelectingArea))
+        if (e.Handled)
         {
             return;
         }
 
-        CancelActiveInteraction();
-        e.Handled = true;
+        if (e.Key == Key.Escape && (HasActiveStroke || _isSelectingArea))
+        {
+            CancelActiveInteraction();
+            e.Handled = true;
+            return;
+        }
+
+        if (World is not { } world)
+        {
+            return;
+        }
+
+        if (e.KeyModifiers != KeyModifiers.None)
+        {
+            return;
+        }
+
+        var handled = e.Key switch
+        {
+            Key.Left => MoveKeyboardCursor(world, -1, 0),
+            Key.Right => MoveKeyboardCursor(world, 1, 0),
+            Key.Up => MoveKeyboardCursor(world, 0, -1),
+            Key.Down => MoveKeyboardCursor(world, 0, 1),
+            Key.Enter => PaintAtKeyboardCursor(world),
+            Key.Space => PinKeyboardCursor(world),
+            _ => false,
+        };
+        if (handled)
+        {
+            e.Handled = true;
+        }
     }
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
@@ -898,6 +943,224 @@ public sealed class WorldCanvas : Control
         MarkSeasonBitmapDirty();
         InvalidateVisual();
         return true;
+    }
+
+    private void BeginTerrainStroke(CampaignWorld world)
+    {
+        _stroke = new CampaignTileStampBuilder(world.Tiles);
+    }
+
+    private bool BeginResourceStroke(
+        CampaignWorld world,
+        out CampaignResourceMap resources,
+        out CampaignResourceDefinition definition)
+    {
+        if (!TryGetActiveResource(world, out resources, out definition))
+        {
+            return false;
+        }
+
+        _resourceStroke = new CampaignResourceStrokeBuilder(resources);
+        _strokeResourceId = definition.Id;
+        _strokeResourcePotential = (byte)Math.Clamp(
+            ResourcePotential,
+            CampaignResourceOccurrence.MinimumPotential,
+            CampaignResourceOccurrence.MaximumPotential);
+        _strokeLocksResource = LockManualResourceEdits;
+        _strokeErasesResource = EraseSelectedResource;
+        _strokeResourcePaintAreaRadius = EffectiveResourcePaintAreaRadius;
+        return true;
+    }
+
+    private bool BeginSeasonStroke(CampaignWorld world, out CampaignSeasonMap seasons)
+    {
+        if (!TryGetActiveSeason(world, out seasons))
+        {
+            return false;
+        }
+
+        _seasonStroke = new CampaignSeasonStrokeBuilder(seasons);
+        _strokeSeasonId = SelectedSeasonId;
+        _strokeSeasonTool = SeasonPaintTool;
+        _strokeLocksSeason = LockManualSeasonEdits;
+        _strokeSeasonPaintAreaRadius = EffectiveSeasonPaintAreaRadius;
+        return true;
+    }
+
+    private bool MoveKeyboardCursor(CampaignWorld world, int deltaX, int deltaY)
+    {
+        var current = EnsureKeyboardCoordinate(world, raiseHover: false);
+        var next = new CampaignTileCoordinate(
+            Math.Clamp(current.X + deltaX, 0, world.Definition.TilesX - 1),
+            Math.Clamp(current.Y + deltaY, 0, world.Definition.TilesY - 1));
+        SetKeyboardCoordinate(world, next, raiseHover: true);
+        EnsureKeyboardCoordinateVisible(world, next);
+        InvalidateVisual();
+        return true;
+    }
+
+    private bool PaintAtKeyboardCursor(CampaignWorld world)
+    {
+        if (!AllowTileEditing)
+        {
+            return false;
+        }
+
+        var coordinate = EnsureKeyboardCoordinate(world, raiseHover: true);
+        _lastStampCoordinate = null;
+        _blockedRiverCoordinates.Clear();
+        if (IsSeasonWorkspace)
+        {
+            if (!BeginSeasonStroke(world, out _))
+            {
+                return false;
+            }
+
+            ApplySeasonAt(coordinate);
+            var command = _seasonStroke!.Complete(BuildSeasonStrokeDescription());
+            _seasonStroke = null;
+            ResetSeasonStrokeSettings();
+            SeasonStrokeCompleted?.Invoke(this, new CampaignSeasonStrokeEventArgs(command));
+        }
+        else if (IsResourceWorkspace)
+        {
+            if (!BeginResourceStroke(world, out _, out _))
+            {
+                return false;
+            }
+
+            ApplyResourceAt(coordinate);
+            var command = _resourceStroke!.Complete(BuildResourceStrokeDescription());
+            _resourceStroke = null;
+            ResetResourceStrokeSettings();
+            ResourceStrokeCompleted?.Invoke(this, new CampaignResourceStrokeEventArgs(command));
+        }
+        else
+        {
+            BeginTerrainStroke(world);
+            ApplyTileAt(coordinate);
+            var height = GetStampHeight(world);
+            var command = _stroke!.Complete(BuildStrokeDescription(height));
+            var blockedRiverTileCount = _blockedRiverCoordinates.Count;
+            _stroke = null;
+            StrokeCompleted?.Invoke(this, new CampaignTileStrokeEventArgs(command, blockedRiverTileCount));
+        }
+
+        _lastStampCoordinate = null;
+        _blockedRiverCoordinates.Clear();
+        InvalidateVisual();
+        return true;
+    }
+
+    private bool PinKeyboardCursor(CampaignWorld world)
+    {
+        var coordinate = EnsureKeyboardCoordinate(world, raiseHover: true);
+        SelectCoordinate(CreatePointerInfo(coordinate));
+        InvalidateVisual();
+        return true;
+    }
+
+    private CampaignTileCoordinate EnsureKeyboardCoordinate(CampaignWorld world, bool raiseHover)
+    {
+        if (_keyboardCoordinate is { } existing &&
+            world.Tiles.IsValidCoordinate(existing.X, existing.Y))
+        {
+            if (raiseHover)
+            {
+                SetKeyboardCoordinate(world, existing, raiseHover: true);
+            }
+
+            return existing;
+        }
+
+        var initial = _selectedCoordinate is { } selected &&
+                      world.Tiles.IsValidCoordinate(selected.X, selected.Y)
+            ? selected
+            : _hover is { } hover &&
+              world.Tiles.IsValidCoordinate(hover.Coordinate.X, hover.Coordinate.Y)
+                ? hover.Coordinate
+                : new CampaignTileCoordinate(
+                    world.Definition.TilesX / 2,
+                    world.Definition.TilesY / 2);
+        SetKeyboardCoordinate(world, initial, raiseHover);
+        return initial;
+    }
+
+    private void SetKeyboardCoordinate(
+        CampaignWorld world,
+        CampaignTileCoordinate coordinate,
+        bool raiseHover)
+    {
+        if (!world.Tiles.IsValidCoordinate(coordinate.X, coordinate.Y))
+        {
+            throw new ArgumentOutOfRangeException(nameof(coordinate));
+        }
+
+        _keyboardCoordinate = coordinate;
+        if (!raiseHover)
+        {
+            return;
+        }
+
+        var info = CreatePointerInfo(coordinate);
+        _hover = info;
+        TileHovered?.Invoke(this, new CampaignTilePointerEventArgs(info));
+    }
+
+    private void EnsureKeyboardCoordinateVisible(
+        CampaignWorld world,
+        CampaignTileCoordinate coordinate)
+    {
+        ApplyFitIfPossible();
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        var visibleWidth = Bounds.Width / _zoom;
+        var visibleHeight = Bounds.Height / _zoom;
+        var nextOriginX = _originX;
+        var nextOriginY = _originY;
+        if (coordinate.X < nextOriginX)
+        {
+            nextOriginX = coordinate.X;
+        }
+        else if (coordinate.X + 1 > nextOriginX + visibleWidth)
+        {
+            nextOriginX = coordinate.X + 1 - visibleWidth;
+        }
+
+        if (coordinate.Y < nextOriginY)
+        {
+            nextOriginY = coordinate.Y;
+        }
+        else if (coordinate.Y + 1 > nextOriginY + visibleHeight)
+        {
+            nextOriginY = coordinate.Y + 1 - visibleHeight;
+        }
+
+        if (Math.Abs(nextOriginX - _originX) < double.Epsilon &&
+            Math.Abs(nextOriginY - _originY) < double.Epsilon)
+        {
+            return;
+        }
+
+        _originX = nextOriginX;
+        _originY = nextOriginY;
+        MarkSurfaceBitmapDirty();
+        MarkResourceBitmapDirty();
+        MarkSeasonBitmapDirty();
+        RaiseViewportChanged();
+    }
+
+    private static CampaignTilePointerInfo CreatePointerInfo(CampaignTileCoordinate coordinate) =>
+        new(coordinate, coordinate.X + 0.5, coordinate.Y + 0.5);
+
+    private void SelectCoordinate(CampaignTilePointerInfo selection)
+    {
+        _selectedCoordinate = selection.Coordinate;
+        _keyboardCoordinate = selection.Coordinate;
+        TileSelected?.Invoke(this, new CampaignTilePointerEventArgs(selection));
     }
 
     private void ApplyTileAt(CampaignTileCoordinate coordinate)
@@ -944,6 +1207,7 @@ public sealed class WorldCanvas : Control
         }
 
         _lastStampCoordinate = coordinate;
+        _keyboardCoordinate = coordinate;
         InvalidateVisual();
     }
 
@@ -983,6 +1247,7 @@ public sealed class WorldCanvas : Control
         }
 
         _lastStampCoordinate = coordinate;
+        _keyboardCoordinate = coordinate;
         InvalidateVisual();
     }
 
@@ -1051,6 +1316,7 @@ public sealed class WorldCanvas : Control
         }
 
         _lastStampCoordinate = coordinate;
+        _keyboardCoordinate = coordinate;
         InvalidateVisual();
     }
 
@@ -2942,6 +3208,52 @@ public sealed class WorldCanvas : Control
         }
 
         context.DrawRectangle(null, SelectionPen, GetTileScreenRect(coordinate).Deflate(1.5));
+    }
+
+    private void DrawKeyboardCursor(DrawingContext context)
+    {
+        if (!IsKeyboardFocusWithin ||
+            World is not { } world ||
+            _keyboardCoordinate is not { } coordinate ||
+            !world.Tiles.IsValidCoordinate(coordinate.X, coordinate.Y))
+        {
+            return;
+        }
+
+        CampaignTileArea area;
+        if (IsSeasonWorkspace)
+        {
+            area = CampaignTileArea.Centered(
+                world.Definition,
+                coordinate,
+                EffectiveSeasonPaintAreaRadius);
+        }
+        else if (IsResourceWorkspace)
+        {
+            area = CampaignTileArea.Centered(
+                world.Definition,
+                coordinate,
+                EffectiveResourcePaintAreaRadius);
+        }
+        else
+        {
+            area = GetPaintArea(world, coordinate);
+        }
+
+        var rectangle = GetTileAreaScreenRect(area);
+        if (rectangle.Width < 6 || rectangle.Height < 6)
+        {
+            var center = new Point(
+                (coordinate.X + 0.5 - _originX) * _zoom,
+                (coordinate.Y + 0.5 - _originY) * _zoom);
+            rectangle = new Rect(center.X - 3, center.Y - 3, 6, 6);
+        }
+        else
+        {
+            rectangle = rectangle.Deflate(1.2);
+        }
+
+        context.DrawRectangle(null, KeyboardCursorPen, rectangle);
     }
 
     private Rect GetTileScreenRect(CampaignTileCoordinate coordinate) =>

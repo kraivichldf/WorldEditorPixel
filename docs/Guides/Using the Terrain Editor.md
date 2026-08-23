@@ -8,7 +8,7 @@ To run the current branch, build and start the Avalonia editor from the project 
 dotnet run --project src/World.Editor/World.Editor.csproj -c Release
 ```
 
-For the verified self-contained Windows build, double-click `Launch Tile Editor.cmd`. It targets `artifacts\publish\1.0\WorldEditorPixel.exe`; the executable does not require a separately installed .NET runtime. Use the source command above while developing.
+For the verified self-contained Windows build, double-click `Launch Tile Editor.cmd`. It targets `artifacts\publish\1.0.1\WorldEditorPixel.exe`; the executable does not require a separately installed .NET runtime. Use the source command above while developing.
 
 ## Create an exact campaign grid
 
@@ -23,6 +23,8 @@ Grid:  140 × 140 = 19,600 tiles
 ```
 
 Every untouched terrain tile begins as Unassigned at the default centre height. A Blank world starts with an empty Season Occurrence layer; add any built-in or custom Season IDs after creation or generate them through the preview-first Seasons workflow.
+
+Every definition is limited to `250,000` complete campaign tiles. This shared safety boundary applies equally to Blank and generated creation, regeneration, version-2 open, version-1 import, save, runtime export, and canvas rendering. Increase tile size or reduce world dimensions when the grid exceeds it.
 
 ## Choose a blank or generated start
 
@@ -48,7 +50,7 @@ For East, West, North, or South Coast, choose **Coast character** independently 
 
 The generator measures every level in kilometres. At the compact `700 km` reference, the protected-root regional peninsula guarantees a readable gulf/cape form. Between `1,400 km` and `4,200 km`, Smooth/Natural/Rugged fade that authored skeleton out while a slower continental shelf field, stronger two-dimensional nearshore field, distributed macro landmarks, and longer island groups fade in. A `10,000 × 10,000 km` world with `20 km` tiles is therefore a complete `500 × 500 = 250,000`-tile map with broad shelf advance/retreat and many regional shoreline changes, not a stretched 700 km symbol or a row of identical bays. Flowing intentionally keeps its smooth regional cape. The seed also changes the land/water balance and may carry the shelf beyond a non-named boundary. Only the named Sea edge is guaranteed. Other world shapes disable this selector because their complete landmass masks already define their coasts.
 
-Remember that tile size is the visible authoring resolution. With `20 km` tiles, the smallest cove, island width, or shoreline step is one complete `20 × 20 km` campaign tile. Use a smaller tile size when you need finer coastal detail, provided the resulting exact grid remains within the `250,000`-tile generation limit.
+Remember that tile size is the visible authoring resolution. With `20 km` tiles, the smallest cove, island width, or shoreline step is one complete `20 × 20 km` campaign tile. Use a smaller tile size when you need finer coastal detail, provided the resulting exact grid remains within the shared `250,000`-tile editor limit.
 
 **Tidal inlets** remains a separate control with **None**, **Few**, **Balanced**, or **Drowned coast**. These settings are opportunity strength, not a required number of canals: the generator considers a bounded number of separated low-coast regions, uses the seed and terrain to accept suitable routes, and may produce fewer or no inlets. Accepted routes bend through low, gentle terrain and remain connected to Sea. At the current tile resolution, each carved Sea tile is a broad estuary or drowned valley—not a narrow constructed canal. Land Only disables hydrology and tidal inlets so its result remains exact. Enter a signed whole-number seed or choose **New random seed**.
 
@@ -60,7 +62,7 @@ Select **Generate preview**. Directional Coast generation first chooses its seed
 
 If the result is not satisfactory, change the seed or any other setting and choose **Regenerate preview**. The previous terrain and Season candidate remains visible for comparison but is labeled stale, and **Use this world** stays disabled until both stages finish. When satisfied, choose **Use this world**. The editor transfers that exact reviewed terrain-and-Season result to the normal campaign canvas without generating either layer again. Every occurrence can immediately be added, erased, locked, unlocked, undone, saved, and reopened like manual data. The preview is temporary dialog state, not a lock. Blank worlds still use **Create blank world** directly and begin with an empty Season Occurrence layer and no invented recipe.
 
-Generated worlds need at least `8 × 8` campaign tiles and support at most `250,000` tiles. Blank worlds are not subject to this generation limit.
+Generated worlds need at least `8 × 8` campaign tiles. Every world, including Blank, supports at most `250,000` editable tiles.
 
 ## Regenerate the current world
 
@@ -270,6 +272,10 @@ The action refuses to replace Sea/Lake, extend beyond the world, overlap an exis
 
 ## Navigate and inspect slopes
 
+- Press `Tab` until the campaign canvas receives focus. A high-contrast cursor marks the active complete tile or Paint Area.
+- Press the arrow keys to move that cursor one tile. The viewport follows automatically when the cursor reaches an edge.
+- Press `Enter` to apply the current Terrain, Resource, or Season tool once at the keyboard cursor. That complete operation is one Undo entry.
+- Press `Space` to pin and inspect the keyboard cursor tile; this is the keyboard equivalent of right-click.
 - Rotate the wheel to zoom around the pointer.
 - Hold the middle mouse button and drag to pan.
 - Press `F` or choose **Fit world** to show the full extent.
