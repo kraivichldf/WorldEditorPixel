@@ -29,4 +29,4 @@ The icon is generated into the normal framework-dependent apphost and into self-
 
 ## Source provenance
 
-The final bitmap was produced with the built-in image-generation tool on 2026-08-23, then deterministically cleaned to true alpha and packed into the multi-resolution ICO. The retained source is original project artwork with no third-party logo or text.
+The final bitmap was produced with the built-in image-generation tool on 2026-08-24, then deterministically cleaned to true alpha and packed into the multi-resolution ICO. The retained source is original project artwork with no third-party logo or text.
