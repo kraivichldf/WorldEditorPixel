@@ -144,6 +144,105 @@ public sealed class WorldCanvasKeyboardTests
         }, timeout.Token);
     }
 
+    [Fact]
+    public async Task Escape_CancelsActivePointerStrokeWithoutCommitting()
+    {
+        using var session = HeadlessUnitTestSession.StartNew(typeof(CampaignSeasonHeadlessAppBuilder));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await session.Dispatch(async () =>
+        {
+            var world = CreateWorld(5, 5);
+            var canvas = new WorldCanvas
+            {
+                Width = 500,
+                Height = 500,
+                World = world,
+                SelectedCampaignTileType = CampaignTileType.Forest,
+                StampHeight = 120,
+            };
+            var completedStrokeCount = 0;
+            canvas.StrokeCompleted += (_, _) => completedStrokeCount++;
+
+            var window = new Window
+            {
+                Width = 500,
+                Height = 500,
+                Content = canvas,
+            };
+            window.Show();
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                window.MouseDown(new Point(250, 250), MouseButton.Left, RawInputModifiers.None);
+                Dispatcher.UIThread.RunJobs();
+
+                Assert.True(canvas.HasActiveStroke);
+                Assert.Equal(
+                    new CampaignTileData(CampaignTileType.Forest, 120),
+                    world.Tiles.GetTile(2, 2));
+
+                window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+                Dispatcher.UIThread.RunJobs();
+
+                Assert.False(canvas.HasActiveStroke);
+                Assert.Equal(world.Tiles.DefaultTile, world.Tiles.GetTile(2, 2));
+                Assert.Equal(0, completedStrokeCount);
+                await Task.CompletedTask;
+                return true;
+            }
+            finally
+            {
+                window.Close();
+            }
+        }, timeout.Token);
+    }
+
+    [Fact]
+    public async Task ArrowNavigation_AutoPansToKeepKeyboardCursorVisible()
+    {
+        using var session = HeadlessUnitTestSession.StartNew(typeof(CampaignSeasonHeadlessAppBuilder));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await session.Dispatch(async () =>
+        {
+            var canvas = new WorldCanvas
+            {
+                Width = 200,
+                Height = 200,
+                World = CreateWorld(20, 20),
+            };
+            var raisedViewports = new List<WorldCanvasViewport>();
+            canvas.ViewportChanged += (_, args) => raisedViewports.Add(args.Viewport);
+
+            var window = new Window
+            {
+                Width = 200,
+                Height = 200,
+                Content = canvas,
+            };
+            window.Show();
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(canvas.Focus());
+                canvas.ApplyViewport(new WorldCanvasViewport(40, 0, 0));
+
+                window.KeyPress(Key.Right, RawInputModifiers.None, PhysicalKey.ArrowRight, null);
+                Dispatcher.UIThread.RunJobs();
+
+                Assert.Equal(new CampaignTileCoordinate(11, 10), canvas.KeyboardCoordinate);
+                var viewport = Assert.Single(raisedViewports);
+                Assert.Equal(new WorldCanvasViewport(40, 7, 6), viewport);
+                Assert.Equal(viewport, canvas.CaptureViewport());
+                await Task.CompletedTask;
+                return true;
+            }
+            finally
+            {
+                window.Close();
+            }
+        }, timeout.Token);
+    }
+
     private static CampaignWorld CreateWorld(int tilesX, int tilesY) =>
         new(CampaignWorldDefinition.Create(
             worldWidthMeters: tilesX * 1_000L,
