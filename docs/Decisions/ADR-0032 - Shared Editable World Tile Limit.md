@@ -1,7 +1,7 @@
 # ADR-0032: Shared Editable World Tile Limit
 
 - **Status:** Accepted
-- **Date:** 2026-08-23
+- **Date:** 2026-08-24
 - **Owners:** WorldEditorPixel
 
 ## Context

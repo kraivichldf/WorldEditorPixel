@@ -2,7 +2,7 @@
 
 ## Current automated coverage
 
-The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 571 tests across the active version-2 terrain contract, deterministic editable world generation through ADR-0025, compact runtime-package and single-file JSON export, the retained version-1 implementation, the isolated terrain-taxonomy version-3 Phase 1 domain, campaign-resource ADR-0016 through ADR-0029, implemented campaign-season ADR-0030, ADR-0031, and the 1.0.1 hardening slices ADR-0032 and ADR-0033. The version-2 and legacy tests cover:
+The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 573 tests across the active version-2 terrain contract, deterministic editable world generation through ADR-0025, compact runtime-package and single-file JSON export, the retained version-1 implementation, the isolated terrain-taxonomy version-3 Phase 1 domain, campaign-resource ADR-0016 through ADR-0029, implemented campaign-season ADR-0030, ADR-0031, and the 1.0.1 hardening slices ADR-0032 and ADR-0033. The version-2 and legacy tests cover:
 
 - exact `700 / 5 = 140` axis counts and `19,600` total campaign tiles;
 - rejection of partial campaign cells and invalid height definitions;
@@ -113,7 +113,7 @@ The campaign Season Occurrence native/performance tests cover:
 - New World Terrain/Seasons preview switching, retained stale Candidate behavior, and Generate/Use default-action changes;
 - Season Current/Candidate narrow switching, accessibility naming, Enter activation, Tab traversal, and exact Use enablement;
 - changed-lattice locked-drop review with a readable narrow recovery path;
-- keyboard canvas focus/help metadata, arrow-tile navigation, one-command Terrain/Resource/Season `Enter` stamping, `Space` pin/inspect, and maximum-grid fit/render on the exact shared editable limit;
+- keyboard canvas focus/help metadata, arrow-tile navigation with viewport following, one-command Terrain/Resource/Season `Enter` stamping, `Space` pin/inspect, `Escape` rollback of an active pointer stroke, and maximum-grid fit/render on the exact shared editable limit;
 - cross-test rendering safety through immutable shared `WorldCanvas` brushes/pens;
 - the exact `500 x 500 = 250,000` tile grid with all `256` definitions enabled, independent evaluation, sparse output, and bounded work without a retained tile-by-definition matrix.
 
@@ -135,16 +135,16 @@ Run:
 dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 ```
 
-## WorldEditorPixel 1.0.1 P1 hardening verification on 2026-08-23
+## WorldEditorPixel 1.0.1 P1 hardening verification on 2026-08-24
 
 - `CampaignWorldDefinition.EnsureValid` now enforces one authoritative `250,000`-tile product limit across Blank creation, procedural generation, regeneration, project open/import, save, render, and runtime export.
 - `CampaignWorldProjectSerializer.LoadAsync` rejects oversized version-2 manifests before sidecars load, and version-1 import now preflights the legacy manifest through `WorldProjectSerializer.LoadDefinitionAsync` before any chunk payload is read.
 - `NewWorldDialog` disables **Generate** and **Create world** for oversized exact grids regardless of preset, and the preview reports the shared editor limit rather than implying Blank bypasses it.
 - `WorldCanvas` is now keyboard-operable as one bounded focus target: automation name/help text, arrow-tile cursor movement with viewport following, one-command Terrain/Resource/Season `Enter` stamping, `Space` pin/inspect, and maximum-grid render coverage without control-per-tile fanout.
-- Release verification passed `571/571`; `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors; `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+- Release verification passed `573/573`; `dotnet build WorldEditorPixel.sln -c Release --no-restore` completed with zero warnings and zero errors; `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
 - The 1.0.1 publish contract is one self-contained `win-x64` executable plus `SHA256SUMS.txt`; the launcher now targets `artifacts/publish/1.0.1/WorldEditorPixel.exe`.
 
-## WorldEditorPixel 1.0 release preparation on 2026-08-23
+## WorldEditorPixel 1.0 release preparation on 2026-08-24
 
 - Set the desktop assembly, Product, and Title identity to `WorldEditorPixel`; File Version and Assembly Version are `1.0.0.0`, while Product Version retains `1.0.0` plus source-revision build metadata for traceability.
 - Renamed the framework-dependent and self-contained apphost to `WorldEditorPixel.exe`; the launcher and current user documentation target `artifacts/publish/1.0/WorldEditorPixel.exe`.
@@ -152,7 +152,7 @@ dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 - A self-contained single-file `win-x64` publish reported the expected Product/Company/version metadata, embedded associated icon, and non-zero native small/large window icon handles. A bounded hidden startup smoke reached `Untitled World — Kingdom World Editor` before only the launched process was stopped.
 - The public release contract is tag `v1.0.0`, title **WorldEditorPixel 1.0**, one versioned Windows x64 executable, and `SHA256SUMS.txt`. Exact uploaded size and digest remain release-asset metadata rather than a hard-coded build input.
 
-## Executable application icon verification on 2026-08-23
+## Executable application icon verification on 2026-08-24
 
 - Added the original transparent `1024 × 1024` WorldEditorPixel terrain-map source plus one Windows ICO containing exact `16`, `20`, `24`, `32`, `40`, `48`, `64`, `128`, and `256` pixel RGBA frames.
 - `World.Editor.csproj` embeds that ICO through `ApplicationIcon` and exposes it as an Avalonia resource; `MainWindow.axaml` uses the same resource for the native window icon.
@@ -368,7 +368,7 @@ dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 - Final static finish/accessibility review then tightened stable-ID visibility, pinned-outline priority, empty occurrence state, footer fit, and selected-warning contrast; focused re-review returned clean. A separate correctness review found and verified the fix for in-flight stroke lifecycle: capture/focus loss now rolls live edits back, and document/history commands cancel the stroke and require a deliberate retry before save/export/replacement.
 - Automated coordinator coverage verifies terrain/resource save/reopen and runtime version-2 export. The native pass did not write a user project folder.
 - The self-contained Resources-enabled executable was published at `artifacts/publish/manual-resources/World.Editor.exe`; `Launch Tile Editor.cmd` targets it. A bounded hidden Windows startup smoke produced a real main-window handle before only PID `39900`, launched by that check, was stopped.
-- Known product accessibility boundary remains keyboard traversal/pinning/stamping on the custom canvas; standard rail/menu controls retain native keyboard semantics. This was already outside the mouse-led map-stamping milestone and remains explicit rather than silently claimed.
+- At this checkpoint, keyboard traversal/pinning/stamping on the custom canvas remained a known accessibility boundary; standard rail/menu controls retained native keyboard semantics. WorldEditorPixel 1.0.1 later closes that canvas boundary under ADR-0033.
 
 ## Campaign-resource persistence/export foundation verification on 2026-08-15
 

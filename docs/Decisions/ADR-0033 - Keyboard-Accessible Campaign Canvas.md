@@ -1,7 +1,7 @@
 # ADR-0033: Keyboard-Accessible Campaign Canvas
 
 - **Status:** Accepted
-- **Date:** 2026-08-23
+- **Date:** 2026-08-24
 - **Owners:** WorldEditorPixel
 
 ## Context
@@ -29,7 +29,7 @@ One `Enter` press is one completed command. Keyboard input does not emulate a he
 - Existing pointer click/drag, right-click pin, middle-drag pan, wheel zoom, `F` fit, and `Escape` cancellation remain intact.
 - The keyboard cursor also drives the existing hover/inspector projection, so coordinate and tile facts use the same source as pointer hover.
 - Freeform pan and pointer-centred zoom remain pointer interactions; arrow navigation automatically follows its tile, and `F` remains the keyboard route to a whole-world view.
-- Headless native tests cover keyboard movement, all three active-layer stamp routes, pinning, automation help, and maximum-grid fit/render.
+- Headless native tests cover keyboard movement and viewport following, all three active-layer stamp routes, pinning, automation help, `Escape` rollback, and maximum-grid fit/render.
 
 ## Rejected alternatives
 
