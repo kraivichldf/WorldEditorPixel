@@ -225,6 +225,7 @@ public sealed class WorldCanvasKeyboardTests
                 Dispatcher.UIThread.RunJobs();
                 Assert.True(canvas.Focus());
                 canvas.ApplyViewport(new WorldCanvasViewport(40, 0, 0));
+                raisedViewports.Clear();
 
                 window.KeyPress(Key.Right, RawInputModifiers.None, PhysicalKey.ArrowRight, null);
                 Dispatcher.UIThread.RunJobs();
