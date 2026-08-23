@@ -2,6 +2,10 @@
 
 WorldEditorPixel contains **Kingdom World Editor**, a standalone Windows app for building large campaign worlds from exact square tiles.
 
+## Download version 1.0
+
+Download the self-contained Windows x64 executable and checksum from [WorldEditorPixel 1.0](https://github.com/kraivichldf/WorldEditorPixel/releases/tag/v1.0.0). It runs on Windows 10 or 11 without a separately installed .NET runtime. Windows may show a SmartScreen warning because this first public build is not code-signed.
+
 Each tile can store:
 
 - one terrain type and one whole-metre centre height;
@@ -208,7 +212,7 @@ dotnet publish src/World.Editor/World.Editor.csproj `
   --self-contained true `
   --no-restore `
   -p:PublishSingleFile=true `
-  -o artifacts/publish/season-occurrences
+  -o artifacts/publish/1.0
 ```
 
 Then run:
@@ -217,7 +221,9 @@ Then run:
 Launch Tile Editor.cmd
 ```
 
-The launcher targets `artifacts/publish/season-occurrences/World.Editor.exe`.
+The launcher targets `artifacts/publish/1.0/WorldEditorPixel.exe`.
+
+The project embeds a multi-resolution terrain-map icon in the executable and uses the same mark for the main window. The transparent source, shipping `.ico`, frame sizes, and verification method are documented in [Application Icon](docs/Reference/Application%20Icon.md).
 
 ## Architecture
 

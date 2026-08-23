@@ -134,6 +134,21 @@ Run:
 dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 ```
 
+## WorldEditorPixel 1.0 release preparation on 2026-08-24
+
+- Set the desktop assembly, Product, and Title identity to `WorldEditorPixel`; File Version and Assembly Version are `1.0.0.0`, while Product Version retains `1.0.0` plus source-revision build metadata for traceability.
+- Renamed the framework-dependent and self-contained apphost to `WorldEditorPixel.exe`; the launcher and current user documentation target `artifacts/publish/1.0/WorldEditorPixel.exe`.
+- Full Release verification passed `565/565`; the solution build completed with zero warnings and zero errors, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+- A self-contained single-file `win-x64` publish reported the expected Product/Company/version metadata, embedded associated icon, and non-zero native small/large window icon handles. A bounded hidden startup smoke reached `Untitled World — Kingdom World Editor` before only the launched process was stopped.
+- The public release contract is tag `v1.0.0`, title **WorldEditorPixel 1.0**, one versioned Windows x64 executable, and `SHA256SUMS.txt`. Exact uploaded size and digest remain release-asset metadata rather than a hard-coded build input.
+
+## Executable application icon verification on 2026-08-24
+
+- Added the original transparent `1024 × 1024` WorldEditorPixel terrain-map source plus one Windows ICO containing exact `16`, `20`, `24`, `32`, `40`, `48`, `64`, `128`, and `256` pixel RGBA frames.
+- `World.Editor.csproj` embeds that ICO through `ApplicationIcon` and exposes it as an Avalonia resource; `MainWindow.axaml` uses the same resource for the native window icon.
+- Release build completed with zero warnings and zero errors, full verification passed `565/565`, and `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly.
+- Republished the launcher target at `artifacts/publish/season-occurrences/World.Editor.exe`. Extracting its associated icon returned the intended `32 × 32` terrain mark, and the running main window returned non-zero small and large `WM_GETICON` handles. The `103,329,677`-byte executable has SHA-256 `E1365DB004E3C732B3A21D151639FE151ECA4F946607C60418AF19B4D6EF5298` and reached a native main-window handle during a bounded hidden startup smoke before only PID `2124`, launched by that check, was stopped.
+
 ## Single-file JSON runtime export verification on 2026-08-22
 
 - Added **File → Export JSON Data…**, toolbar **JSON**, and `Ctrl+Shift+E` without changing the existing `.kworld` path or editable project identity.

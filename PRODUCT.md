@@ -20,6 +20,8 @@ The confirmed workflow is for a strategy/FPS game developer or world designer au
 
 Create, optionally generate, inspect, stamp, save, and reopen deterministic campaign tiles. Each tile owns one base terrain type, an optional safe custom-land identity, one centre height, zero or more orthogonal resource occurrences, and zero or more Season Occurrences keyed by stable Season ID; every resource or Season Occurrence carries its own authoring lock. Adjacent centre heights automatically form a continuous surface. Generated terrain, Resources, and Seasons become the same editable authority as manual stamps after explicit preview acceptance. The editor succeeds when terrain identity, centre height, resource potential/lock authority, the complete Tile Season Set, and the interpolation contract survive a save/load roundtrip unchanged.
 
+The first stable public desktop release is **WorldEditorPixel 1.0** (`v1.0.0`), distributed as one self-contained Windows x64 executable plus a SHA-256 checksum.
+
 ## Positioning
 
 The campaign tile is the only authoring resolution. This removes the mismatch where a visible campaign cell was only an overlay on an unrelated sample brush. A designer chooses exactly what one tile is and how high its centre is; the system owns the slope between neighbouring centres. A bounded paint-area setting can batch that same atomic decision across a square of complete tiles without introducing sub-tile authority.
@@ -52,6 +54,7 @@ Users work in long desktop sessions with a central world canvas, persistent stam
 - The Seasons view preserves terrain context while compositing every occurrence color on a tile. Exact identity labels, per-occurrence lock markers, and optional boundary blending are presentation-only; Season strokes share the same ordered terrain/resource history.
 - A continuous drag is one delta command containing both fields; full-world snapshots are prohibited.
 - The canvas uses deterministic material texture plus derived height shading and offers a texture-free height-only view. Stored tile-centre elevations can be shown as outlined whole-metre numbers in a separate view-only overlay; users may hide them, and the renderer suppresses them automatically until individual tiles are large enough to read.
+- The executable and main window use one original multi-resolution pixel-art terrain-map icon whose coast, mountain, river, and tile grid remain legible at Windows taskbar size and match the Windows 98 shell.
 - Sparse storage omits tiles that equal `Unassigned` at the configured default height.
 - Version-1 sample/chunk projects can be imported, but the converted result must be saved to a new folder.
 - Save/reopen uses one editor-level staged coordinator for terrain, optional sparse Resource sidecars, and canonical Season catalog/generation plus sparse occurrence sidecars. A project is marked clean only after the combined candidate reload, all-authority revision checks, and managed-file commit succeed.

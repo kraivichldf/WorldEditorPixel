@@ -11,6 +11,8 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 - [[Reference/Campaign Tile Taxonomy v3|Campaign Tile Taxonomy v3 and Phase 1 status]]
 - [[Reference/Campaign Resource Layer Plan|Campaign resource layer plan and Phase 1 status]]
 - [[Reference/Campaign Season Occurrence Layer Plan|Campaign Season Occurrence Layer accepted implementation plan]]
+- [[Reference/Application Icon|Application icon source, build integration, and verification]]
+- [[Releases/1.0|WorldEditorPixel 1.0 release notes]]
 - [[Decisions/ADR-0004 - Tile-Authoritative Campaign Surface|ADR-0004: Tile-authoritative campaign surface]]
 - [[Decisions/ADR-0005 - Water and River Tile Topology|ADR-0005: Water and river tile topology]]
 - [[Decisions/ADR-0006 - Procedural Materials and Directional Coasts|ADR-0006: Procedural materials and directional coasts]]

@@ -8,7 +8,7 @@ To run the current branch, build and start the Avalonia editor from the project 
 dotnet run --project src/World.Editor/World.Editor.csproj -c Release
 ```
 
-For the verified self-contained Windows build, double-click `Launch Tile Editor.cmd`. It targets `artifacts\publish\season-occurrences\World.Editor.exe`; the executable does not require a separately installed .NET runtime. Use the source command above while developing.
+For the verified self-contained Windows build, double-click `Launch Tile Editor.cmd`. It targets `artifacts\publish\1.0\WorldEditorPixel.exe`; the executable does not require a separately installed .NET runtime. Use the source command above while developing.
 
 ## Create an exact campaign grid
 
@@ -22,7 +22,7 @@ Tile:  5 × 5 km
 Grid:  140 × 140 = 19,600 tiles
 ```
 
-Every untouched terrain tile begins as Unassigned at the default centre height. In **Tile seasons**, choose the complete blank-world default; it starts as unlocked Spring but may be any available built-in or custom Season Definition.
+Every untouched terrain tile begins as Unassigned at the default centre height. A Blank world starts with an empty Season Occurrence layer; add any built-in or custom Season IDs after creation or generate them through the preview-first Seasons workflow.
 
 ## Choose a blank or generated start
 
