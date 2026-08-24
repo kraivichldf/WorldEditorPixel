@@ -14,8 +14,11 @@ Keyboard editing must preserve the existing product rules: one complete campaign
 
 `WorldCanvas` is a Tab stop with an automation name/help description and a persistent high-contrast keyboard cursor.
 
+- `F6` or **View → Focus map** transfers focus directly from the editor shell.
 - Arrow keys move the cursor by one cardinal campaign tile.
+- `Shift+Arrow` moves ten tiles; `Ctrl+Arrow` and Page Up/Down move by the visible viewport; Home/End reaches the current row's world edges. Every jump clips safely at the definition boundary.
 - When the cursor would leave the current viewport, the viewport follows just enough to keep the complete target tile visible.
+- `+` / `-` zooms around the keyboard cursor. `F` returns to whole-world fit.
 - `Enter` applies the active Terrain, Resource, or Season tool at the cursor through the same stroke builders, validation, area clipping, topology rules, completion events, and Undo/Redo history used by pointer input.
 - `Space` pins the cursor tile and raises the same inspection selection as right-click.
 - Changing worlds clears the keyboard cursor; focusing a world initializes it from the pinned/hovered tile when available, otherwise from the grid centre.
@@ -28,8 +31,8 @@ One `Enter` press is one completed command. Keyboard input does not emulate a he
 - Terrain, Resource, and Season authoring plus tile inspection are available without a pointing device.
 - Existing pointer click/drag, right-click pin, middle-drag pan, wheel zoom, `F` fit, and `Escape` cancellation remain intact.
 - The keyboard cursor also drives the existing hover/inspector projection, so coordinate and tile facts use the same source as pointer hover.
-- Freeform pan and pointer-centred zoom remain pointer interactions; arrow navigation automatically follows its tile, and `F` remains the keyboard route to a whole-world view.
-- Headless native tests cover keyboard movement and viewport following, all three active-layer stamp routes, pinning, automation help, `Escape` rollback, and maximum-grid fit/render.
+- Freeform pan and pointer-centred zoom remain pointer interactions, while cursor navigation/following and cursor-centred zoom provide the complete keyboard viewport route.
+- Headless native tests cover step/page/edge movement, viewport following, cursor-centred zoom and clamping, all three active-layer stamp routes, pinning, automation help, `Escape` rollback, and maximum-grid fit/render.
 
 ## Rejected alternatives
 

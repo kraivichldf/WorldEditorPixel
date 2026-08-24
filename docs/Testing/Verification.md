@@ -2,7 +2,7 @@
 
 ## Current automated coverage
 
-The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 573 tests across the active version-2 terrain contract, deterministic editable world generation through ADR-0025, compact runtime-package and single-file JSON export, the retained version-1 implementation, the isolated terrain-taxonomy version-3 Phase 1 domain, campaign-resource ADR-0016 through ADR-0029, implemented campaign-season ADR-0030, ADR-0031, and the 1.0.1 hardening slices ADR-0032 and ADR-0033. The version-2 and legacy tests cover:
+The current `dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore` run executes 579 tests across the active version-2 terrain contract, deterministic editable world generation through ADR-0025, compact runtime-package and single-file JSON export, the retained version-1 implementation, the isolated terrain-taxonomy version-3 Phase 1 domain, campaign-resource ADR-0016 through ADR-0029, implemented campaign-season ADR-0030, ADR-0031, the P1 hardening slices ADR-0032 and ADR-0033, and render-first generation preparation ADR-0034. The version-2 and legacy tests cover:
 
 - exact `700 / 5 = 140` axis counts and `19,600` total campaign tiles;
 - rejection of partial campaign cells and invalid height definitions;
@@ -113,7 +113,7 @@ The campaign Season Occurrence native/performance tests cover:
 - New World Terrain/Seasons preview switching, retained stale Candidate behavior, and Generate/Use default-action changes;
 - Season Current/Candidate narrow switching, accessibility naming, Enter activation, Tab traversal, and exact Use enablement;
 - changed-lattice locked-drop review with a readable narrow recovery path;
-- keyboard canvas focus/help metadata, arrow-tile navigation with viewport following, one-command Terrain/Resource/Season `Enter` stamping, `Space` pin/inspect, `Escape` rollback of an active pointer stroke, and maximum-grid fit/render on the exact shared editable limit;
+- keyboard canvas focus/help metadata, step/page/edge tile navigation with viewport following, cursor-centred zoom and limit clamping, one-command Terrain/Resource/Season `Enter` stamping after navigation/zoom, `Space` pin/inspect, `Escape` rollback of an active pointer stroke, and maximum-grid fit/render on the exact shared editable limit;
 - cross-test rendering safety through immutable shared `WorldCanvas` brushes/pens;
 - the exact `500 x 500 = 250,000` tile grid with all `256` definitions enabled, independent evaluation, sparse output, and bounded work without a retained tile-by-definition matrix.
 
@@ -134,6 +134,30 @@ Run:
 ```powershell
 dotnet test WorldEditorPixel.sln -c Release --no-build --no-restore
 ```
+
+## WorldEditorPixel 1.0.2 release preparation on 2026-08-24
+
+- The executable, Product, and launcher identity now target `1.0.2`; the public contract remains one self-contained `win-x64` executable plus `SHA256SUMS.txt`.
+- Release build completed with zero warnings and zero errors, all `579 / 579` tests passed, `dotnet format WorldEditorPixel.sln --verify-no-changes --no-restore` completed cleanly, and `git diff --check` passed.
+- The self-contained single-file candidate reported Product `WorldEditorPixel`, Company `kraivichldf`, and File Version `1.0.2.0`. A bounded hidden startup reached `Untitled World — Kingdom World Editor` with a non-zero native main-window handle before only the launched process was stopped.
+- The final upload is rebuilt from merged `main`; its exact byte size and SHA-256 remain release-asset metadata rather than a pre-merge documentation constant.
+
+## Render-first Resource and Season generation verification on 2026-08-24
+
+- Added deterministic Avalonia Headless regressions for both generation dialogs. Before the correction, the first injected terrain-query read observed `RenderTurnObserved = False`, `ProgressVisible = False`, and `GenerateEnabled = True` in both paths.
+- Resource and Season generation now enters busy state, disables Generate, arranges the indeterminate progress bar, and yields through dispatcher Background priority before owner-thread immutable capture. A queued Render-priority sentinel proves the render opportunity occurs before the first terrain read.
+- Derived-seed toggles perform no hidden capture. The seed is resolved from the same immutable source after busy presentation, retaining deterministic world/terrain-derived behavior without blocking a settings-change event.
+- Closing either modal during the render yield cancels before capture; one combined native regression verifies zero terrain reads for both dialogs. Snapshot capture receives the operation token, while deterministic generation remains worker-backed.
+- The Resource busy transition no longer invalidates both preview canvases or recomputes unchanged summaries merely to show loading state. Validation failures, including `WorldValidationException`, remain recoverable UI errors.
+- The Main Window also routes no-saved-recipe fallback seed preparation through the same render-first busy helper before opening either modal.
+- Focused Release verification passed all `3` new busy-order/cancellation tests, the existing native dialog journey, and both Resource/Season generation view-model suites (`26` focused tests total). The final Release build completed with zero warnings and zero errors; all `579 / 579` tests passed; `dotnet format --verify-no-changes`, `git diff --check`, and the Impeccable detector over the changed native UI code were clean.
+
+## Keyboard-complete large-world authoring verification on 2026-08-24
+
+- **View → Focus map** and `F6` provide a direct, discoverable route from the editor shell to the single bounded canvas focus target.
+- Arrow, ten-tile, viewport, and row-edge commands move the same authoritative keyboard coordinate, clip at world bounds, update hover/inspection, and automatically keep the destination visible.
+- `+` / `-` zooms around that active tile and clamps to the existing canvas limits; subsequent `Enter` still applies exactly one Terrain, Resource, or Season command at the retained coordinate.
+- Focused headless verification passes `7/7`. Full Release verification passes `576/576`; the solution build has zero warnings and zero errors, format verification is clean, and `git diff --check` passes.
 
 ## WorldEditorPixel 1.0.1 P1 hardening verification on 2026-08-24
 

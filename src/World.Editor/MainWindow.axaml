@@ -86,6 +86,7 @@
                   IsEnabled="{Binding IsSeasonsWorkspace}"
                   ToolTip.Tip="Display-only blending for the selected season overlay; occurrence IDs never change" />
         <Separator />
+        <MenuItem Header="Focus map" Click="FocusMap_OnClick" InputGesture="F6" IsEnabled="{Binding HasWorld}" />
         <MenuItem Header="Zoom to fit" Click="ZoomToFit_OnClick" InputGesture="F" IsEnabled="{Binding HasWorld}" />
       </MenuItem>
     </Menu>
@@ -593,7 +594,7 @@
                               ShowElevationNumbers="{Binding ShowElevationNumbers}"
                               UseGrayscale="{Binding UseGrayscale}"
                               AutomationProperties.Name="Campaign tile editing canvas"
-                              AutomationProperties.HelpText="Press Tab to focus the map. Arrow keys move the tile cursor, Enter applies the active tool, and Space pins the tile for inspection." />
+                              AutomationProperties.HelpText="Press F6 to focus the map. Arrows move one tile; Shift+Arrow moves ten; Ctrl+Arrow or Page Up and Page Down move by the viewport; Home and End move to row edges; plus and minus zoom; F fits the world; Enter applies the active tool; Space pins the tile." />
 
         <Border IsVisible="{Binding ShowEmptyState}" HorizontalAlignment="Center" VerticalAlignment="Center"
                 MaxWidth="440" Padding="18" Background="{StaticResource EditorPanelBrush}"

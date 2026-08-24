@@ -8,7 +8,7 @@ To run the current branch, build and start the Avalonia editor from the project 
 dotnet run --project src/World.Editor/World.Editor.csproj -c Release
 ```
 
-For the verified self-contained Windows build, double-click `Launch Tile Editor.cmd`. It targets `artifacts\publish\1.0.1\WorldEditorPixel.exe`; the executable does not require a separately installed .NET runtime. Use the source command above while developing.
+For the verified self-contained Windows build, double-click `Launch Tile Editor.cmd`. It targets `artifacts\publish\1.0.2\WorldEditorPixel.exe`; the executable does not require a separately installed .NET runtime. Use the source command above while developing.
 
 ## Create an exact campaign grid
 
@@ -272,11 +272,12 @@ The action refuses to replace Sea/Lake, extend beyond the world, overlap an exis
 
 ## Navigate and inspect slopes
 
-- Press `Tab` until the campaign canvas receives focus. A high-contrast cursor marks the active complete tile or Paint Area.
-- Press the arrow keys to move that cursor one tile. The viewport follows automatically when the cursor reaches an edge.
+- Press `F6`, choose **View → Focus map**, or use normal Tab traversal. A high-contrast cursor marks the active complete tile or Paint Area.
+- Press the arrow keys to move one tile, `Shift+Arrow` to move ten tiles, `Ctrl+Arrow` or `Page Up` / `Page Down` to move by one visible viewport, and `Home` / `End` to reach the first or last tile in the current row. Movement clips at world edges and the viewport follows automatically.
+- Press `+` or `-` to zoom around the active keyboard tile. Press `F` to return to the full-world view.
 - Press `Enter` to apply the current Terrain, Resource, or Season tool once at the keyboard cursor. That complete operation is one Undo entry.
 - Press `Space` to pin and inspect the keyboard cursor tile; this is the keyboard equivalent of right-click.
-- Rotate the wheel to zoom around the pointer.
+- Rotate the wheel to zoom around the pointer when using a mouse.
 - Hold the middle mouse button and drag to pan.
 - Press `F` or choose **Fit world** to show the full extent.
 - Toggle **Tile grid** without changing data.

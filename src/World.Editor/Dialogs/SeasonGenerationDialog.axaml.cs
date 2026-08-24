@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Kingdom.World.Core.Campaign;
 using Kingdom.World.Core.Campaign.Seasons;
 using Kingdom.World.Core.Models;
+using Kingdom.World.Core.Validation;
 using Kingdom.World.Editor.Controls;
 using Kingdom.World.Editor.ViewModels;
 
@@ -366,19 +367,14 @@ public sealed partial class SeasonGenerationDialog : Window
             return;
         }
 
-        CampaignSeasonGenerationSource source;
-        CampaignSeasonGenerationSettings settings;
         CampaignSeasonGenerationScope scope;
         try
         {
             scope = BuildScope();
-            source = CampaignSeasonGenerationSource.Capture(_terrainQuery, _currentMap);
-            settings = BuildSettings(source);
-            settings.EnsureValid(_currentMap.Catalog, _world.Definition);
             _validationPanel.IsVisible = false;
         }
         catch (Exception exception) when (
-            exception is ArgumentException or InvalidOperationException or OverflowException)
+            exception is ArgumentException or InvalidOperationException or OverflowException or WorldValidationException)
         {
             ShowValidation(exception.Message);
             return;
@@ -386,19 +382,28 @@ public sealed partial class SeasonGenerationDialog : Window
 
         CancelGeneration();
         var cancellation = new CancellationTokenSource();
+        var cancellationToken = cancellation.Token;
         _generationCancellation = cancellation;
         SetBusy(true);
         try
         {
+            await Avalonia.Threading.Dispatcher.Yield(DispatcherPriority.Background);
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = CampaignSeasonGenerationSource.Capture(
+                _terrainQuery,
+                _currentMap,
+                cancellationToken);
+            var settings = BuildSettings(source);
+            settings.EnsureValid(_currentMap.Catalog, _world.Definition);
             var result = await Task.Run(
                 () => CampaignSeasonGenerator.Generate(
                     source,
                     _currentMap.Catalog,
                     settings,
                     scope,
-                    cancellation.Token),
-                cancellation.Token);
-            if (_isClosed || cancellation.IsCancellationRequested)
+                    cancellationToken),
+                cancellationToken);
+            if (_isClosed || cancellationToken.IsCancellationRequested)
             {
                 return;
             }
@@ -416,7 +421,7 @@ public sealed partial class SeasonGenerationDialog : Window
             // Closing the modal cancels worker generation without changing current authority.
         }
         catch (Exception exception) when (
-            exception is ArgumentException or InvalidOperationException or OverflowException)
+            exception is ArgumentException or InvalidOperationException or OverflowException or WorldValidationException)
         {
             ShowValidation(exception.Message);
         }
@@ -452,27 +457,23 @@ public sealed partial class SeasonGenerationDialog : Window
         var derived = _seedDerivedToggle.IsChecked == true;
         _seedInput.IsEnabled = !derived;
         _randomizeSeedButton.IsEnabled = !derived;
-        if (derived)
+        if (!derived)
         {
-            _seedInput.Value = ResolveDerivedSeed();
+            _seedHelpText.Text =
+                "An explicit seed reproduces the same annual climate fields when terrain, rules, scope, and climate settings match.";
+            return;
         }
 
-        _seedHelpText.Text = derived
-            ? $"Use the reproducible terrain-derived seed. Resolved value: {ResolveDerivedSeed():N0}."
-            : "An explicit seed reproduces the same annual climate fields when terrain, rules, scope, and climate settings match.";
-    }
-
-    private int ResolveDerivedSeed()
-    {
-        if (_derivedSeedCache is { } cached)
+        if (_derivedSeedCache is { } resolved)
         {
-            return cached;
+            _seedInput.Value = resolved;
+            _seedHelpText.Text =
+                $"Use the reproducible terrain-derived seed. Resolved value: {resolved:N0}.";
+            return;
         }
 
-        var source = CampaignSeasonGenerationSource.Capture(_terrainQuery, _currentMap);
-        var derived = CampaignSeasonSeed.FromCurrentWorld(source);
-        _derivedSeedCache = derived;
-        return derived;
+        _seedHelpText.Text =
+            "The reproducible terrain-derived seed will be resolved after Generate enters its visible busy state.";
     }
 
     private void UpdateCoveragePresentation()
@@ -581,7 +582,8 @@ public sealed partial class SeasonGenerationDialog : Window
         var derived = _seedDerivedToggle.IsChecked == true;
         var seed = derived
             ? (_derivedSeedCache ??= capturedSource is null
-                ? ResolveDerivedSeed()
+                ? throw new InvalidOperationException(
+                    "Generate must capture the current world before resolving its terrain-derived Season Seed.")
                 : CampaignSeasonSeed.FromCurrentWorld(capturedSource))
             : GetInteger(_seedInput);
         if (derived)
@@ -812,7 +814,8 @@ public sealed partial class SeasonGenerationDialog : Window
         _settingsScrollViewer.IsEnabled = !isBusy;
         _generateButton.IsEnabled = !isBusy;
         _generationProgress.IsVisible = isBusy;
-        UpdatePreviewPresentation();
+        UpdatePreviewStateText();
+        UpdateButtonState();
     }
 
     private void UpdateResponsiveLayout()

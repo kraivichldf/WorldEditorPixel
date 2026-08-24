@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Kingdom.World.Core.Campaign;
 using Kingdom.World.Core.Campaign.Resources;
 using Kingdom.World.Core.Models;
+using Kingdom.World.Core.Validation;
 using Kingdom.World.Editor.Controls;
 
 namespace Kingdom.World.Editor.Dialogs;
@@ -362,19 +363,11 @@ public sealed partial class ResourceGenerationDialog : Window
             return;
         }
 
-        CampaignResourceGenerationSource source;
-        CampaignResourceGenerationSettings settings;
         CampaignResourceGenerationScope scope;
 
         try
         {
             scope = BuildScope();
-            source = CampaignResourceGenerationSource.Capture(
-                _terrainQuery,
-                _currentMap,
-                CancellationToken.None);
-            settings = BuildSettings(source);
-            settings.EnsureValid(_currentMap.Catalog);
             _validationPanel.IsVisible = false;
         }
         catch (Exception exception) when (
@@ -386,17 +379,26 @@ public sealed partial class ResourceGenerationDialog : Window
 
         CancelGeneration();
         var cancellation = new CancellationTokenSource();
+        var cancellationToken = cancellation.Token;
         _generationCancellation = cancellation;
         SetBusy(true);
 
         try
         {
+            await Avalonia.Threading.Dispatcher.Yield(DispatcherPriority.Background);
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = CampaignResourceGenerationSource.Capture(
+                _terrainQuery,
+                _currentMap,
+                cancellationToken);
+            var settings = BuildSettings(source);
+            settings.EnsureValid(_currentMap.Catalog);
             var generator = new CampaignResourceGenerator();
             var result = await Task.Run(
-                () => generator.Generate(source, _currentMap.Catalog, settings, scope, cancellation.Token),
-                cancellation.Token);
+                () => generator.Generate(source, _currentMap.Catalog, settings, scope, cancellationToken),
+                cancellationToken);
 
-            if (_isClosed || cancellation.IsCancellationRequested)
+            if (_isClosed || cancellationToken.IsCancellationRequested)
             {
                 return;
             }
@@ -414,7 +416,8 @@ public sealed partial class ResourceGenerationDialog : Window
             // Closing the dialog or explicitly canceling invalidates the in-flight candidate.
         }
         catch (Exception exception) when (
-            exception is ArgumentException or InvalidOperationException or CampaignResourceGenerationLimitException)
+            exception is ArgumentException or InvalidOperationException or WorldValidationException or
+                CampaignResourceGenerationLimitException)
         {
             ShowValidation(exception.Message);
         }
@@ -657,27 +660,23 @@ public sealed partial class ResourceGenerationDialog : Window
         var derived = _seedDerivedToggle.IsChecked == true;
         _seedInput.IsEnabled = !derived;
         _randomizeSeedButton.IsEnabled = !derived;
-        _seedHelpText.Text = derived
-            ? $"Use the reproducible seed resolved for this world. " +
-              $"Resolved value: {ResolveDerivedSeed():N0}."
-            : "Explicit seed values reproduce the same candidate when the terrain and generation settings match.";
-        if (derived)
+        if (!derived)
         {
-            _seedInput.Value = ResolveDerivedSeed();
-        }
-    }
-
-    private int ResolveDerivedSeed()
-    {
-        if (_derivedSeedCache is { } cached)
-        {
-            return cached;
+            _seedHelpText.Text =
+                "Explicit seed values reproduce the same candidate when the terrain and generation settings match.";
+            return;
         }
 
-        var source = CampaignResourceGenerationSource.Capture(_terrainQuery, _currentMap);
-        var derived = CampaignResourceSeed.FromCurrentWorld(source);
-        _derivedSeedCache = derived;
-        return derived;
+        if (_derivedSeedCache is { } resolved)
+        {
+            _seedInput.Value = resolved;
+            _seedHelpText.Text =
+                $"Use the reproducible seed resolved for this world. Resolved value: {resolved:N0}.";
+            return;
+        }
+
+        _seedHelpText.Text =
+            "The reproducible world-derived seed will be resolved after Generate enters its visible busy state.";
     }
 
     private void UpdateSelectedResourcePresentation()
@@ -899,7 +898,8 @@ public sealed partial class ResourceGenerationDialog : Window
         _settingsScrollViewer.IsEnabled = !isBusy;
         _generateButton.IsEnabled = !isBusy;
         _generationProgress.IsVisible = isBusy;
-        UpdatePreviewPresentation();
+        UpdatePreviewStateText();
+        UpdateButtonState();
     }
 
     private void MarkCandidateStale()
@@ -917,9 +917,14 @@ public sealed partial class ResourceGenerationDialog : Window
     {
         try
         {
+            var seedDerived = _seedDerivedToggle.IsChecked == true;
+            var currentSeed = seedDerived
+                ? _derivedSeedCache ?? throw new InvalidOperationException(
+                    "The world-derived seed has not been resolved for these inputs.")
+                : ResolveSeedValue();
             return candidate.Scope.Equals(BuildScope()) &&
-                candidate.Settings.ResourceSeed == ResolveSeedValue() &&
-                candidate.Settings.SeedDerivedFromWorld == (_seedDerivedToggle.IsChecked == true) &&
+                candidate.Settings.ResourceSeed == currentSeed &&
+                candidate.Settings.SeedDerivedFromWorld == seedDerived &&
                 candidate.Settings.Abundance == GetChoice(AbundanceChoices, _abundanceInput.SelectedIndex).Value &&
                 candidate.Settings.Climate == GetChoice(ClimateChoices, _climateInput.SelectedIndex).Value &&
                 candidate.Settings.Geology == GetChoice(GeologyChoices, _geologyInput.SelectedIndex).Value &&
@@ -970,7 +975,8 @@ public sealed partial class ResourceGenerationDialog : Window
         var seedDerived = _seedDerivedToggle.IsChecked == true;
         var seed = seedDerived
             ? (_derivedSeedCache ??= capturedSource is null
-                ? ResolveDerivedSeed()
+                ? throw new InvalidOperationException(
+                    "Generate must capture the current world before resolving its derived resource seed.")
                 : CampaignResourceSeed.FromCurrentWorld(capturedSource))
             : ResolveSeedValue();
         _derivedSeedCache = seedDerived ? seed : _derivedSeedCache;
@@ -984,10 +990,7 @@ public sealed partial class ResourceGenerationDialog : Window
             overrides);
     }
 
-    private int ResolveSeedValue() =>
-        _seedDerivedToggle.IsChecked == true
-            ? ResolveDerivedSeed()
-            : decimal.ToInt32(_seedInput.Value ?? 0);
+    private int ResolveSeedValue() => decimal.ToInt32(_seedInput.Value ?? 0);
 
     private string DescribeScope(CampaignResourceGenerationScope scope) => scope.Kind switch
     {

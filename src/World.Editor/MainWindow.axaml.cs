@@ -69,6 +69,13 @@ public sealed partial class MainWindow : Window
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (e.Key == Key.F6 && e.KeyModifiers == KeyModifiers.None && _viewModel.HasWorld)
+        {
+            _worldCanvas.Focus();
+            e.Handled = true;
+            return;
+        }
+
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             switch (e.Key)
@@ -150,6 +157,8 @@ public sealed partial class MainWindow : Window
     private void Redo_OnClick(object? sender, RoutedEventArgs e) => Redo();
 
     private void ZoomToFit_OnClick(object? sender, RoutedEventArgs e) => _worldCanvas.ZoomToFit();
+
+    private void FocusMap_OnClick(object? sender, RoutedEventArgs e) => _worldCanvas.Focus();
 
     private void TerrainWorkspace_OnClick(object? sender, RoutedEventArgs e)
     {
@@ -315,7 +324,8 @@ public sealed partial class MainWindow : Window
             _worldCanvas.NotifyWorldChanged();
             _worldCanvas.ZoomToFit();
         }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or WorldValidationException)
         {
             await ShowErrorAsync("World could not be regenerated", exception.Message);
         }
@@ -336,7 +346,9 @@ public sealed partial class MainWindow : Window
         CampaignResourceGenerationSettings initialSettings;
         try
         {
-            initialSettings = _viewModel.ResolveInitialResourceGenerationSettings();
+            initialSettings = await PrepareGenerationDialogAsync(
+                "Preparing resource generation…",
+                _viewModel.ResolveInitialResourceGenerationSettings);
         }
         catch (Exception exception) when (
             exception is ArgumentException or InvalidOperationException or WorldValidationException)
@@ -394,9 +406,12 @@ public sealed partial class MainWindow : Window
         CampaignSeasonGenerationSettings initialSettings;
         try
         {
-            initialSettings = _viewModel.ResolveInitialSeasonGenerationSettings();
+            initialSettings = await PrepareGenerationDialogAsync(
+                "Preparing Season generation…",
+                _viewModel.ResolveInitialSeasonGenerationSettings);
         }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or WorldValidationException)
         {
             await ShowErrorAsync("Season generation could not start", exception.Message);
             return;
@@ -412,7 +427,8 @@ public sealed partial class MainWindow : Window
                     initialSettings)
                 .ShowDialog<SeasonGenerationDialogResult?>(this);
         }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or WorldValidationException)
         {
             await ShowErrorAsync("Season generation could not start", exception.Message);
             return;
@@ -428,7 +444,8 @@ public sealed partial class MainWindow : Window
             _viewModel.AcceptSeasonGeneration(result.GenerationResult);
             _worldCanvas.NotifyWorldChanged();
         }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or WorldValidationException)
         {
             await ShowErrorAsync("Seasons could not be generated", exception.Message);
         }
@@ -968,6 +985,22 @@ public sealed partial class MainWindow : Window
             message,
             "OK",
             cancelText: string.Empty).ShowDialog<DialogChoice>(this);
+    }
+
+    private async Task<T> PrepareGenerationDialogAsync<T>(string message, Func<T> prepare)
+    {
+        var previousStatus = _viewModel.StatusMessage;
+        SetBusy(true, message);
+        try
+        {
+            await Avalonia.Threading.Dispatcher.Yield(
+                Avalonia.Threading.DispatcherPriority.Background);
+            return prepare();
+        }
+        finally
+        {
+            SetBusy(false, previousStatus);
+        }
     }
 
     private void SetBusy(bool busy, string? message = null)
