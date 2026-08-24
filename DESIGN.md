@@ -306,7 +306,7 @@ Required accessibility conventions are retained:
 - pinned/selection state shown with outline and text, not color alone,
 - clear dirty/review/invalid status signals.
 
-Known unresolved gap remains keyboard tile traversal and stamping on the custom canvas; this is product scope and is surfaced in runtime messaging and roadmap materials.
+The canvas now has a complete keyboard route: `F6` focus, step/page/edge navigation with automatic viewport following, active-tile zoom, one-command stamping, and pin/inspect. Freeform drag painting and pointer-centred pan/zoom remain optional mouse accelerators rather than access requirements.
 
 ## Do's and don'ts references
 

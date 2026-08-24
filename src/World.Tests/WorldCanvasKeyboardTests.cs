@@ -58,7 +58,7 @@ public sealed class WorldCanvasKeyboardTests
                 Assert.True(canvas.IsTabStop);
                 Assert.Equal("Campaign tile editing canvas", AutomationProperties.GetName(canvas));
                 Assert.Contains(
-                    "Arrow keys move the tile cursor",
+                    "Press F6 from the editor to focus the map",
                     AutomationProperties.GetHelpText(canvas),
                     StringComparison.OrdinalIgnoreCase);
 
@@ -242,6 +242,178 @@ public sealed class WorldCanvasKeyboardTests
                 window.Close();
             }
         }, timeout.Token);
+    }
+
+    [Fact]
+    public async Task KeyboardNavigation_CanJumpByStepPageAndEdgeWithoutMouse()
+    {
+        using var session = HeadlessUnitTestSession.StartNew(typeof(CampaignSeasonHeadlessAppBuilder));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await session.Dispatch(async () =>
+        {
+            var canvas = new WorldCanvas
+            {
+                Width = 200,
+                Height = 200,
+                World = CreateWorld(120, 120),
+            };
+
+            var window = new Window
+            {
+                Width = 220,
+                Height = 220,
+                Content = canvas,
+            };
+            window.Show();
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(canvas.Focus());
+                canvas.ApplyViewport(new WorldCanvasViewport(20, 0, 0));
+
+                window.KeyPress(Key.Right, RawInputModifiers.Shift, PhysicalKey.ArrowRight, null);
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(new CampaignTileCoordinate(70, 60), canvas.KeyboardCoordinate);
+
+                window.KeyPress(Key.PageDown, RawInputModifiers.None, PhysicalKey.PageDown, null);
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(new CampaignTileCoordinate(70, 69), canvas.KeyboardCoordinate);
+
+                window.KeyPress(Key.End, RawInputModifiers.None, PhysicalKey.End, null);
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(new CampaignTileCoordinate(119, 69), canvas.KeyboardCoordinate);
+
+                await Task.CompletedTask;
+                return true;
+            }
+            finally
+            {
+                window.Close();
+            }
+        }, timeout.Token);
+    }
+
+    [Fact]
+    public async Task KeyboardZoom_ZoomsAroundCursorAndClampsAtLimits()
+    {
+        using var session = HeadlessUnitTestSession.StartNew(typeof(CampaignSeasonHeadlessAppBuilder));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await session.Dispatch(async () =>
+        {
+            var canvas = new WorldCanvas
+            {
+                Width = 240,
+                Height = 240,
+                World = CreateWorld(30, 30),
+            };
+
+            var window = new Window
+            {
+                Width = 260,
+                Height = 260,
+                Content = canvas,
+            };
+            window.Show();
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(canvas.Focus());
+                canvas.ApplyViewport(new WorldCanvasViewport(10, 0, 0));
+
+                var beforeZoom = canvas.CaptureViewport().Zoom;
+                window.KeyPress(Key.Add, RawInputModifiers.None, PhysicalKey.NumPadAdd, null);
+                Dispatcher.UIThread.RunJobs();
+
+                var afterZoom = canvas.CaptureViewport();
+                Assert.True(afterZoom.Zoom > beforeZoom);
+                AssertKeyboardCursorVisible(canvas, afterZoom);
+
+                window.KeyPress(Key.OemMinus, RawInputModifiers.None, PhysicalKey.Minus, "-");
+                Dispatcher.UIThread.RunJobs();
+                var afterMainKeyboardMinus = canvas.CaptureViewport().Zoom;
+                Assert.True(afterMainKeyboardMinus < afterZoom.Zoom);
+
+                window.KeyPress(Key.OemPlus, RawInputModifiers.Shift, PhysicalKey.Equal, "+");
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(canvas.CaptureViewport().Zoom > afterMainKeyboardMinus);
+
+                canvas.ApplyViewport(new WorldCanvasViewport(256, 0, 0));
+                window.KeyPress(Key.Add, RawInputModifiers.None, PhysicalKey.NumPadAdd, null);
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(256, canvas.CaptureViewport().Zoom);
+
+                canvas.ApplyViewport(new WorldCanvasViewport(0.000001, 0, 0));
+                window.KeyPress(Key.Subtract, RawInputModifiers.None, PhysicalKey.NumPadSubtract, null);
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(0.000001, canvas.CaptureViewport().Zoom);
+
+                await Task.CompletedTask;
+                return true;
+            }
+            finally
+            {
+                window.Close();
+            }
+        }, timeout.Token);
+    }
+
+    [Fact]
+    public async Task KeyboardJumpAndZoom_StillPaintsAtTheActiveCoordinate()
+    {
+        using var session = HeadlessUnitTestSession.StartNew(typeof(CampaignSeasonHeadlessAppBuilder));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await session.Dispatch(async () =>
+        {
+            var world = CreateWorld(120, 120);
+            var canvas = new WorldCanvas
+            {
+                Width = 240,
+                Height = 240,
+                World = world,
+                SelectedCampaignTileType = CampaignTileType.Hills,
+                StampHeight = 180,
+            };
+
+            var window = new Window
+            {
+                Width = 260,
+                Height = 260,
+                Content = canvas,
+            };
+            window.Show();
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(canvas.Focus());
+                canvas.ApplyViewport(new WorldCanvasViewport(20, 0, 0));
+
+                window.KeyPress(Key.Right, RawInputModifiers.Control, PhysicalKey.ArrowRight, null);
+                window.KeyPress(Key.Add, RawInputModifiers.None, PhysicalKey.NumPadAdd, null);
+                window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+                Dispatcher.UIThread.RunJobs();
+
+                var coordinate = Assert.IsType<CampaignTileCoordinate>(canvas.KeyboardCoordinate);
+                Assert.Equal(
+                    new CampaignTileData(CampaignTileType.Hills, 180),
+                    world.Tiles.GetTile(coordinate.X, coordinate.Y));
+
+                await Task.CompletedTask;
+                return true;
+            }
+            finally
+            {
+                window.Close();
+            }
+        }, timeout.Token);
+    }
+
+    private static void AssertKeyboardCursorVisible(WorldCanvas canvas, WorldCanvasViewport viewport)
+    {
+        var coordinate = Assert.IsType<CampaignTileCoordinate>(canvas.KeyboardCoordinate);
+        var visibleWidth = canvas.Bounds.Width / viewport.Zoom;
+        var visibleHeight = canvas.Bounds.Height / viewport.Zoom;
+        Assert.InRange(coordinate.X + 0.5, viewport.OriginX, viewport.OriginX + visibleWidth);
+        Assert.InRange(coordinate.Y + 0.5, viewport.OriginY, viewport.OriginY + visibleHeight);
     }
 
     private static CampaignWorld CreateWorld(int tilesX, int tilesY) =>

@@ -20,7 +20,7 @@ The confirmed workflow is for a strategy/FPS game developer or world designer au
 
 Create, optionally generate, inspect, stamp, save, and reopen deterministic campaign tiles. Each tile owns one base terrain type, an optional safe custom-land identity, one centre height, zero or more orthogonal resource occurrences, and zero or more Season Occurrences keyed by stable Season ID; every resource or Season Occurrence carries its own authoring lock. Adjacent centre heights automatically form a continuous surface. Generated terrain, Resources, and Seasons become the same editable authority as manual stamps after explicit preview acceptance. The editor succeeds when terrain identity, centre height, resource potential/lock authority, the complete Tile Season Set, and the interpolation contract survive a save/load roundtrip unchanged.
 
-The current stable public desktop release is **WorldEditorPixel 1.0.1** (`v1.0.1`), distributed as one self-contained Windows x64 executable plus a SHA-256 checksum.
+The current stable public desktop release is **WorldEditorPixel 1.0.2** (`v1.0.2`), distributed as one self-contained Windows x64 executable plus a SHA-256 checksum.
 
 ## Positioning
 
@@ -28,7 +28,7 @@ The campaign tile is the only authoring resolution. This removes the mismatch wh
 
 ## Operating Context
 
-Users work in long desktop sessions with a central world canvas, persistent stamp and inspector rails, mouse-centred zoom, middle-button pan, full-cell drag editing, keyboard tile navigation/stamping/pinning, and keyboard undo/redo. Projects are local folders containing version-2 terrain plus optional Resource and complete Season sidecars.
+Users work in long desktop sessions with a central world canvas, persistent stamp and inspector rails, pointer-centred zoom, middle-button free pan, full-cell drag editing, keyboard focus/navigation/zoom/stamping/pinning, and keyboard undo/redo. Projects are local folders containing version-2 terrain plus optional Resource and complete Season sidecars.
 
 ## Capabilities and Constraints
 
@@ -52,6 +52,7 @@ Users work in long desktop sessions with a central world canvas, persistent stam
 - One tile may contain multiple different resource IDs but only one occurrence of each ID. Manual resource edits never rewrite terrain, height, River, or shore authority. The pinned inspector lists every occurrence with exact potential, lock state, hard-rule warnings, and explicit unevaluated factors; warnings never delete data.
 - The selected-resource view mutes but retains terrain, renders a fixed `1..100` heatmap, and shows exact potential numbers at readable zoom. Resource strokes, lock changes, and terrain strokes share one ordered delta history.
 - A protected Custom seasons manager owns Spring/Summer/Fall/Winter plus safe custom definitions and portable fallbacks. Each enabled definition is evaluated independently during generation, so all matching Season IDs coexist. Preview-first Season regeneration compares unchanged Current authority with an unapplied Candidate, preserves locked/out-of-scope occurrences, installs only the exact current Candidate, and retains immutable climate support/fingerprints for pinned inspection.
+- Resource and Season generation render their disabled-controls, progress, and textual busy state before owner-thread immutable capture begins. Derived-seed selection defers its full-world read to that visible operation, and the deterministic generator still runs away from the UI thread.
 - The Seasons view preserves terrain context while compositing every occurrence color on a tile. Exact identity labels, per-occurrence lock markers, and optional boundary blending are presentation-only; Season strokes share the same ordered terrain/resource history.
 - A continuous drag is one delta command containing both fields; full-world snapshots are prohibited.
 - The canvas uses deterministic material texture plus derived height shading and offers a texture-free height-only view. Stored tile-centre elevations can be shown as outlined whole-metre numbers in a separate view-only overlay; users may hide them, and the renderer suppresses them automatically until individual tiles are large enough to read.
@@ -82,6 +83,7 @@ The supplied implementation brief and the user's confirmed tile-only rework are 
 - Custom ratios govern eligible Plains/Forest/Desert/Hills/Mountain/Steppe land; shape, drainage, and steep shoreline grade keep authority over Sea, Lake, both River sizes, and Cliff. Automatic coast edges consume no separate terrain category, so custom land can reach the water and retain its identity.
 - Custom land types retain one of those six safe bases for portable data and material fallback, not allocation ownership. Their positive terrain-mix shares join the six default land ratios in one exact 100% inland pool; `0%` makes a type paint-only.
 - Terrain/resource/Season rendering scales with visible pixels and sparse occurrence data by default. Season generation support and dense runtime span indexes intentionally scale with the full logical tile grid, bounded at `250,000` tiles.
+- Full-grid Resource and Season snapshot capture remains owner-thread work, but it begins only after an Avalonia Render opportunity and uses the operation cancellation token; worker generation begins only from the completed immutable source.
 - File formats stay explicit, versioned, debuggable, and straightforward for a future engine importer.
 - Authoring save and runtime export are separate responsibilities: export never changes project identity, clears dirty state, or becomes another editable authority.
 - Legacy sources remain unchanged during conversion.
@@ -90,7 +92,7 @@ The supplied implementation brief and the user's confirmed tile-only rework are 
 
 ## Accessibility & Inclusion
 
-Use keyboard-accessible standard desktop controls, visible focus, sufficient contrast, text labels alongside terrain/resource/Season colors, high-contrast outlined elevation, resource-potential, and Season-identity labels, an outlined pinned selection, and direct validation/recovery messages. Resource and Season lock/suitability/staleness states must include text rather than depend on color. The canvas is a Tab stop with a high-contrast tile/paint-area cursor: arrows move it and automatically follow the viewport, `Enter` applies the active Terrain/Resource/Season tool as one command, and `Space` pins that tile for inspection.
+Use keyboard-accessible standard desktop controls, visible focus, sufficient contrast, text labels alongside terrain/resource/Season colors, high-contrast outlined elevation, resource-potential, and Season-identity labels, an outlined pinned selection, and direct validation/recovery messages. Resource and Season lock/suitability/staleness states must include text rather than depend on color. `F6` focuses the canvas and its high-contrast tile/paint-area cursor. Arrows move one tile, `Shift+Arrow` moves ten, `Ctrl+Arrow` or Page Up/Down moves by the viewport, Home/End reaches row edges, and `+` / `-` zooms around the active tile. `Enter` applies the active Terrain/Resource/Season tool as one command, while `Space` pins that tile for inspection.
 
 ## Accepted Next Architecture — Core Implemented, Product Integration Pending
 

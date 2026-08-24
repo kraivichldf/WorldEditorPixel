@@ -14,6 +14,7 @@ This is an Obsidian-compatible documentation section: notes use relative wikilin
 - [[Reference/Application Icon|Application icon source, build integration, and verification]]
 - [[Releases/1.0|WorldEditorPixel 1.0 release notes]]
 - [[Releases/1.0.1|WorldEditorPixel 1.0.1 release notes]]
+- [[Releases/1.0.2|WorldEditorPixel 1.0.2 release notes]]
 - [[Decisions/ADR-0004 - Tile-Authoritative Campaign Surface|ADR-0004: Tile-authoritative campaign surface]]
 - [[Decisions/ADR-0005 - Water and River Tile Topology|ADR-0005: Water and river tile topology]]
 - [[Decisions/ADR-0006 - Procedural Materials and Directional Coasts|ADR-0006: Procedural materials and directional coasts]]

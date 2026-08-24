@@ -106,6 +106,8 @@ public sealed class WorldCanvas : Control
     private const int MaximumRasterWidth = 1100;
     private const int MaximumRasterHeight = 800;
     private const int ParallelRasterPixelThreshold = 128 * 1024;
+    private const int KeyboardLargeStepTiles = 10;
+    private const double KeyboardZoomFactor = 1.35;
     private const double MinimumElevationLabelZoom = 28;
     private const double MinimumResourcePotentialLabelZoom = 28;
     private const double MinimumSeasonLabelZoom = 28;
@@ -255,7 +257,7 @@ public sealed class WorldCanvas : Control
         AutomationProperties.SetName(this, "Campaign tile editing canvas");
         AutomationProperties.SetHelpText(
             this,
-            "Arrow keys move the tile cursor. Enter applies the active tool. Space pins the current tile for inspection.");
+            "Press F6 from the editor to focus the map. Arrow keys move one tile; Shift+Arrow moves ten; Ctrl+Arrow or Page Up and Page Down move by the viewport; Home and End move to row edges; plus and minus zoom around the current tile; F fits the world; Enter applies the active tool; Space pins the tile.");
         GotFocus += (_, _) =>
         {
             if (World is { } world)
@@ -881,25 +883,71 @@ public sealed class WorldCanvas : Control
             return;
         }
 
-        if (e.KeyModifiers != KeyModifiers.None)
+        if ((e.KeyModifiers & ~(KeyModifiers.Control | KeyModifiers.Shift)) != KeyModifiers.None)
         {
             return;
         }
 
-        var handled = e.Key switch
-        {
-            Key.Left => MoveKeyboardCursor(world, -1, 0),
-            Key.Right => MoveKeyboardCursor(world, 1, 0),
-            Key.Up => MoveKeyboardCursor(world, 0, -1),
-            Key.Down => MoveKeyboardCursor(world, 0, 1),
-            Key.Enter => PaintAtKeyboardCursor(world),
-            Key.Space => PinKeyboardCursor(world),
-            _ => false,
-        };
+        var handled = TryHandleKeyboardCanvasCommand(world, e.Key, e.KeyModifiers);
         if (handled)
         {
             e.Handled = true;
         }
+    }
+
+    private bool TryHandleKeyboardCanvasCommand(
+        CampaignWorld world,
+        Key key,
+        KeyModifiers modifiers)
+    {
+        return key switch
+        {
+            Key.Left when modifiers == KeyModifiers.None =>
+                MoveKeyboardCursor(world, -1, 0),
+            Key.Right when modifiers == KeyModifiers.None =>
+                MoveKeyboardCursor(world, 1, 0),
+            Key.Up when modifiers == KeyModifiers.None =>
+                MoveKeyboardCursor(world, 0, -1),
+            Key.Down when modifiers == KeyModifiers.None =>
+                MoveKeyboardCursor(world, 0, 1),
+            Key.Left when modifiers == KeyModifiers.Shift =>
+                MoveKeyboardCursor(world, -KeyboardLargeStepTiles, 0),
+            Key.Right when modifiers == KeyModifiers.Shift =>
+                MoveKeyboardCursor(world, KeyboardLargeStepTiles, 0),
+            Key.Up when modifiers == KeyModifiers.Shift =>
+                MoveKeyboardCursor(world, 0, -KeyboardLargeStepTiles),
+            Key.Down when modifiers == KeyModifiers.Shift =>
+                MoveKeyboardCursor(world, 0, KeyboardLargeStepTiles),
+            Key.Left when modifiers == KeyModifiers.Control =>
+                MoveKeyboardCursor(world, -GetKeyboardPageStep(world).Width, 0),
+            Key.Right when modifiers == KeyModifiers.Control =>
+                MoveKeyboardCursor(world, GetKeyboardPageStep(world).Width, 0),
+            Key.Up when modifiers == KeyModifiers.Control =>
+                MoveKeyboardCursor(world, 0, -GetKeyboardPageStep(world).Height),
+            Key.Down when modifiers == KeyModifiers.Control =>
+                MoveKeyboardCursor(world, 0, GetKeyboardPageStep(world).Height),
+            Key.PageUp when modifiers == KeyModifiers.None =>
+                MoveKeyboardCursor(world, 0, -GetKeyboardPageStep(world).Height),
+            Key.PageDown when modifiers == KeyModifiers.None =>
+                MoveKeyboardCursor(world, 0, GetKeyboardPageStep(world).Height),
+            Key.Home when modifiers == KeyModifiers.None =>
+                MoveKeyboardCursorToEdge(world, horizontal: -1),
+            Key.End when modifiers == KeyModifiers.None =>
+                MoveKeyboardCursorToEdge(world, horizontal: 1),
+            Key.Add when modifiers == KeyModifiers.None =>
+                ZoomAroundKeyboardCursor(world, KeyboardZoomFactor),
+            Key.Subtract when modifiers == KeyModifiers.None =>
+                ZoomAroundKeyboardCursor(world, 1d / KeyboardZoomFactor),
+            Key.OemPlus when modifiers is KeyModifiers.None or KeyModifiers.Shift =>
+                ZoomAroundKeyboardCursor(world, KeyboardZoomFactor),
+            Key.OemMinus when modifiers == KeyModifiers.None =>
+                ZoomAroundKeyboardCursor(world, 1d / KeyboardZoomFactor),
+            Key.Enter when modifiers == KeyModifiers.None =>
+                PaintAtKeyboardCursor(world),
+            Key.Space when modifiers == KeyModifiers.None =>
+                PinKeyboardCursor(world),
+            _ => false,
+        };
     }
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
@@ -995,6 +1043,88 @@ public sealed class WorldCanvas : Control
             Math.Clamp(current.Y + deltaY, 0, world.Definition.TilesY - 1));
         SetKeyboardCoordinate(world, next, raiseHover: true);
         EnsureKeyboardCoordinateVisible(world, next);
+        InvalidateVisual();
+        return true;
+    }
+
+    private bool MoveKeyboardCursorToEdge(CampaignWorld world, int horizontal)
+    {
+        var current = EnsureKeyboardCoordinate(world, raiseHover: false);
+        var targetX = horizontal < 0 ? 0 : world.Definition.TilesX - 1;
+        return MoveKeyboardCursor(
+            world,
+            targetX - current.X,
+            0);
+    }
+
+    private (int Width, int Height) GetKeyboardPageStep(CampaignWorld world)
+    {
+        ApplyFitIfPossible();
+        if (Bounds.Width <= 0 || Bounds.Height <= 0 || _zoom <= 0)
+        {
+            return (1, 1);
+        }
+
+        var pageWidth = Math.Max(
+            1,
+            Math.Min(
+                world.Definition.TilesX - 1,
+                (int)Math.Floor(Bounds.Width / _zoom) - 1));
+        var pageHeight = Math.Max(
+            1,
+            Math.Min(
+                world.Definition.TilesY - 1,
+                (int)Math.Floor(Bounds.Height / _zoom) - 1));
+        return (pageWidth, pageHeight);
+    }
+
+    private bool ZoomAroundKeyboardCursor(CampaignWorld world, double factor)
+    {
+        ApplyFitIfPossible();
+        if (Bounds.Width <= 0 || Bounds.Height <= 0 || !double.IsFinite(factor) || factor <= 0)
+        {
+            return false;
+        }
+
+        var coordinate = EnsureKeyboardCoordinate(world, raiseHover: true);
+        var focusTileX = coordinate.X + 0.5;
+        var focusTileY = coordinate.Y + 0.5;
+        var focusScreenX = (focusTileX - _originX) * _zoom;
+        var focusScreenY = (focusTileY - _originY) * _zoom;
+        if (!double.IsFinite(focusScreenX) ||
+            !double.IsFinite(focusScreenY) ||
+            focusScreenX < 0 ||
+            focusScreenX > Bounds.Width ||
+            focusScreenY < 0 ||
+            focusScreenY > Bounds.Height)
+        {
+            focusScreenX = Bounds.Width / 2;
+            focusScreenY = Bounds.Height / 2;
+        }
+
+        var nextZoom = Math.Clamp(_zoom * factor, MinimumZoom, MaximumZoom);
+        if (Math.Abs(nextZoom - _zoom) < double.Epsilon)
+        {
+            return false;
+        }
+
+        _zoom = nextZoom;
+        _originX = focusTileX - focusScreenX / _zoom;
+        _originY = focusTileY - focusScreenY / _zoom;
+        _fitRequested = false;
+        MarkSurfaceBitmapDirty();
+        MarkResourceBitmapDirty();
+        MarkSeasonBitmapDirty();
+        RaiseZoomChanged();
+        var previousOriginX = _originX;
+        var previousOriginY = _originY;
+        EnsureKeyboardCoordinateVisible(world, coordinate);
+        if (Math.Abs(previousOriginX - _originX) < double.Epsilon &&
+            Math.Abs(previousOriginY - _originY) < double.Epsilon)
+        {
+            RaiseViewportChanged();
+        }
+
         InvalidateVisual();
         return true;
     }

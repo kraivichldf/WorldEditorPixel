@@ -41,7 +41,7 @@ This direction is treated as implementation authority for the surface contract.
 | Window, menu, toolbar | Windows-98 workbench command bands with native command cadence | Semantic Avalonia XAML + global styles |
 | Campaign stamp rail | Grouped selector + height + paint-area controls, compact guidance | Native selectors, borders, numeric fields |
 | Campaign terrain | Materials, bilinear derived surface, rivers, coast edges, grid, overlays | Existing `WorldCanvas` renderer |
-| Viewport | Deep sunken map frame, no decorative card shell | Avalonia border around `WorldCanvas` |
+| Viewport | Deep sunken map frame, no decorative card shell; direct `F6` focus plus keyboard step/page/edge navigation and active-tile zoom | Avalonia border around `WorldCanvas` |
 | Inspector | Compact grouped value panels and helper actions | Semantic Avalonia XAML |
 | Buttons and inputs | Square bevel controls and explicit disabled/active states | Reusable global styles |
 | Status bar | Segmented sunken measurement wells | Avalonia grid + borders |
@@ -72,7 +72,7 @@ This direction is treated as implementation authority for the surface contract.
 5. New world generation remains preview-first; only `Use this world` commits preview to document.
 6. Current-world regeneration uses that same gate, preserves project identity, installs the exact reviewed terrain/resource candidate, and clears history only after acceptance.
 7. Export remains a separate artifact writer (no dirty-state mutation).
-8. Accessibility and validation messaging stay visible through controls, status wells, and explicit disabled states.
+8. Accessibility and validation messaging stay visible through controls, status wells, and explicit disabled states; core canvas authoring remains available through keyboard focus, navigation, zoom, stamp, and pin commands.
 9. The map is the dominant visual priority; controls remain compact and non-encroaching.
 10. Catalog replacement must validate before mutation, protect used identity/category, preserve compatible occurrence values exactly, and disclose history clearing before Apply.
 
